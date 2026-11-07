@@ -11,6 +11,9 @@
 //!     neuralgraph-memory profile Ali
 //!     neuralgraph-memory stats
 //!     neuralgraph-memory forget mem_...
+//!     neuralgraph-memory brain export --out brain.zip   # portable archive (see [`crate::portable`])
+//!     neuralgraph-memory brain import brain.zip [--merge]
+//!     neuralgraph-memory brain verify brain.zip
 //! ```
 //!
 //! Common options: --db, --model, --base-url, --embed-model, --parallel, --user-name, --fake-llm (tests/demos).
@@ -26,7 +29,7 @@ use crate::server::{run_server, ServerOptions};
 use crate::service::{ChatMemory, ChatMemoryConfig, MessageInput, RememberOptions};
 use crate::temporal::parse_datetime_flexible;
 use clap::{Args, Parser, Subcommand};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::io::Write;
 use std::sync::Arc;
 
@@ -48,6 +51,9 @@ const ABOUT: &str = "Command line for the cross-chat memory system.
     neuralgraph-memory profile Ali
     neuralgraph-memory stats
     neuralgraph-memory forget mem_...
+    neuralgraph-memory brain export --out brain.zip   # portable archive: SQLite, JSONL, Markdown, GraphML
+    neuralgraph-memory brain import brain.zip [--merge]
+    neuralgraph-memory brain verify brain.zip
 
 Common options: --db, --model, --base-url, --embed-model, --parallel, --user-name, --fake-llm (tests/demos).
 LLM settings default to the env vars LLM_BASE_URL, LLM_MODEL, EMBED_MODEL.";
@@ -239,6 +245,104 @@ pub enum Command {
         #[command(flatten)]
         common: Common,
     },
+    /// export, import and verify portable brain archives
+    #[command(subcommand)]
+    Brain(BrainCmd),
+}
+
+/// `brain` subcommands. Archives are only ever written to the path given; nothing is uploaded.
+#[derive(Subcommand, Debug)]
+pub enum BrainCmd {
+    /// write the whole brain (or one project) to a ZIP: SQLite + JSONL + Markdown + GraphML + manifest
+    Export {
+        #[command(flatten)]
+        common: Common,
+        /// archive path (default ./neuralgraph-brain-YYYYMMDD-HHMMSS.zip)
+        #[arg(long)]
+        out: Option<String>,
+        /// another memory database to include (repeatable)
+        #[arg(long = "extra-db")]
+        extra_db: Vec<String>,
+        /// project scope: only chats whose id equals or starts with this (repeatable)
+        #[arg(long = "chat")]
+        chat: Vec<String>,
+        /// leave embedding vectors out (the importing side re-embeds)
+        #[arg(long = "no-embeddings")]
+        no_embeddings: bool,
+        #[arg(long)]
+        overwrite: bool,
+        /// export even when the privacy scan flags confidential content
+        #[arg(long = "allow-confidential")]
+        allow_confidential: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// counts and privacy findings of what an export would contain
+    Preview {
+        #[command(flatten)]
+        common: Common,
+        #[arg(long = "extra-db")]
+        extra_db: Vec<String>,
+        #[arg(long = "chat")]
+        chat: Vec<String>,
+    },
+    /// show an archive's manifest after checking every checksum
+    Inspect {
+        #[command(flatten)]
+        common: Common,
+        archive: String,
+    },
+    /// import an archive into --db: restore (empty target) or --merge (existing brain, no id collisions)
+    Import {
+        #[command(flatten)]
+        common: Common,
+        archive: String,
+        /// merge into an existing brain instead of restoring
+        #[arg(long)]
+        merge: bool,
+        /// restore over a non-empty brain (its files are moved aside as a backup, never deleted)
+        #[arg(long)]
+        replace: bool,
+        /// which store of a multi-store archive
+        #[arg(long)]
+        store: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// compare an archive with an imported --db: ids, counts, graph, provenance, retrieval
+    Verify {
+        #[command(flatten)]
+        common: Common,
+        archive: String,
+        /// the import was a merge: require containment instead of identity
+        #[arg(long)]
+        merge: bool,
+        #[arg(long)]
+        store: Option<String>,
+        /// retrieval queries to compare
+        #[arg(long, default_value_t = 50)]
+        samples: usize,
+        #[arg(long)]
+        json: bool,
+    },
+    /// MCP connection snippets for Claude Code, Gemini CLI, Codex and other agents
+    Agents {
+        #[command(flatten)]
+        common: Common,
+    },
+}
+
+impl BrainCmd {
+    pub fn common(&self) -> &Common {
+        match self {
+            BrainCmd::Export { common, .. }
+            | BrainCmd::Preview { common, .. }
+            | BrainCmd::Inspect { common, .. }
+            | BrainCmd::Import { common, .. }
+            | BrainCmd::Verify { common, .. }
+            | BrainCmd::Agents { common } => common,
+        }
+    }
 }
 
 impl Command {
@@ -256,6 +360,7 @@ impl Command {
             | Command::Forget { common, .. }
             | Command::Remember { common, .. }
             | Command::Maintain { common } => common,
+            Command::Brain(b) => b.common(),
         }
     }
 }
@@ -668,5 +773,148 @@ pub async fn run(cli: Cli) -> Result<i32> {
             cmd_remember(&common, &text, &subject, &kind, when).await
         }
         Command::Maintain { common } => cmd_maintain(&common).await,
+        Command::Brain(b) => cmd_brain(b).await,
+    }
+}
+
+fn brain_stores(db: &str, extra: &[String]) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for path in std::iter::once(db.to_string()).chain(extra.iter().cloned()) {
+        let base = crate::portable::store_name_for(&path);
+        let mut name = base.clone();
+        let mut i = 2;
+        while out.iter().any(|(n, _)| *n == name) {
+            name = format!("{base}_{i}");
+            i += 1;
+        }
+        out.push((name, path));
+    }
+    out
+}
+
+fn print_privacy(findings: &Value) {
+    for f in findings.as_array().into_iter().flatten() {
+        println_flush(&format!(
+            "  privacy: {} item(s) look like {} (e.g. {})",
+            f["count"],
+            py_str(&f["category"]),
+            f["example_ids"].as_array().into_iter().flatten().take(3).map(py_str).collect::<Vec<_>>().join(", ")
+        ));
+    }
+}
+
+fn binary_path() -> String {
+    std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_else(|_| "neuralgraph-memory".into())
+}
+
+fn print_agents(db: &str) {
+    let snip = crate::portable::agent_snippets(&binary_path(), db);
+    println_flush("Connect an agent to this brain:");
+    println_flush(&format!("  Claude Code:  {}", py_str(&snip["claude_code"])));
+    println_flush("  Gemini CLI (~/.gemini/settings.json) and generic MCP clients:");
+    for l in py_str(&snip["gemini_settings_json"]).lines() {
+        println_flush(&format!("    {l}"));
+    }
+    println_flush("  Codex (~/.codex/config.toml):");
+    for l in py_str(&snip["codex_config_toml"]).lines() {
+        println_flush(&format!("    {l}"));
+    }
+}
+
+async fn cmd_brain(cmd: BrainCmd) -> Result<i32> {
+    use crate::portable::{export_brain, import_brain, inspect, preview, verify, ExportOptions, ImportMode, ImportOptions};
+    let pretty = |v: &Value| dumps(v, &JsonFormat::pretty());
+    match cmd {
+        BrainCmd::Export { common, out, extra_db, chat, no_embeddings, overwrite, allow_confidential, json } => {
+            let stores = brain_stores(&common.db, &extra_db);
+            let pv = preview(&stores, &chat)?;
+            if pv["confidential"].as_bool() == Some(true) && !allow_confidential {
+                println_flush("WARNING: the privacy scan found content that looks confidential (credentials, keys or markers):");
+                for s in pv["stores"].as_array().into_iter().flatten() {
+                    print_privacy(&s["privacy"]);
+                }
+                println_flush("Nothing was written. Re-run with --allow-confidential to export anyway, or narrow it with --chat.");
+                return Ok(2);
+            }
+            let out = out.unwrap_or_else(|| format!("neuralgraph-brain-{}.zip", chrono::Utc::now().format("%Y%m%d-%H%M%S")));
+            let rep = export_brain(&ExportOptions {
+                stores,
+                out: std::path::PathBuf::from(&out),
+                chat_prefixes: chat,
+                include_embeddings: !no_embeddings,
+                embed_model: common.embed_model.clone(),
+                overwrite,
+            })?;
+            if json {
+                let mut m = rep.manifest.clone();
+                if let Some(o) = m.as_object_mut() {
+                    o.remove("files");
+                }
+                println_flush(&pretty(&json!({"path": rep.path.display().to_string(), "bytes": rep.bytes, "manifest": m})));
+            } else {
+                println_flush(&format!("exported {} ({} bytes, archive {})", rep.path.display(), rep.bytes, py_str(&rep.manifest["archive_id"])));
+                for s in rep.manifest["stores"].as_array().into_iter().flatten() {
+                    let c = &s["counts"];
+                    println_flush(&format!(
+                        "  {}: {} memories, {} messages, {} entities, {} relations, {} links, graph {} nodes / {} edges, embeddings {} x{} ({})",
+                        py_str(&s["name"]), c["memories"], c["messages"], c["entities"], c["relations"], c["memory_links"],
+                        s["graph"]["node_total"], s["graph"]["edge_total"], s["embeddings"]["count"], s["embeddings"]["dim"],
+                        py_str(&s["embeddings"]["model"])
+                    ));
+                }
+                print_privacy(&rep.manifest["privacy"]["findings"]);
+                println_flush("The archive stays on this computer; NeuralGraph never uploads it.");
+            }
+            Ok(0)
+        }
+        BrainCmd::Preview { common, extra_db, chat } => {
+            println_flush(&pretty(&preview(&brain_stores(&common.db, &extra_db), &chat)?));
+            Ok(0)
+        }
+        BrainCmd::Inspect { archive, .. } => {
+            println_flush(&pretty(&inspect(std::path::Path::new(&archive))?));
+            Ok(0)
+        }
+        BrainCmd::Import { common, archive, merge, replace, store, json } => {
+            let rep = import_brain(&ImportOptions {
+                archive: archive.into(),
+                db: common.db.clone(),
+                mode: if merge { ImportMode::Merge } else { ImportMode::Restore },
+                store,
+                replace,
+            })?;
+            if json {
+                let mut r = rep.clone();
+                r["agents"] = crate::portable::agent_snippets(&binary_path(), &common.db);
+                println_flush(&pretty(&r));
+            } else {
+                println_flush(&format!("imported ({}) into {}", py_str(&rep["mode"]), py_str(&rep["db"])));
+                println_flush(&format!("  {}", dumps(&rep["result"], &JsonFormat::python_default())));
+                println_flush("Restart any running NeuralGraph server or MCP agent so it reopens the database.");
+                print_agents(&common.db);
+            }
+            Ok(0)
+        }
+        BrainCmd::Verify { common, archive, merge, store, samples, json } => {
+            let rep = verify(std::path::Path::new(&archive), &common.db, store.as_deref(), !merge, samples).await?;
+            if json {
+                println_flush(&pretty(&rep));
+            } else {
+                for c in rep["checks"].as_array().into_iter().flatten() {
+                    println_flush(&format!(
+                        "  [{}] {:<22} {}",
+                        if c["ok"].as_bool() == Some(true) { "ok" } else { "FAIL" },
+                        py_str(&c["name"]),
+                        py_str(&c["detail"])
+                    ));
+                }
+                println_flush(if rep["ok"].as_bool() == Some(true) { "round trip verified" } else { "VERIFICATION FAILED" });
+            }
+            Ok(if rep["ok"].as_bool() == Some(true) { 0 } else { 1 })
+        }
+        BrainCmd::Agents { common } => {
+            print_agents(&common.db);
+            Ok(0)
+        }
     }
 }

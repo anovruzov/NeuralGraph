@@ -1,0 +1,81 @@
+{
+  "bank": 0,
+  "n": 100000,
+  "db": "/Users/novruz/NeuralGraph-current/operation-100m/work/100k/bank.db",
+  "engine": {
+    "vector_index": "exact",
+    "ivf_nprobe": 32,
+    "ivf_path": null,
+    "read_pool": false,
+    "keyword_max_df": 0.0,
+    "channels": "VK",
+    "depth": 100
+  },
+  "index_rows": 100000,
+  "queries": 2000,
+  "k": 10,
+  "cold": {
+    "definition": "fresh process, empty engine caches, OS page cache not purged",
+    "store_open_ms": 1080.0072499999999,
+    "first_query_ms_incl_index_load": 320.9045,
+    "second_query_ms": 23.803542
+  },
+  "levels": [
+    {
+      "concurrency": 1,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 33.83922575,
+      "successful_qps": 59.10300710707012,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 14.447625,
+        "p95_ms": 29.572542,
+        "p99_ms": 45.586959,
+        "max_ms": 103.65783400000001,
+        "mean_ms": 16.909377811999985
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests": 2000,
+      "ok": 2000,
+      "errors": 0,
+      "wall_s": 26.51424725,
+      "successful_qps": 75.4311439107516,
+      "latency": {
+        "n": 2000,
+        "p50_ms": 100.354917,
+        "p95_ms": 180.37716700000001,
+        "p99_ms": 222.26020799999998,
+        "max_ms": 300.75162500000005,
+        "mean_ms": 105.95930938899969
+      }
+    }
+  ],
+  "rss_bytes": {
+    "process_start": 33701888,
+    "after_index_load": 1132019712,
+    "end": 1302233088,
+    "peak": 1303232512
+  },
+  "cpu_s": 221.148286,
+  "disk_bytes": {
+    "db": 448823296,
+    "wal": 3427872,
+    "shm": 32768,
+    "total": 452283936
+  },
+  "env": {
+    "git_commit": "43937131d6665d0f5734846651a606c918f2b2a0",
+    "git_dirty_files": 4,
+    "cpu": "Apple M4",
+    "ncpu": "10",
+    "mem_bytes": "17179869184",
+    "os": "Darwin 24.6.0 arm64",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)",
+    "threads_available": 10
+  },
+  "timing_scope": "MemoryRetriever::search wall time in-process; query embedding precomputed and excluded; touch=false; with_sources=false"
+}

@@ -1,0 +1,2 @@
+concurrency 1: 59.1 qps
+concurrency 8: 75.4 qps

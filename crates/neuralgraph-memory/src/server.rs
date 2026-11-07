@@ -16,6 +16,9 @@
 //! POST /api/remember          {"text", "subject"?, "kind"?, "importance"?, "when"?}
 //! POST /api/forget            {"memory_id", "reason"?}
 //! POST /api/maintain          run one maintenance pass now
+//! GET  /api/brain/preview     what an export would contain (?chat=prefix,prefix): counts, chats, privacy findings
+//! POST /api/brain/export      {"path", "chat"?: [...], "include_embeddings"?, "allow_confidential"?}  -> manifest;
+//!                             writes a portable archive to that local path only (see [`crate::portable`])
 //! *    /mcp                   MCP Streamable HTTP transport (see [`crate::mcp`])
 //!
 //! The API is what a chat application calls after every turn ("all automatic"): POST the message, forget about
@@ -320,12 +323,14 @@ async fn route(
     };
     match path {
         "/mcp" => return st.mcp.handle(method, headers, &body).await,
-        "/" | "/healthz" | "/api/status" | "/api/search" | "/api/context" | "/api/memories" | "/api/entities" => {
+        "/" | "/healthz" | "/api/status" | "/api/search" | "/api/context" | "/api/memories" | "/api/entities"
+        | "/api/brain/preview" => {
             if !get_like {
                 return not_allowed("GET,HEAD");
             }
         }
-        "/api/messages" | "/api/messages/batch" | "/api/remember" | "/api/forget" | "/api/maintain" | "/api/answer" => {
+        "/api/messages" | "/api/messages/batch" | "/api/remember" | "/api/forget" | "/api/maintain" | "/api/answer"
+        | "/api/brain/export" => {
             if *method != Method::POST {
                 return not_allowed("POST");
             }
@@ -557,6 +562,45 @@ async fn route(
                 json_resp(&json!({"retracted": ok}), 200)
             }
             "/api/maintain" => json_resp(&cm.maintain().await?, 200),
+            "/api/brain/preview" => {
+                let chats: Vec<String> =
+                    q("chat").unwrap_or_default().split(',').filter(|x| !x.is_empty()).map(str::to_string).collect();
+                let stores = vec![(crate::portable::store_name_for(&cm.store.db_path), cm.store.db_path.clone())];
+                json_resp(&crate::portable::preview(&stores, &chats)?, 200)
+            }
+            "/api/brain/export" => {
+                let b = match body_object(&body) {
+                    Ok(b) => b,
+                    Err(r) => return Ok(*r),
+                };
+                let path = match b.get("path") {
+                    Some(Value::String(p)) if p.starts_with('/') && p.ends_with(".zip") => p.clone(),
+                    _ => return Ok(bad("'path' must be an absolute path ending in .zip", 400)),
+                };
+                let chats: Vec<String> = b
+                    .get("chat")
+                    .and_then(Value::as_array)
+                    .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                    .unwrap_or_default();
+                let stores = vec![(crate::portable::store_name_for(&cm.store.db_path), cm.store.db_path.clone())];
+                let pv = crate::portable::preview(&stores, &chats)?;
+                if pv["confidential"] == true && !b.get("allow_confidential").is_some_and(py_truthy) {
+                    return Ok(json_resp(&json!({"error": "confidential content found; confirm with allow_confidential", "preview": pv}), 409));
+                }
+                let rep = crate::portable::export_brain(&crate::portable::ExportOptions {
+                    stores,
+                    out: std::path::PathBuf::from(&path),
+                    chat_prefixes: chats,
+                    include_embeddings: b.get("include_embeddings").is_none_or(py_truthy),
+                    embed_model: Some(cm.llm().embed_model()),
+                    overwrite: b.get("overwrite").is_some_and(py_truthy),
+                })?;
+                let mut m = rep.manifest;
+                if let Some(o) = m.as_object_mut() {
+                    o.remove("files");
+                }
+                json_resp(&json!({"path": path, "bytes": rep.bytes, "manifest": m}), 200)
+            }
             "/api/answer" => {
                 let b = match body_object(&body) {
                     Ok(b) => b,

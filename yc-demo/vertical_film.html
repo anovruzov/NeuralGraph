@@ -1,0 +1,509 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mycelic Labs TraceNOC Launch Film</title>
+<style>
+:root{--bg:#09090a;--panel:#111113;--panel2:#16161a;--line:#26262b;--line2:#3a3a41;--text:#f4f4f5;--muted:#b4b4bb;--dim:#85858e;--faint:#4a4a52;--warn:#d8a54a;
+  --sans:-apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;--mono:"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1920px;background:var(--bg);overflow:hidden}
+body{font-family:var(--sans);color:var(--text);-webkit-font-smoothing:antialiased}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden}
+.scene{position:absolute;inset:0;opacity:0;visibility:hidden}
+.abs{position:absolute}
+.ap{opacity:0}
+.top{position:absolute;left:64px;right:64px;top:150px;display:flex;align-items:center;gap:18px}
+.logo{display:flex;align-items:center;gap:14px;font-weight:650;font-size:36px}
+.logo img{width:50px;height:51px;display:block}
+.prod{margin-left:auto;font-family:var(--mono);font-size:22px;letter-spacing:1px;color:var(--muted);text-align:right;line-height:1.35}
+.prod b{color:var(--text)}
+.tag{font-family:var(--mono);font-size:24px;letter-spacing:.5px;color:var(--dim)}
+.hh{font-size:84px;font-weight:700;letter-spacing:-1.5px;line-height:1.05}
+.h2{font-size:58px;font-weight:650;letter-spacing:-.8px;line-height:1.12}
+.h3{font-size:44px;font-weight:650;letter-spacing:-.5px;line-height:1.15}
+.bd{font-size:38px;line-height:1.32;color:var(--muted)}
+.cap{position:absolute;left:64px;right:64px;top:1560px;font-size:27px;line-height:1.35;color:var(--dim)}
+.panel{position:absolute;left:64px;right:64px;background:var(--panel);border:1px solid var(--line);border-radius:20px}
+.chip{display:inline-flex;font-family:var(--mono);font-size:22px;letter-spacing:.5px;padding:7px 13px;border-radius:7px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.chip.fill{background:var(--text);color:#000;border-color:var(--text);font-weight:650}
+.chip.out{border-color:var(--text);color:var(--text)}
+.chip.warn{border-color:var(--warn);color:var(--warn)}
+.bar{position:absolute;left:0;right:0;height:72px;background:#17171a;border:1px solid var(--line);border-radius:12px}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:12px;background:var(--text)}
+.row{font-size:34px;line-height:1.3;padding:20px 0;border-bottom:1px solid var(--line);display:flex;gap:22px;align-items:baseline}
+.row .n{font-family:var(--mono);font-size:26px;color:var(--dim);width:40px;flex:none}
+.row .s{font-family:var(--mono);font-size:23px;color:var(--muted);display:block;margin-top:6px}
+/* console */
+.view{position:absolute;left:0;right:0;top:0;bottom:0;opacity:0;visibility:hidden;transform-origin:50% 40%}
+.src{display:flex;align-items:center;gap:20px;padding:20px 0;border-bottom:1px solid var(--line)}
+.src .nm{font-size:31px;font-weight:600}
+.src .ds{font-family:var(--mono);font-size:22px;color:var(--muted);margin-top:6px}
+.src .st{margin-left:auto;flex:none}
+.lane{position:absolute;left:28px;right:28px;height:138px;border:1px solid var(--line);border-radius:14px;padding:16px 20px;background:var(--panel2)}
+.lane .who{display:flex;align-items:center;gap:14px}
+.lane .rn{font-size:28px;font-weight:650}
+.lane .rd{font-family:var(--mono);font-size:20px;color:var(--dim)}
+.lane .msg{font-family:var(--mono);font-size:22px;line-height:1.32;color:var(--text);margin-top:10px}
+.lane.on{border-color:var(--text)}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--faint);flex:none}
+.lane.on .dot{background:var(--text)}
+.ob{display:flex;align-items:center;gap:16px;height:54px;border-bottom:1px solid var(--line);font-size:26px}
+.ob .n{font-family:var(--mono);font-size:20px;color:var(--dim);width:32px}
+.ob .chip{margin-left:auto;font-size:19px;padding:5px 10px}
+.cand{position:absolute;left:28px;right:28px;height:150px;border:1px solid var(--line);border-radius:14px;padding:18px 22px;background:var(--panel2)}
+.cand .ct{display:flex;align-items:center;gap:16px}
+.cand .tm{font-size:38px;font-weight:700;font-family:var(--mono)}
+.cand .ck{font-family:var(--mono);font-size:21px;color:var(--muted);margin-top:12px;line-height:1.35}
+.slot{display:flex;align-items:center;gap:18px;font-size:30px;padding:16px 0;border-bottom:1px solid var(--line);color:var(--muted)}
+.slot .bx{width:40px;height:40px;border-radius:8px;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:26px;color:#000;flex:none}
+.slot.ok{color:var(--text)} .slot.ok .bx{background:var(--text);border-color:var(--text)}
+.slot .id{margin-left:auto;font-family:var(--mono);font-size:22px;color:var(--dim)}
+.rep{display:flex;align-items:center;gap:16px;padding:15px 0;border-bottom:1px solid var(--line)}
+.rep .t{font-size:27px;font-weight:600}
+.rep .p{font-family:var(--mono);font-size:19px;color:var(--dim);margin-top:4px}
+.rep .chip{margin-left:auto;font-size:19px;padding:5px 10px}
+.cell{position:absolute;width:34px;height:44px;border-radius:5px;border:1px solid var(--line)}
+.cell.el{background:var(--text);border-color:var(--text)}
+.cell.calm{border-color:var(--muted)}
+.cell.miss{outline:3px dashed var(--warn);outline-offset:2px}
+.stg{position:absolute;width:260px;text-align:center;transform:translate(-50%,-11px)}
+.stg .sc{width:22px;height:22px;border-radius:50%;border:2px solid var(--line2);margin:0 auto 10px;background:var(--bg)}
+.stg .sl{display:inline-block;font-size:25px;font-weight:600;color:var(--dim);line-height:1.2;background:var(--bg);padding:2px 10px;border-radius:6px}
+.stg.on .sc{background:var(--text);border-color:var(--text)} .stg.on .sl{color:var(--text)}
+.stg.done .sc{border-color:var(--text)} .stg.done .sl{color:var(--muted)}
+.mach{position:absolute;width:300px;height:190px;border:1px solid var(--line2);border-radius:16px;background:var(--panel);padding:16px 18px;transform:translate(-50%,-50%)}
+.mach .mt{font-size:26px;font-weight:650}
+.mach .ml{font-family:var(--mono);font-size:19px;color:var(--muted);margin-top:8px;line-height:1.45}
+.ladder{display:flex;flex-direction:column;gap:10px}
+.ld{display:flex;align-items:center;gap:16px;font-size:30px;color:var(--faint)}
+.ld .b{width:14px;height:14px;border-radius:3px;border:1px solid var(--faint)}
+.ld.on{color:var(--text)} .ld.on .b{background:var(--text);border-color:var(--text)}
+.arm{position:absolute;left:0;right:0;height:150px}
+.arm .an{font-size:28px;font-weight:600}
+.arm .tr{position:absolute;left:0;height:22px;background:#17171a;border-radius:5px}
+.arm .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:5px}
+.arm .lb{position:absolute;font-family:var(--mono);font-size:20px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- HOOK (preserved exactly) -->
+<section class="scene" data-s="0" data-e="7.5" id="v1">
+  <svg id="vt1" class="abs" width="1080" height="1920" style="left:0;top:0;opacity:0"></svg>
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Historical incident<br><b>Public records</b></div></div>
+  <div class="abs" style="left:64px;right:64px;top:300px">
+    <div class="tag ap" data-in="0.1" style="font-size:26px;letter-spacing:1px">30 August 2020 · CenturyLink / Level 3</div>
+    <div class="hh ap" data-in="0.3" style="margin-top:22px">A major internet backbone failed for nearly 5 hours.</div>
+    <div class="bd ap" data-in="1.2" style="margin-top:28px">Routing updates surged to 3 to 7× normal. The evidence was scattered.</div>
+    <div class="ap" data-in="2.6" style="margin-top:30px;font-size:42px;font-weight:650;line-height:1.22">With Mycelic Labs, small local AI agents investigate it together and verify before they answer.</div>
+  </div>
+  <div class="panel ap" data-in="0.8" style="top:960px;height:560px">
+    <div class="tag" style="position:absolute;left:32px;top:28px;font-size:22px;letter-spacing:1px">BGP updates vs. normal · UTC</div>
+    <svg id="vchurn" class="abs" style="left:0;top:60px" width="952" height="500"></svg>
+  </div>
+  <div class="cap ap" data-in="2.0" style="font-size:28px">Historical public data (RIPE RIS) used in research. Duration: ThousandEyes. CenturyLink is not a Mycelic Labs customer.</div>
+</section>
+
+<!-- TRACENOC CONSOLE (7.5–50.5): persistent chrome, views zoom into focus -->
+<section class="scene" data-s="7.5" data-e="50.5" id="con">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod"><b>TraceNOC operator</b><br>Recorded replay</div></div>
+  <div class="abs" style="left:64px;right:64px;top:240px;height:96px;border:1px solid var(--line2);border-radius:16px;background:var(--panel2);display:flex;align-items:center;padding:0 24px;gap:18px">
+    <span class="chip fill">Alert</span>
+    <div><div style="font-size:28px;font-weight:600">CenturyLink / Level 3 · routing churn</div><div class="tag" style="font-size:20px;margin-top:4px">30 Aug 2020 · first window 10:00 UTC</div></div>
+    <span class="chip out" id="incState" style="margin-left:auto">New</span>
+  </div>
+  <div class="abs" id="viewTitle" style="left:64px;right:64px;top:362px;display:flex;align-items:baseline;gap:16px">
+    <span class="h3" id="vtName" style="font-size:40px"></span><span class="tag" id="vtStep" style="margin-left:auto;font-size:22px"></span>
+  </div>
+  <div class="abs" style="left:64px;right:64px;top:430px;height:1110px">
+
+    <!-- A: open the incident -->
+    <div class="view" id="vwA">
+      <div class="panel" style="left:0;right:0;top:20px;height:640px;padding:36px 36px">
+        <div class="tag" style="font-size:22px">Historical incident · public records</div>
+        <div class="h2" style="margin-top:16px;font-size:52px">Backbone routing disruption</div>
+        <div style="margin-top:28px;display:flex;flex-direction:column;gap:22px">
+          <div><div class="tag" style="font-size:21px">Network</div><div style="font-size:32px;margin-top:4px">AS3356 · CenturyLink / Level 3</div></div>
+          <div><div class="tag" style="font-size:21px">Signal</div><div style="font-size:32px;margin-top:4px">BGP update churn above 2× at two route collectors</div></div>
+          <div><div class="tag" style="font-size:21px">Evidence available</div><div style="font-size:32px;margin-top:4px">RIPE RIS · RIPE Atlas</div></div>
+        </div>
+        <div id="openBtn" class="abs" style="left:36px;right:36px;bottom:36px;height:88px;border-radius:14px;border:1px solid var(--text);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:650">Open investigation</div>
+      </div>
+      <div class="tag" style="position:absolute;left:0;right:0;top:700px;font-size:24px;line-height:1.5">No prompt to write. The incident and an authorized objective start the investigation.</div>
+      <div id="tapRing" class="abs" style="width:90px;height:90px;border-radius:50%;border:3px solid #f4f4f5;opacity:0"></div>
+    </div>
+
+    <!-- B: evidence ingestion and indexing -->
+    <div class="view" id="vwB">
+      <div class="panel" style="left:0;right:0;top:0;height:520px;padding:16px 30px">
+        <div class="src"><div><div class="nm">RIPE RIS · collector rrc00</div><div class="ds">79 five-minute update files</div></div><span class="st chip" id="sb0">Queued</span></div>
+        <div class="src"><div><div class="nm">RIPE RIS · collector rrc01</div><div class="ds">79 five-minute update files</div></div><span class="st chip" id="sb1">Queued</span></div>
+        <div class="src"><div><div class="nm">RIPE Atlas · K-root pings</div><div class="ds">probe groups in AS209 and AS3356</div></div><span class="st chip" id="sb2">Queued</span></div>
+        <div class="src" style="border:0"><div><div class="nm">Post-incident reports</div><div class="ds">sealed · never shown to agents</div></div><span class="st chip" id="sb3">Queued</span></div>
+      </div>
+      <div class="abs" id="idxLine" style="left:0;right:0;top:545px;opacity:0;display:flex;align-items:baseline;gap:18px">
+        <span style="font-size:52px;font-weight:700">2,873</span><span style="font-size:28px;color:var(--muted)">time-stamped records indexed · 124.5M BGP updates</span>
+      </div>
+      <div class="panel" id="tlPanel" style="left:0;right:0;top:640px;height:450px;opacity:0">
+        <div class="tag" style="position:absolute;left:28px;top:22px;font-size:21px">Incident timeline · BGP updates vs. normal</div>
+        <svg id="ctl" class="abs" style="left:0;top:56px" width="952" height="390"></svg>
+      </div>
+    </div>
+
+    <!-- C: agents investigate -->
+    <div class="view" id="vwC">
+      <div class="panel" style="left:0;right:0;top:0;height:250px">
+        <div class="tag" style="position:absolute;left:24px;top:16px;font-size:20px">Topology · affected entities</div>
+        <svg id="ctopo" class="abs" style="left:0;top:40px" width="952" height="205"></svg>
+      </div>
+      <div class="abs" style="left:-28px;right:-28px;top:268px;height:470px">
+        <div class="lane" id="ln0" style="top:0"><div class="who"><span class="dot"></span><span class="rn">Scout</span><span class="rd">acquires records · proposes findings</span></div><div class="msg" id="lm0"></div></div>
+        <div class="lane" id="ln1" style="top:156px"><div class="who"><span class="dot"></span><span class="rn">Verifier</span><span class="rd">checks time · lineage · contradictions</span></div><div class="msg" id="lm1"></div></div>
+        <div class="lane" id="ln2" style="top:312px"><div class="who"><span class="dot"></span><span class="rn">Synthesizer</span><span class="rd">issues or withholds</span></div><div class="msg" id="lm2"></div></div>
+      </div>
+      <div class="panel" style="left:0;right:0;top:760px;height:350px;padding:6px 24px" id="obPanel"></div>
+    </div>
+
+    <!-- D: competing explanations -->
+    <div class="view" id="vwD">
+      <div class="tag" style="position:absolute;left:0;right:0;top:0;font-size:24px;line-height:1.45;color:var(--muted)">Question: when had the surge subsided? Each candidate window is graded against the evidence.</div>
+      <div class="abs" id="cands" style="left:-28px;right:-28px;top:90px;height:850px"></div>
+      <div class="panel" id="contra" style="left:0;right:0;top:940px;height:150px;padding:20px 26px;opacity:0;border-color:var(--warn)">
+        <div class="tag" style="font-size:21px;color:var(--warn)">Conflicting source · post-incident report</div>
+        <div style="font-size:30px;margin-top:10px">"Recovered around 14:30" is contradicted: churn still 2.8 to 4.8× at 14:30</div>
+      </div>
+    </div>
+
+    <!-- E: verification gate and diagnosis -->
+    <div class="view" id="vwE">
+      <div class="panel" id="gatePanel" style="left:0;right:0;top:0;height:390px;padding:18px 30px">
+        <div style="display:flex;align-items:center"><span class="tag" style="font-size:22px">Evidence gate · surge_recovery(15:00)</span><span class="chip" id="gateChip" style="margin-left:auto">Checking</span></div>
+        <div class="slot" id="gs0"><span class="bx">✓</span>Surge seen before<span class="id">r18e6611</span></div>
+        <div class="slot" id="gs1"><span class="bx">✓</span>Calm at both collectors<span class="id">r1850572</span></div>
+        <div class="slot" id="gs2" style="border:0"><span class="bx">✓</span>Stays calm two more windows<span class="id">r00423ee</span></div>
+      </div>
+      <div class="panel" id="repPanel" style="left:0;right:0;top:410px;height:700px;padding:14px 30px;opacity:0">
+        <div style="display:flex;align-items:center;padding:6px 0 4px"><span class="tag" style="font-size:22px">Operator report · explainable diagnosis</span></div>
+        <div class="rep"><div><div class="t">Surge began 10:00 UTC</div><div class="p">rrc00 3.2× · rrc01 6.9× · prior window calm</div></div><span class="chip fill">Supported</span></div>
+        <div class="rep"><div><div class="t">AS3356 most implicated</div><div class="p">only AS elevated at both collectors</div></div><span class="chip fill">Supported</span></div>
+        <div class="rep"><div><div class="t">AS209 end hosts lost reachability</div><div class="p">Atlas · 64% of K-root pings failing</div></div><span class="chip fill">Supported</span></div>
+        <div class="rep"><div><div class="t">Surge subsided 15:00 UTC</div><div class="p">1.97× / 1.83×, then calm · "14:30" contradicted</div></div><span class="chip fill">Supported</span></div>
+        <div class="rep"><div><div class="t">Abnormal before 10:00?</div><div class="p">no elevated record before the cutoff</div></div><span class="chip out">Withheld</span></div>
+        <div class="rep" style="border:0"><div><div class="t">Internal cause</div><div class="p">not identifiable from public data</div></div><span class="chip out">Withheld</span></div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line2);font-size:27px;font-weight:600">6 of 6 decisions correct · every finding cites record IDs</div>
+      </div>
+    </div>
+  </div>
+  <div class="cap" id="conCap" style="top:1580px"></div>
+</section>
+
+<!-- PRIOR WORK (50.5–58.5) -->
+<section class="scene" data-s="50.5" data-e="58.5" id="fj">
+  <svg id="vtfj" class="abs" width="1080" height="1920" style="left:0;top:0"></svg>
+  <div id="fjA" class="abs" style="left:64px;right:64px;top:360px;text-align:center">
+    <div class="fjl" data-in="0.3" style="font-size:58px;font-weight:650;letter-spacing:-1px;line-height:1.15">ali built fujitsu's virtuora reconciliation agent.</div>
+    <div class="fjl" data-in="0.9" style="font-size:32px;color:var(--muted);margin-top:24px;line-height:1.35">virtuora is fujitsu's platform for managing and automating telecom networks.</div>
+  </div>
+  <div id="fjB" class="abs" style="left:40px;right:40px;top:700px;text-align:center;opacity:0">
+    <div style="font-size:124px;font-weight:720;letter-spacing:-3px;line-height:1.02">48 hours<br>→ 10 minutes</div>
+    <div style="font-size:36px;color:var(--muted);margin-top:30px">network configuration reconciliation.</div>
+  </div>
+  <div id="fjC" class="abs" style="left:64px;right:64px;top:1130px;text-align:center;opacity:0">
+    <div style="font-size:40px;font-weight:600;line-height:1.3">what if we could detect, remember, and connect changes across an entire at&amp;t-scale network?</div>
+    <div style="font-size:30px;color:var(--muted);margin-top:20px;line-height:1.35">one use case for mycelic's enterprise intelligence platform.</div>
+  </div>
+  <div id="fjD" class="abs" style="left:64px;right:64px;top:1520px;text-align:center;font-size:24px;line-height:1.4;color:var(--dim);opacity:0">prior work by ali at fujitsu, not a mycelic labs result. network-wide use is a future application, not an at&amp;t deployment.</div>
+</section>
+
+<!-- ADAPTIVE HARNESS LOOP (50.5–63) -->
+<section class="scene" data-s="58.5" data-e="71" id="har">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Adaptive harness<br><b>Recorded iterations</b></div></div>
+  <div class="h2 abs ap" data-in="0.1" style="left:64px;right:64px;top:260px">Same model. Better investigation.</div>
+  <div class="abs" id="ring" style="left:0;top:420px;width:1080px;height:560px"></div>
+  <svg id="ringSvg" class="abs" width="1080" height="560" style="left:0;top:420px"></svg>
+  <div class="abs" id="ringCenter" style="left:200px;top:600px;width:680px;text-align:center"></div>
+  <div class="panel" style="top:1000px;height:470px;padding:20px 30px">
+    <div class="tag" style="font-size:21px">Recovery question · windows the strategy retrieved</div>
+    <div class="abs" style="left:30px;top:70px;font-size:26px;font-weight:600" id="gTitle1">v1 · no planner</div>
+    <div class="abs" id="g1" style="left:30px;top:110px;width:900px;height:110px"></div>
+    <div class="abs" style="left:30px;top:250px;font-size:26px;font-weight:600;opacity:0" id="gTitle2">v2 · evidence planner</div>
+    <div class="abs" id="g2" style="left:30px;top:290px;width:900px;height:110px;opacity:0"></div>
+    <div class="abs" style="left:30px;top:412px;right:30px;font-size:22px;color:var(--muted);display:flex;gap:26px"><span>■ elevated</span><span>□ calm</span><span style="color:var(--warn)">⬚ never retrieved</span></div>
+  </div>
+  <div class="cap ap" data-in="0.6" style="top:1500px">Recorded traces ctl-A-std (31 Oct) and ho-C-dev (1 Nov), Qwen3.5 9B. The revision was designed by researchers; the adaptive harness is being built to run this loop itself.</div>
+</section>
+
+<!-- ARCHITECTURE (63–77) -->
+<section class="scene" data-s="71" data-e="85" id="arc">
+  <svg id="arcSvg" class="abs" width="1080" height="1920" style="left:0;top:0"></svg>
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Under the console<br><b>Mycelic Fabric</b></div></div>
+  <div class="h2 abs ap" data-in="0.1" style="left:64px;right:64px;top:260px;font-size:52px">Raw data stays local. Verified findings move.</div>
+  <div id="machs"></div>
+  <div class="abs" style="left:64px;right:64px;top:1230px">
+    <div class="ladder">
+      <div class="ld" id="ld0"><span class="b"></span>Local models</div>
+      <div class="ld" id="ld1"><span class="b"></span>NeuralGraph memory <span class="chip" style="font-size:17px;padding:3px 8px">Implemented · open source</span></div>
+      <div class="ld" id="ld2"><span class="b"></span>Distributed coordination <span class="chip" style="font-size:17px;padding:3px 8px">Prototype</span></div>
+      <div class="ld" id="ld3"><span class="b"></span>Evidence verification on arrival</div>
+      <div class="ld" id="ld4"><span class="b"></span>Shared discoveries</div>
+    </div>
+  </div>
+  <div class="cap ap" data-in="1.0" style="top:1560px">Findings carry their provenance and are verified when they arrive, not trusted by default.</div>
+</section>
+
+<!-- RESEARCH 1: the measured result (77–89) -->
+<section class="scene" data-s="85" data-e="97" id="r1">
+  <svg id="vt6" class="abs" width="1080" height="1920" style="left:0;top:0"></svg>
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Measured · Qwen 9B<br><b>Modal evaluation</b></div></div>
+  <div class="hh abs ap" data-in="0.1" style="left:64px;right:64px;top:290px">We measured it.</div>
+  <div class="abs ap" data-in="0.3" style="left:64px;right:64px;top:400px;font-size:28px;color:var(--muted)">90 answerable incident questions · same weights</div>
+  <div class="abs" style="left:64px;right:64px;top:490px;height:420px">
+    <div class="ap" data-in="0.4" style="font-size:34px;font-weight:600">Central agent, no planner</div>
+    <div class="bar" style="top:56px"><i id="vbA" style="background:#5b5b63"></i></div>
+    <div class="ap" data-in="1.4" style="position:absolute;top:142px;font-family:var(--mono);font-size:32px">19 / 90 · 21.1%</div>
+    <div class="ap" data-in="0.8" style="position:absolute;top:220px;font-size:34px;font-weight:600">+ evidence planner</div>
+    <div class="bar" style="top:276px"><i id="vbC"></i></div>
+    <div class="ap" data-in="2.4" style="position:absolute;top:362px;font-family:var(--mono);font-size:32px">69 / 90 · 76.7%</div>
+  </div>
+  <div class="abs ap" data-in="2.9" style="left:64px;top:960px;font-size:110px;font-weight:760;letter-spacing:-2px">+55.6 pts</div>
+  <div class="abs ap" data-in="3.4" style="left:64px;right:64px;top:1100px;font-size:30px;color:var(--muted)">Correct decisions 55 → 86 of 180 · p &lt; 0.001</div>
+  <div class="panel ap" data-in="4.6" style="top:1200px;height:180px;padding:26px 32px;border-color:var(--warn)">
+    <div class="tag" style="font-size:22px;color:var(--warn)">Trade-off · correct withholds</div>
+    <div style="font-size:52px;font-weight:700;color:var(--warn);margin-top:10px">36 / 90 → 17 / 90</div>
+  </div>
+  <div class="cap ap" data-in="3.4" style="top:1420px">Benchmark questions on one historical incident, 1 Nov 2026, not production accuracy. 680 of 720 runs completed; missing runs not imputed.</div>
+</section>
+
+<!-- RESEARCH 2: four policies, the trade-off (89–100) -->
+<section class="scene" data-s="97" data-e="108" id="r2">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Paper · Table 2<br><b>Four policies</b></div></div>
+  <div class="h2 abs ap" data-in="0.1" style="left:64px;right:64px;top:260px;font-size:52px">Answering vs. withholding. Distribution vs. planning.</div>
+  <div class="abs ap" data-in="0.4" style="left:64px;right:64px;top:420px;display:flex;gap:30px;font-size:24px;color:var(--muted)"><span><span style="display:inline-block;width:22px;height:14px;background:#f4f4f5;border-radius:3px"></span> answerable correct</span><span><span style="display:inline-block;width:22px;height:14px;background:#6b6b74;border-radius:3px"></span> correct withholds</span></div>
+  <div class="abs" id="arms" style="left:64px;right:64px;top:490px;height:700px"></div>
+  <div class="panel ap" data-in="5.0" style="top:1200px;height:300px;padding:22px 30px">
+    <div class="row" style="font-size:28px;padding:12px 0"><span class="n">→</span><span>Planner vs. swarm with the same planner: 75 vs 71 correct decisions, p = 0.54: no swarm advantage</span></div>
+    <div class="row" style="font-size:28px;padding:12px 0"><span class="n">→</span><span>The swarm used ≈ 2 to 3× the tokens</span></div>
+    <div class="row" style="font-size:28px;padding:12px 0;border:0"><span class="n">→</span><span>Evidence gate accepted no incorrect issued answer, except one (original swarm)</span></div>
+  </div>
+  <div class="cap ap" data-in="1.0" style="top:1530px">Qwen3.5 9B on Modal. Completed runs: A 180, B 170, C 180, D 150 of 180.</div>
+</section>
+
+<!-- BUSINESS (107–113) -->
+<section class="scene" data-s="108" data-e="114" id="biz">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">NOC scenario</div></div>
+  <div class="h2 abs ap" data-in="0.1" style="left:64px;right:64px;top:300px">What 2 reclaimed hours a week could mean.</div>
+  <div class="abs ap" data-in="0.6" style="left:64px;right:64px;top:560px;font-family:var(--mono);font-size:38px;line-height:1.7;color:var(--muted)">100 operators<br>× 2 h / week × 52 weeks<br>= <span style="color:var(--text)">10,400 hours</span><br>× $65 / hour</div>
+  <div class="abs ap" data-in="1.4" style="left:64px;top:980px;font-size:128px;font-weight:760;letter-spacing:-3px">$676,000</div>
+  <div class="abs ap" data-in="1.8" style="left:64px;right:64px;top:1140px;font-size:38px">illustrative annual gross labor capacity</div>
+  <div class="panel ap" data-in="2.2" style="top:1260px;height:130px;padding:0 32px;display:flex;align-items:center;border-color:var(--warn);background:rgba(216,165,74,.10)">
+    <span style="font-size:36px;font-weight:650;color:var(--warn)">Scenario, not measured savings</span>
+  </div>
+</section>
+
+<!-- END (113–120) -->
+<section class="scene" data-s="114" data-e="121" id="end">
+  <svg id="vt9" class="abs" width="1080" height="1920" style="left:0;top:0"></svg>
+  <div class="abs" style="left:64px;right:64px;top:1080px;text-align:center">
+    <div class="ap" data-in="0.3" style="font-size:112px;font-weight:720;letter-spacing:-3px;line-height:1">See what<br>others miss.</div>
+    <div class="ap" data-in="1.2" style="display:flex;align-items:center;justify-content:center;gap:20px;margin-top:52px"><img src="assets/mycelic-mark.png" alt="Mycelic" style="width:70px;height:72px"><span style="font-size:48px;font-weight:650;letter-spacing:-.4px">Mycelic</span></div>
+  </div>
+</section>
+
+</div>
+<script>
+const DUR=121;
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease=x=>{x=clamp(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2};
+const ramp=(t,a,d=0.4)=>ease((t-a)/d);
+const NS='http://www.w3.org/2000/svg';
+function el(tag,at,p){const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);if(p)p.appendChild(e);return e}
+const WIN=['09:30','09:45','10:00','10:15','10:30','10:45','11:00','11:15','11:30','11:45','12:00','12:15','12:30','12:45','13:00','13:15','13:30','13:45','14:00','14:15','14:30','14:45','15:00','15:15','15:30','15:45'];
+const R0=[1.14,0.86,3.24,3.06,2.13,2.02,1.98,2.2,2.61,1.63,1.95,2.13,2.54,2.58,2.65,2.62,2.68,2.15,2.37,4.06,2.78,3.21,1.97,1.72,1.26,1.1];
+const R1=[1.01,0.99,6.93,3.15,2.79,2.59,2.51,2.77,1.88,1.76,1.74,2.04,2.12,2.21,3.67,2.25,2.47,2.24,3.12,4.68,4.85,4.3,1.83,1.39,1.35,1.32];
+function churnChart(svg,W,H,clipId,fs){const L=80,Rr=36,T=30,B=H-60;
+  const x=i=>L+i*(W-L-Rr)/(WIN.length-1),y=v=>B-(v/7.5)*(B-T);
+  [0,2,4,6].forEach(v=>{el('line',{x1:L,x2:W-Rr,y1:y(v),y2:y(v),stroke:'#222227'},svg);const t=el('text',{x:L-14,y:y(v)+8,fill:'#85858e','font-size':fs,'text-anchor':'end','font-family':'SF Mono,Menlo'},svg);t.textContent=v+'×'});
+  el('line',{x1:L,x2:W-Rr,y1:y(2),y2:y(2),stroke:'#85858e','stroke-dasharray':'5 7'},svg);
+  [0,8,16,24].forEach(i=>{const t=el('text',{x:x(i),y:B+40,fill:'#85858e','font-size':fs,'text-anchor':'middle','font-family':'SF Mono,Menlo'},svg);t.textContent=WIN[i]});
+  const clip=el('clipPath',{id:clipId},el('defs',{},svg));const cr=el('rect',{x:0,y:0,width:0,height:H},clip);
+  const g=el('g',{'clip-path':`url(#${clipId})`},svg);
+  el('path',{d:R1.map((v,i)=>(i?'L':'M')+x(i)+' '+y(v)).join(''),fill:'none',stroke:'#9a9aa2','stroke-width':4,'stroke-dasharray':'10 7'},g);
+  el('path',{d:R0.map((v,i)=>(i?'L':'M')+x(i)+' '+y(v)).join(''),fill:'none',stroke:'#f4f4f5','stroke-width':5},g);
+  return {cr,x,y,B,L,W,Rr}}
+// ---------- hook (unchanged behaviour) ----------
+const HC=churnChart(document.getElementById('vchurn'),952,500,'vc',24);
+(function(){const s=document.getElementById('vchurn');const {x,y,B}=HC;
+  const a=el('g',{opacity:0},s);window._va=a;el('line',{x1:x(2),x2:x(2),y1:y(7.3),y2:B,stroke:'#f4f4f5','stroke-width':2},a);
+  const t1=el('text',{x:x(2)+16,y:y(7.0),fill:'#f4f4f5','font-size':30,'font-weight':650},a);t1.textContent='10:00 surge';
+  const b=el('g',{opacity:0},s);window._vb=b;el('line',{x1:x(22),x2:x(22),y1:y(6.2),y2:B,stroke:'#f4f4f5','stroke-width':2},b);
+  const t2=el('text',{x:x(22)-16,y:y(6.0),fill:'#f4f4f5','font-size':30,'font-weight':650,'text-anchor':'end'},b);t2.textContent='15:00 calm';})();
+function upV1(lt){HC.cr.setAttribute('width',80+clamp((lt-0.9)/4.5)*840);_va.setAttribute('opacity',ramp(lt,1.6));_vb.setAttribute('opacity',ramp(lt,5.2))}
+
+// ---------- console ----------
+const VIEWS=[['vwA',0,6,'Open the incident','1 / 5'],['vwB',6,13,'Ingest and index the evidence','2 / 5'],['vwC',13,25.5,'Agents investigate','3 / 5'],['vwD',25.5,33,'Compare competing explanations','4 / 5'],['vwE',33,43,'Verify, then diagnose','5 / 5']];
+const CAPS=[[0,'Recorded replay of a historical incident, not a live deployment.'],[6,'Public RIPE RIS and RIPE Atlas data, reconstructed for the TraceNOC study.'],[13,'Recorded agent messages from run ho-D-dev (local Qwen3.5 9B, 1 Nov 2026). Timing compressed.'],[25.5,'Answer cards from the recorded run: the gate grades each candidate.'],[33,'Six development questions (not held out). Larger evaluation: no swarm advantage over a planned single agent.']];
+// timeline chart inside console
+const TC=churnChart(document.getElementById('ctl'),952,390,'cc',21);
+const tlMarks=[];(function(){const s=document.getElementById('ctl');[[2,'onset 10:00'],[22,'subsided 15:00']].forEach(([i,txt],k)=>{const g=el('g',{opacity:0},s);
+  el('line',{x1:TC.x(i),x2:TC.x(i),y1:24,y2:TC.B,stroke:'#f4f4f5','stroke-width':2},g);const t=el('text',{x:TC.x(i)+(k?-12:12),y:22,fill:'#f4f4f5','font-size':22,'font-weight':650,'text-anchor':k?'end':'start'},g);t.textContent=txt;tlMarks.push(g)})})();
+// topology
+const TN={rrc00:[110,52,'RIS rrc00'],rrc01:[110,152,'RIS rrc01'],as3356:[430,72,'AS3356 · Level 3'],peers:[430,162,'Other networks'],as209:[770,72,'AS209 · CenturyLink'],probes:[770,162,'Atlas probes']};
+const TEDGE=[['as3356','rrc00'],['as3356','rrc01'],['as3356','peers'],['as3356','as209'],['as209','probes'],['peers','rrc01']];
+(function(){const s=document.getElementById('ctopo');window._te=TEDGE.map(([a,b])=>[a,b,el('line',{x1:TN[a][0],y1:TN[a][1],x2:TN[b][0],y2:TN[b][1],stroke:'#3a3a41','stroke-width':2},s)]);
+  window._tn={};for(const k in TN){const [x,y,l]=TN[k];const w=k.startsWith('as')?250:180;const r=el('rect',{x:x-w/2,y:y-28,width:w,height:56,rx:9,fill:'#151518',stroke:'#3a3a41','stroke-width':2},s);
+  const t=el('text',{x,y:y+8,fill:'#f4f4f5','font-size':22,'font-weight':600,'text-anchor':'middle'},s);t.textContent=l;_tn[k]={r,t}}})();
+// recorded exchanges per question (ho-D-dev)
+const Q=[
+ {name:'Surge onset',hl:['rrc00','rrc01'],ob:1,lanes:['finding · surge_onset(10:00): surge at both collectors; preceding window calm','accept · time ok · lineage ok · contradiction none','issue surge_onset(10:00) → gate: surge ✓ corroboration ✓ preceded ✓']},
+ {name:'Implicated network',hl:['as3356'],ob:2,lanes:['finding · bgp_instability(AS3356): churn rise at both collectors; AS3356 first in top ASes','accept · time ok · lineage ok · contradiction none','issue bgp_instability(AS3356) → gate: churn ✓ breadth ✓ dominance ✓ baseline ✓']},
+ {name:'Reachability',hl:['as209','probes'],ob:3,lanes:['finding · reachability_loss(AS209): ping failures from 12:00 (rf7cacb9), worse 12:30 (rf5ccd08)','accept · time ok · lineage ok · contradiction none','issue reachability_loss(AS209) → gate: loss ✓ baseline ✓']}];
+const OBN=['Abnormal before 10:00?','When did the surge begin?','Which network is implicated?','Did end hosts lose reachability?','When did the surge subside?','What internal failure caused it?'];
+const OBFINAL=[['Withheld','out'],['Supported','fill'],['Supported','fill'],['Supported','fill'],['Supported','fill'],['Withheld','out']];
+(function(){const p=document.getElementById('obPanel');window._ob=OBN.map((n,i)=>{const d=document.createElement('div');d.className='ob';if(i===5)d.style.border='0';
+  d.innerHTML=`<span class="n">0${i+1}</span><span>${n}</span><span class="chip">Queued</span>`;p.appendChild(d);return d})})();
+// objective states over console-local time: control first (withheld early), then the three exchanges, then recovery/mechanism finish in view E
+const OB_RES=[14.2,17.4,21.4,25.2,36.8,38.2];
+// competing explanations (answer cards from the recorded run)
+const CANDS=[['15:00','Supported','fill','surge seen ✓ · calm ✓ · persistence ✓'],['12:00','Unsupported','','calm ✓ · surge seen missing · persistence missing'],['15:15','Unsupported','','calm ✓ · surge seen missing · persistence missing'],['15:30','Unsupported','','calm ✓ · surge seen missing · persistence missing'],['11:00','Disputed','warn','calm disputed by r8804627 (rrc01 still 2.5×)']];
+(function(){const c=document.getElementById('cands');window._cd=CANDS.map((k,i)=>{const d=document.createElement('div');d.className='cand';d.style.top=(i*166)+'px';
+  d.innerHTML=`<div class="ct"><span class="tm">${k[0]}</span><span class="tag" style="font-size:20px">candidate recovery window</span><span class="chip" style="margin-left:auto">Grading</span></div><div class="ck">${k[3]}</div>`;c.appendChild(d);return d})})();
+// tap ring position: centre of the button
+function upCon(lt){
+  // view switching with zoom-into-focus
+  let cur=null;
+  VIEWS.forEach(([id,a,b,name,step])=>{const v=document.getElementById(id);const vin=ramp(lt,a,0.5),vout=1-ramp(lt,b-0.35,0.45);const o=Math.min(vin,vout);
+    v.style.opacity=o;v.style.visibility=o>0.001?'visible':'hidden';v.style.transform=`scale(${1.035-0.035*vin}) translateY(${(1-vin)*24}px)`;
+    if(lt>=a&&lt<b){cur=[name,step]}});
+  if(cur){document.getElementById('vtName').textContent=cur[0];document.getElementById('vtStep').textContent=cur[1]}
+  let cap='';CAPS.forEach(([a,c])=>{if(lt>=a)cap=c});document.getElementById('conCap').textContent=cap;
+  const inc=document.getElementById('incState');const st=lt<2.6?'New':(lt<42?'Investigating':'Diagnosed');if(inc.textContent!==st){inc.textContent=st;inc.className='chip '+(st==='Diagnosed'?'fill':'out')}
+  // A: tap
+  const btn=document.getElementById('openBtn');const r=document.getElementById('tapRing');const cl=lt-2.6;
+  btn.style.background=lt>=2.6?'#f4f4f5':'transparent';btn.style.color=lt>=2.6?'#000':'#f4f4f5';btn.textContent=lt>=2.6?'Investigation opened':'Open investigation';
+  r.style.left='431px';r.style.top='535px';r.style.opacity=cl>0&&cl<0.7?(1-cl/0.7):0;r.style.transform=`scale(${0.5+clamp(cl/0.7)})`;
+  // B: ingestion
+  [[7.0,8.0],[7.8,8.8],[8.6,9.6],[9.4,9.8]].forEach(([a,b],i)=>{const c=document.getElementById('sb'+i);let s='Queued',k='';
+    if(lt>=a){s=i===3?'Sealing':'Indexing';k='out'} if(lt>=b){s=i===3?'Sealed':'Indexed';k=i===3?'out':'fill'}
+    if(c.textContent!==s){c.textContent=s;c.className='st chip '+k}});
+  document.getElementById('idxLine').style.opacity=ramp(lt,10.0);document.getElementById('tlPanel').style.opacity=ramp(lt,10.4);
+  TC.cr.setAttribute('width',80+clamp((lt-10.6)/2.0)*840);
+  // C: lanes + topology
+  let qi=-1;for(let i=0;i<3;i++)if(lt>=13.4+i*4.0)qi=i;
+  const hl=new Set();
+  for(let k=0;k<3;k++){const ln=document.getElementById('ln'+k),lm=document.getElementById('lm'+k);
+    if(qi<0){ln.classList.remove('on');lm.textContent='';continue}
+    const t0=13.4+qi*4.0+0.3+k*1.0;const txt=lt>=t0?Q[qi].lanes[k]:(k===0?'acquiring records…':'waiting');
+    if(lm.textContent!==txt)lm.textContent=txt;ln.classList.toggle('on',lt>=t0&&lt<t0+1.0);lm.style.opacity=lt>=t0?1:0.4}
+  if(qi>=0&&lt<25.5)Q[qi].hl.forEach(h=>hl.add(h));
+  const aff=new Set();if(lt>=OB_RES[2])aff.add('as3356');if(lt>=OB_RES[3]){aff.add('as209');aff.add('probes')}
+  for(const k in _tn){const on=hl.has(k),af=aff.has(k);_tn[k].r.setAttribute('stroke',on||af?'#f4f4f5':'#3a3a41');_tn[k].r.setAttribute('stroke-width',on?4:2);
+    _tn[k].r.setAttribute('fill',af?'#f4f4f5':'#151518');_tn[k].t.setAttribute('fill',af?'#0a0a0a':'#f4f4f5')}
+  _te.forEach(([a,b,l])=>{const on=(aff.has(a)&&aff.has(b))||(hl.has(a)&&hl.has(b))||(a==='as3356'&&hl.has(b));l.setAttribute('stroke',on?'#f4f4f5':'#3a3a41');l.setAttribute('stroke-width',on?3:2)});
+  _ob.forEach((d,i)=>{const c=d.querySelector('.chip');let s='Queued',k='';const start=i===0?13.2:(i<=3?13.4+(i-1)*4.0:(i===4?26:36.9));
+    if(lt>=start){s='Investigating';k='out'} if(lt>=OB_RES[i]){s=OBFINAL[i][0];k=OBFINAL[i][1]}
+    if(c.textContent!==s){c.textContent=s;c.className='chip '+k}});
+  // D: candidates graded in sequence, then the conflict
+  _cd.forEach((d,i)=>{const c=d.querySelector('.chip');const t=26.4+i*0.9;d.style.opacity=ramp(lt,25.8+i*0.25,0.35);
+    const s=lt>=t?CANDS[i][1]:'Grading',k=lt>=t?CANDS[i][2]:'';if(c.textContent!==s){c.textContent=s;c.className='chip '+k}
+    d.style.borderColor=(i===0&&lt>=t)?'#f4f4f5':'#26262b'});
+  document.getElementById('contra').style.opacity=ramp(lt,30.8,0.5);
+  // E: gate slots, then report
+  [34.0,34.6,35.2].forEach((t,i)=>document.getElementById('gs'+i).classList.toggle('ok',lt>=t));
+  const gc=document.getElementById('gateChip');const gs=lt>=35.8?'Issued: 15:00 UTC':'Checking';if(gc.textContent!==gs){gc.textContent=gs;gc.className='chip '+(lt>=35.8?'fill':'')}
+  document.getElementById('repPanel').style.opacity=ramp(lt,37.4,0.6);
+  tlMarks[0].setAttribute('opacity',ramp(lt,11.4));tlMarks[1].setAttribute('opacity',ramp(lt,12.2));
+}
+
+// ---------- harness loop ----------
+const STG=['Investigate','Evaluate','Identify failure','Adjust strategy','Retry','Verify'];
+const STXT=['v1 run: 5 requests, records read in page order','recovery withheld · 1 of 6 supported','rrc00 at 15:00 never retrieved','planner: scan hourly, refine where state changes','v2 run: 5 targeted requests','gate: 3 of 3 slots → 15:00 issued · 4 of 6 supported'];
+const RC=[540,280],RR=[400,210];
+(function(){const r=document.getElementById('ring'),sv=document.getElementById('ringSvg');window._stg=STG.map((n,i)=>{const a=-Math.PI/2+i*2*Math.PI/6;const x=RC[0]+RR[0]*Math.cos(a),y=RC[1]+RR[1]*Math.sin(a);
+  const d=document.createElement('div');d.className='stg';d.style.left=x+'px';d.style.top=y+'px';d.innerHTML=`<div class="sc"></div><div class="sl">${n}</div>`;r.appendChild(d);return d});
+  el('ellipse',{cx:RC[0],cy:RC[1],rx:RR[0],ry:RR[1],fill:'none',stroke:'#26262b','stroke-width':2},sv);
+  window._arc=el('path',{d:'',fill:'none',stroke:'#f4f4f5','stroke-width':3,'stroke-linecap':'round'},sv)})();
+const V1WIN=[['rrc00','15:15'],['rrc00','15:30'],['rrc01','13:15'],['rrc01','10:00'],['rrc00','13:30'],['rrc01','14:30'],['rrc01','14:15'],['rrc01','15:00'],['rrc00','14:45'],['rrc01','11:30'],['rrc00','14:30'],['rrc00','10:30'],['rrc00','11:30'],['rrc00','12:45'],['rrc00','12:30'],['rrc01','13:45'],['rrc01','11:45'],['rrc00','14:15'],['rrc01','12:30'],['rrc00','11:45'],['rrc00','11:15'],['rrc00','12:00'],['rrc00','14:00'],['rrc00','13:45'],['rrc00','10:00'],['rrc01','13:30'],['rrc01','11:00'],['rrc00','13:15'],['rrc00','10:15']];
+const V2WIN=[['rrc00','15:15'],['rrc00','15:30'],['rrc01','13:15'],['rrc01','10:00'],['rrc00','13:30'],['rrc01','14:30'],['rrc01','15:00'],['rrc00','12:00'],['rrc00','14:00'],['rrc00','10:00'],['rrc01','11:00'],['rrc01','13:00'],['rrc00','13:00'],['rrc00','15:00'],['rrc01','12:00'],['rrc01','14:00'],['rrc00','11:00'],['rrc01','15:15'],['rrc01','15:30'],['rrc01','14:15'],['rrc00','14:45'],['rrc00','14:30'],['rrc00','14:15'],['rrc01','14:45']];
+const GW=WIN.slice(2);
+function mkGrid(id){const g=document.getElementById(id);const o={rrc00:[],rrc01:[]};['rrc00','rrc01'].forEach((c,ri)=>{const lb=document.createElement('div');lb.className='abs';lb.style.cssText=`left:0;top:${ri*54+8}px;font-family:SF Mono,Menlo;font-size:19px;color:#b4b4bb`;lb.textContent=c;g.appendChild(lb);
+  GW.forEach((w,i)=>{const d=document.createElement('div');d.className='cell';d.style.left=(88+i*33.5)+'px';d.style.top=(ri*54)+'px';d.style.width='29px';g.appendChild(d);o[c].push(d)})});return o}
+const G1=mkGrid('g1'),G2=mkGrid('g2');
+function paint(G,list,n,missKey){const got=new Set(list.slice(0,n).map(([c,w])=>c+w));['rrc00','rrc01'].forEach(c=>{const R=c==='rrc00'?R0:R1;GW.forEach((w,i)=>{const d=G[c][i];
+  const k=got.has(c+w)?(R[i+2]>=2?'cell el':'cell calm'):'cell';const m=(missKey&&c+w===missKey)?' miss':'';if(d.className!==k+m)d.className=k+m})})}
+function upHar(lt){const T=[1.0,2.6,4.0,5.6,7.2,9.0];let cur=-1;T.forEach((t,i)=>{if(lt>=t)cur=i});
+  _stg.forEach((d,i)=>{d.classList.toggle('on',i===cur);d.classList.toggle('done',i<cur)});
+  const p=clamp(cur<0?0:(cur+clamp((lt-T[Math.max(cur,0)])/1.4))/6);const N=80;let dd='';for(let k=0;k<=N*p;k++){const a=-Math.PI/2+(k/N)*2*Math.PI;dd+=(k?'L':'M')+(RC[0]+RR[0]*Math.cos(a))+' '+(RC[1]+RR[1]*Math.sin(a))}_arc.setAttribute('d',dd);
+  const c=document.getElementById('ringCenter');const txt=cur<0?'':`<div class="tag" style="font-size:22px">${STG[cur]}</div><div style="font-size:30px;line-height:1.3;margin-top:10px">${STXT[cur]}</div>`;if(c.innerHTML!==txt)c.innerHTML=txt;
+  paint(G1,V1WIN,Math.floor(clamp((lt-1.0)/1.6)*V1WIN.length),lt>=4.0?'rrc0015:00':null);
+  document.getElementById('gTitle2').style.opacity=ramp(lt,7.0);document.getElementById('g2').style.opacity=ramp(lt,7.0);
+  paint(G2,V2WIN,Math.floor(clamp((lt-7.2)/1.6)*V2WIN.length),null);
+  G2.rrc00[GW.indexOf('15:00')].style.outline=lt>=9.0?'3px solid #f4f4f5':'none';G2.rrc01[GW.indexOf('15:00')].style.outline=lt>=9.0?'3px solid #f4f4f5':'none'}
+
+// ---------- architecture fabric ----------
+const MACH=[[300,640,'Laptop'],[780,640,'Desktop'],[300,1040,'Server'],[780,1040,'Edge node']];
+(function(){const s=document.getElementById('arcSvg');const mc=document.getElementById('machs');
+  window._mE=[];for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){_mE.push([i,j,el('line',{x1:MACH[i][0],y1:MACH[i][1],x2:MACH[j][0],y2:MACH[j][1],stroke:'#3a3a41','stroke-width':2,'stroke-dasharray':'6 8'},s)])}
+  window._pk=[];for(let k=0;k<6;k++){_pk.push(el('rect',{width:18,height:18,rx:3,fill:'#f4f4f5',opacity:0},s))}
+  window._mc=MACH.map(([x,y,n])=>{const d=document.createElement('div');d.className='mach';d.style.left=x+'px';d.style.top=y+'px';
+    d.innerHTML=`<div class="mt">${n}</div><div class="ml">local model<br>NeuralGraph memory<br>🔒 raw records stay here</div>`;d.style.opacity=0;mc.appendChild(d);return d})})();
+const T_ARC=tbuildLater=null;
+function upArc(lt){_mc.forEach((d,i)=>{const v=ramp(lt,0.6+i*0.25,0.5);d.style.opacity=v;d.style.transform=`translate(-50%,-50%) scale(${0.96+0.04*v})`});
+  _mE.forEach(([i,j,l],k)=>l.setAttribute('opacity',ramp(lt,2.0+k*0.12,0.4)));
+  const ladT=[1.2,3.0,4.6,6.4,8.2];ladT.forEach((t,i)=>document.getElementById('ld'+i).classList.toggle('on',lt>=t));
+  // findings + provenance travel the fabric; a check ring marks verification on arrival
+  const routes=[[0,1],[2,3],[1,3],[0,2],[3,0],[1,2]];
+  _pk.forEach((p,k)=>{const [a,b]=routes[k];const t0=4.6+k*0.7;const u=clamp((lt-t0)/1.2);const on=lt>=t0&&u<1;
+    const x=MACH[a][0]+(MACH[b][0]-MACH[a][0])*ease(u),y=MACH[a][1]+(MACH[b][1]-MACH[a][1])*ease(u);
+    p.setAttribute('x',x-9);p.setAttribute('y',y-9);p.setAttribute('opacity',on?1:0)});
+  _mc.forEach((d,i)=>{let lit=false;routes.forEach(([a,b],k)=>{const t0=4.6+k*0.7+1.2;if(b===i&&lt>=t0&&lt<t0+0.6)lit=true});d.style.borderColor=lit?'#f4f4f5':'#3a3a41'});
+  tdraw(TARC,tproj(0.6+lt*0.3,0.4+lt*0.19,0.3+lt*0.11),540,840,520);document.getElementById('arcSvg').style.opacity=1}
+
+// ---------- research: results + four arms ----------
+function upR1(lt){document.getElementById('vbA').style.width=(21.1*ease((lt-0.8)/0.7))+'%';document.getElementById('vbC').style.width=(76.7*ease((lt-1.5)/1.0))+'%'}
+const ARMS=[['A · Central agent','19 / 90',21.1,'36 / 90',40.0],['B · Original swarm','3 / 83',3.6,'87 / 87',100],['C · Central + planner','69 / 90',76.7,'17 / 90',18.9],['D · Evidence-first swarm','52 / 78',66.7,'19 / 72',26.4]];
+(function(){const c=document.getElementById('arms');window._arm=ARMS.map((a,i)=>{const d=document.createElement('div');d.className='arm';d.style.top=(i*172)+'px';
+  d.innerHTML=`<div class="an">${a[0]}</div>
+  <div class="tr" style="top:50px;width:680px"><i style="background:#f4f4f5;width:0"></i></div><div class="lb" style="top:46px;left:700px">${a[1]} · ${a[2]}%</div>
+  <div class="tr" style="top:88px;width:680px"><i style="background:#6b6b74;width:0"></i></div><div class="lb" style="top:84px;left:700px">${a[3]} · ${a[4]}%</div>`;d.style.opacity=0;c.appendChild(d);return d})})();
+function upR2(lt){_arm.forEach((d,i)=>{const v=ramp(lt,0.6+i*0.5,0.4);d.style.opacity=v;const b=d.querySelectorAll('.tr i');b[0].style.width=(ARMS[i][2]*ease((lt-0.8-i*0.5)/0.8))+'%';b[1].style.width=(ARMS[i][4]*ease((lt-1.0-i*0.5)/0.8))+'%';
+  d.querySelector('.an').style.color=(i===2&&lt>=3.6)?'#f4f4f5':'';d.style.filter=(lt>=3.6&&i!==2&&i!==3)?'opacity(.55)':'none'})}
+
+// ---------- tesseract ----------
+const TV=[];for(let i=0;i<16;i++)TV.push([i&1?1:-1,i&2?1:-1,i&4?1:-1,i&8?1:-1]);
+const TE=[];for(let i=0;i<16;i++)for(let j=i+1;j<16;j++){const d=i^j;if((d&(d-1))===0)TE.push([i,j])}
+// 16 vertices, 32 edges; rotate in XW and YW (true 4D) plus YZ; project 4D->3D (eye w=3) then 3D->2D (eye z=2.6).
+function tproj(a,b,c){return TV.map(v=>{let [x,y,z,w]=v;
+  const x1=x*Math.cos(a)-w*Math.sin(a), w1=x*Math.sin(a)+w*Math.cos(a);      // XW
+  const y1=y*Math.cos(b)-w1*Math.sin(b), w2=y*Math.sin(b)+w1*Math.cos(b);    // YW
+  const y2=y1*Math.cos(c)-z*Math.sin(c), z2=y1*Math.sin(c)+z*Math.cos(c);    // YZ
+  const k=1/(3-w2); const X=x1*k, Y=y2*k, Z=z2*k; const p=1/(2.6-Z); return [X*p,Y*p,w2]})}
+function tbuild(svg,sw){return {L:TE.map(()=>el('line',{stroke:'#f4f4f5','stroke-width':sw,'stroke-linecap':'round'},svg)),D:TV.map(()=>el('circle',{r:sw*1.6,fill:'#f4f4f5'},svg))}}
+function tdraw(o,P,cx,cy,sz){o.L.forEach((l,i)=>{const [a,b]=TE[i];l.setAttribute('x1',cx+P[a][0]*sz);l.setAttribute('y1',cy+P[a][1]*sz);l.setAttribute('x2',cx+P[b][0]*sz);l.setAttribute('y2',cy+P[b][1]*sz);l.setAttribute('opacity',0.3+0.7*clamp((P[a][2]+P[b][2]+4)/8))});o.D.forEach((d,i)=>{d.setAttribute('cx',cx+P[i][0]*sz);d.setAttribute('cy',cy+P[i][1]*sz)})}
+const T9=tbuild(document.getElementById('vt9'),2.4),T1=tbuild(document.getElementById('vt1'),1.8),T6=tbuild(document.getElementById('vt6'),1.8);
+const TARC=tbuild(el('g',{opacity:0.5},document.getElementById('arcSvg')),1.5);
+const SCAT=TV.map((_,i)=>{const f=x=>{const s=Math.sin(x)*43758.5453;return s-Math.floor(s)};return [(f(i*12.99+1)-0.5)*0.75,(f(i*78.23+2)-0.5)*0.6]});
+function tdrawMix(o,P,cx,cy,sz,m){const Q=P.map((q,i)=>[SCAT[i][0]+(q[0]-SCAT[i][0])*m,SCAT[i][1]+(q[1]-SCAT[i][1])*m,q[2]]);tdraw(o,Q,cx,cy,sz);o.L.forEach(l=>l.setAttribute('opacity',(+l.getAttribute('opacity'))*m))}
+function upV1t(lt){tdraw(T1,tproj(0.2+lt*0.30,0.1+lt*0.19,0.35+lt*0.11),540,620,1300);document.getElementById('vt1').style.opacity=0.075*ramp(lt,0.2,1.5)}
+function upV6t(lt){tdrawMix(T6,tproj(0.9+lt*0.30,0.5+lt*0.19,0.4+lt*0.11),900,345,300,ease((lt-0.6)/2.0));document.getElementById('vt6').style.opacity=0.9*ramp(lt,0.3,0.5)}
+function upEnd(lt){tdraw(T9,tproj(1.1+lt*0.32,0.8+lt*0.21,0.5+lt*0.13),540,640,1050);document.getElementById('vt9').style.opacity=0.9*ramp(lt,0,1.0)}
+
+const TFJ=tbuild(document.getElementById('vtfj'),1.8);
+function upFj(lt){document.querySelectorAll('#fj .fjl').forEach(x=>{const v=ramp(lt,parseFloat(x.dataset.in),0.45);x.style.opacity=v*(1-0.75*ramp(lt,2.7,0.4));x.style.transform=`translateY(${(1-v)*14-160*ease((lt-2.7)/0.5)}px)`});
+  const b=document.getElementById('fjB'),bv=ramp(lt,3.0,0.25);b.style.opacity=bv;b.style.transform=`scale(${1.06-0.06*bv})`;
+  const c=document.getElementById('fjC'),cv=ramp(lt,5.2,0.5);c.style.opacity=cv;c.style.transform=`translateY(${(1-cv)*14}px)`;
+  document.getElementById('fjD').style.opacity=ramp(lt,5.8,0.5);
+  const pulse=lt>=3.0?Math.exp(-(lt-3.0)/0.35):0;tdraw(TFJ,tproj(0.7+lt*0.30,0.4+lt*0.19,0.3+lt*0.11),540,880,1250+110*pulse);document.getElementById('vtfj').style.opacity=(0.10+0.28*pulse)*ramp(lt,0,0.6)}
+const UP={fj:upFj,v1:lt=>{upV1t(lt);upV1(lt)},con:upCon,har:upHar,arc:upArc,r1:lt=>{upV6t(lt);upR1(lt)},r2:upR2,end:upEnd};
+const scenes=[...document.querySelectorAll('.scene')];
+function seek(t){scenes.forEach((sc,idx)=>{const s=+sc.dataset.s,e=+sc.dataset.e;let o=1;
+  if(idx>0)o=Math.min(o,ease((t-s+0.25)/0.5));
+  if(idx<scenes.length-1)o=Math.min(o,1-ease((t-e+0.25)/0.5));else o=Math.min(o,1-ease((t-(e-0.8))/0.8));
+  if(t<s-0.3||t>e+0.3)o=0;sc.style.opacity=o;sc.style.visibility=o>0.001?'visible':'hidden';if(o<=0.001)return;
+  const lt=t-s;sc.querySelectorAll('.ap').forEach(x=>{const v=ramp(lt,parseFloat(x.dataset.in||0));x.style.opacity=v;x.style.transform=`translateY(${(1-v)*16}px)`});
+  if(UP[sc.id])UP[sc.id](lt)})}
+window.seek=seek;window.DUR=DUR;seek(+(new URLSearchParams(location.search).get('t')||0));
+</script>
+</body>
+</html>

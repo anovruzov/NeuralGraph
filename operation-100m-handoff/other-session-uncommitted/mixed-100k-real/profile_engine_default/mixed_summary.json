@@ -1,0 +1,112 @@
+{
+  "bank": 0,
+  "n": 100000,
+  "db": "work/100k-mixed/profile/bank.db",
+  "engine": {
+    "vector_index": "exact",
+    "ivf_nprobe": 32,
+    "ivf_path": null,
+    "read_pool": false,
+    "keyword_max_df": 0.0,
+    "channels": "VK",
+    "depth": 100
+  },
+  "readers": 4,
+  "ops": 600,
+  "write_rate_per_s": 20.0,
+  "k": 10,
+  "wall_s": 30.430806459,
+  "reads": {
+    "requests": 124,
+    "ok": 124,
+    "errors": 0,
+    "successful_qps": 4.074818068560475,
+    "latency": {
+      "n": 124,
+      "p50_ms": 790.2780419999999,
+      "p95_ms": 1699.139542,
+      "p99_ms": 1805.162667,
+      "max_ms": 1810.306083,
+      "mean_ms": 975.1273061451618
+    },
+    "consistency_violations": 0,
+    "violation_examples": []
+  },
+  "writes": {
+    "ok": 600,
+    "by_kind": {
+      "insert": {
+        "n": 300,
+        "errors": 0,
+        "latency": {
+          "n": 300,
+          "p50_ms": 0.6499159999999999,
+          "p95_ms": 88.629625,
+          "p99_ms": 216.984,
+          "max_ms": 249.668875,
+          "mean_ms": 15.075099013333334
+        }
+      },
+      "update": {
+        "n": 150,
+        "errors": 0,
+        "latency": {
+          "n": 150,
+          "p50_ms": 0.912292,
+          "p95_ms": 117.792917,
+          "p99_ms": 188.89624999999998,
+          "max_ms": 232.804125,
+          "mean_ms": 24.76264948666667
+        }
+      },
+      "retract": {
+        "n": 150,
+        "errors": 0,
+        "latency": {
+          "n": 150,
+          "p50_ms": 0.248292,
+          "p95_ms": 91.873083,
+          "p99_ms": 217.59995800000002,
+          "max_ms": 225.588792,
+          "mean_ms": 17.233519419999997
+        }
+      }
+    },
+    "achieved_ops_per_s": 19.716861622066812
+  },
+  "verify": {
+    "new_rows_visible": 450,
+    "new_rows_total": 450,
+    "retired_rows_leaked": 0,
+    "retired_rows_total": 300,
+    "leak_examples": []
+  },
+  "rss_bytes": {
+    "after_mixed": 1371521024,
+    "peak": 1683800064
+  },
+  "cpu_s": 112.88808300000001,
+  "disk_bytes_before": {
+    "db": 448823296,
+    "wal": 0,
+    "shm": 0,
+    "total": 448823296
+  },
+  "disk_bytes_after": {
+    "db": 450764800,
+    "wal": 4218912,
+    "shm": 32768,
+    "total": 455016480
+  },
+  "env": {
+    "git_commit": "43937131d6665d0f5734846651a606c918f2b2a0",
+    "git_dirty_files": 2,
+    "cpu": "Apple M4",
+    "ncpu": "10",
+    "mem_bytes": "17179869184",
+    "os": "Darwin 24.6.0 arm64",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)",
+    "threads_available": 10
+  },
+  "timing_scope": "MemoryRetriever::search wall time in-process while one writer thread commits through ChatMemoryStore; query embedding precomputed and excluded"
+}

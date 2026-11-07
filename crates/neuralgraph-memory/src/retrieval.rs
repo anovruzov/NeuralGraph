@@ -333,10 +333,12 @@ struct DimMatrix {
     data: Vec<f32>,
 }
 
-/// Immutable snapshot of the index arrays (rebuilt after any change, shared by in-flight searches).
-pub struct IndexData {
-    pub ids: Vec<String>,
+/// One immutable run of index rows; positions are local to the segment and follow row sequence order.
+struct Segment {
+    ids: Arc<Vec<String>>,
     pos: HashMap<String, usize>,
+    /// insertion sequence of each row: the index order a full rebuild would give it (ties in the vector channel)
+    seq: Vec<u64>,
     subject: Vec<String>,
     speaker: Vec<String>,
     chat: Vec<String>,
@@ -350,8 +352,6 @@ pub struct IndexData {
     observed: Vec<String>,
     /// exact rows: everything in "exact" mode, only the rows the disk index does not cover in "ivf" mode
     mats: IndexMap<usize, DimMatrix>,
-    /// disk index and its entry -> row position map (`u32::MAX` = row no longer in the index)
-    ivf: Option<(Arc<IvfIndex>, Vec<u32>, usize)>,
 }
 
 fn dot_f32(a: &[f32], b: &[f32]) -> f32 {
@@ -376,12 +376,15 @@ fn normalise_f32(v: &[f64]) -> Vec<f32> {
     row.iter().map(|x| x / norm).collect()
 }
 
-impl IndexData {
-    fn build(rows: &IndexMap<String, IndexRow>, ivf: Option<Arc<IvfIndex>>, nprobe: usize) -> Self {
+impl Segment {
+    /// `rows` must be in sequence order.
+    fn build(rows: &[(u64, &IndexRow)]) -> Self {
         let n = rows.len();
-        let mut d = IndexData {
-            ids: Vec::with_capacity(n),
+        let mut ids = Vec::with_capacity(n);
+        let mut d = Segment {
+            ids: Arc::new(Vec::new()),
             pos: HashMap::with_capacity(n),
+            seq: Vec::with_capacity(n),
             subject: Vec::with_capacity(n),
             speaker: Vec::with_capacity(n),
             chat: Vec::with_capacity(n),
@@ -393,12 +396,12 @@ impl IndexData {
             active: Vec::with_capacity(n),
             observed: Vec::with_capacity(n),
             mats: IndexMap::new(),
-            ivf: None,
         };
         let mut by_dim: IndexMap<usize, Vec<usize>> = IndexMap::new();
-        for (i, r) in rows.values().enumerate() {
-            d.ids.push(r.memory_id.clone());
+        for (i, (seq, r)) in rows.iter().enumerate() {
+            ids.push(r.memory_id.clone());
             d.pos.insert(r.memory_id.clone(), i);
+            d.seq.push(*seq);
             d.subject.push(r.subject.clone());
             d.speaker.push(r.speaker.clone());
             d.chat.push(r.chat_id.clone());
@@ -419,36 +422,165 @@ impl IndexData {
                 by_dim.entry(e.len()).or_default().push(i);
             }
         }
-        let row_list: Vec<&IndexRow> = rows.values().collect();
         for (dim, idxs) in by_dim {
             let mut data = Vec::with_capacity(idxs.len() * dim);
             for &i in &idxs {
-                data.extend(normalise_f32(row_list[i].embedding.as_ref().expect("has embedding")));
+                data.extend(normalise_f32(rows[i].1.embedding.as_ref().expect("has embedding")));
             }
             d.mats.insert(dim, DimMatrix { idxs, dim, data });
         }
-        if let Some(ix) = ivf {
-            let map = ix.ids.iter().map(|id| d.pos.get(id).map(|p| *p as u32).unwrap_or(u32::MAX)).collect();
-            d.ivf = Some((ix, map, nprobe));
-        }
+        d.ids = Arc::new(ids);
         d
     }
 
+    fn len(&self) -> usize {
+        self.seq.len()
+    }
+}
+
+/// The large, rarely rebuilt part of the index: every row as of the last compaction, plus the disk index's
+/// entry -> base position map.
+struct Base {
+    seg: Segment,
+    ivf: Option<Arc<IvfIndex>>,
+    /// ivf entry -> base position (`u32::MAX` = row not in the index)
+    map: Vec<u32>,
+    /// memory id -> ivf entry, to re-point entries whose row was rewritten after the compaction
+    entry_of: HashMap<String, u32>,
+}
+
+impl Base {
+    fn build(rows: &IndexMap<String, (u64, IndexRow)>, ivf: Option<Arc<IvfIndex>>) -> Self {
+        let mut ordered: Vec<(u64, &IndexRow)> = rows.values().map(|(s, r)| (*s, r)).collect();
+        ordered.sort_by_key(|(s, _)| *s);
+        let seg = Segment::build(&ordered);
+        let (map, entry_of) = match &ivf {
+            Some(ix) => (
+                ix.ids.iter().map(|id| seg.pos.get(id).map(|p| *p as u32).unwrap_or(u32::MAX)).collect(),
+                ix.ids.iter().enumerate().map(|(e, id)| (id.clone(), e as u32)).collect(),
+            ),
+            None => (Vec::new(), HashMap::new()),
+        };
+        Base { seg, ivf, map, entry_of }
+    }
+}
+
+/// Immutable snapshot shared by in-flight searches: the base segment with the rows changed since it was built
+/// masked out (`dead`) and re-stated in a small delta segment. Positions `0..base` are base rows, the rest delta
+/// rows. Writes therefore cost O(rows changed since the last compaction), not O(index), and every search answers
+/// exactly as it would against a full rebuild: same rows, same masks, ties broken by the same insertion order.
+pub struct IndexData {
+    /// ids of the base segment by base position (positions at or past `ids.len()` are delta rows)
+    pub ids: Arc<Vec<String>>,
+    base: Arc<Base>,
+    dead: Vec<bool>,
+    delta: Segment,
+    live: usize,
+    /// disk index and its entry -> row position map (`u32::MAX` = row no longer in the index)
+    ivf: Option<(Arc<IvfIndex>, Vec<u32>, usize)>,
+}
+
+impl IndexData {
+    fn assemble(base: Arc<Base>, rows: &IndexMap<String, (u64, IndexRow)>, pending: &IndexSet<String>, nprobe: usize) -> Self {
+        let nb = base.seg.len();
+        let mut dead = vec![false; nb];
+        let mut changed: Vec<(u64, &IndexRow)> = Vec::new();
+        for id in pending {
+            if let Some(&p) = base.seg.pos.get(id) {
+                dead[p] = true;
+            }
+            if let Some((s, r)) = rows.get(id) {
+                changed.push((*s, r));
+            }
+        }
+        changed.sort_by_key(|(s, _)| *s);
+        let delta = Segment::build(&changed);
+        // a rewritten row the disk index covers keeps its ivf entry (its embedding is not resident), now pointing at
+        // the delta position; a retired row's entry points nowhere
+        let ivf = base.ivf.as_ref().map(|ix| {
+            let mut map = base.map.clone();
+            for id in pending {
+                if let Some(&e) = base.entry_of.get(id) {
+                    map[e as usize] = delta.pos.get(id).map(|q| (nb + q) as u32).unwrap_or(u32::MAX);
+                }
+            }
+            (ix.clone(), map, nprobe)
+        });
+        let live = nb - dead.iter().filter(|d| **d).count() + delta.len();
+        IndexData { ids: base.seg.ids.clone(), base, dead, delta, live, ivf }
+    }
+
+    /// Segment and local position of snapshot position `i`.
+    fn at(&self, i: usize) -> (&Segment, usize) {
+        let nb = self.base.seg.len();
+        if i < nb {
+            (&self.base.seg, i)
+        } else {
+            (&self.delta, i - nb)
+        }
+    }
+
+    fn seq(&self, i: usize) -> u64 {
+        let (s, j) = self.at(i);
+        s.seq[j]
+    }
+
+    fn subject(&self, i: usize) -> &str {
+        let (s, j) = self.at(i);
+        &s.subject[j]
+    }
+
+    fn t_lo(&self, i: usize) -> &str {
+        let (s, j) = self.at(i);
+        &s.t_lo[j]
+    }
+
+    fn t_hi(&self, i: usize) -> &str {
+        let (s, j) = self.at(i);
+        &s.t_hi[j]
+    }
+
+    fn has_event(&self, i: usize) -> bool {
+        let (s, j) = self.at(i);
+        s.has_event[j]
+    }
+
+    fn importance(&self, i: usize) -> f32 {
+        let (s, j) = self.at(i);
+        s.importance[j]
+    }
+
+    fn observed(&self, i: usize) -> &str {
+        let (s, j) = self.at(i);
+        &s.observed[j]
+    }
+
+    fn id(&self, i: usize) -> &String {
+        let (s, j) = self.at(i);
+        &s.ids[j]
+    }
+
     pub fn len(&self) -> usize {
-        self.ids.len()
+        self.live
     }
 
     pub fn is_empty(&self) -> bool {
-        self.ids.is_empty()
+        self.live == 0
     }
 
     /// Embedding dimensions present in the index.
     pub fn dims(&self) -> Vec<usize> {
-        self.mats.keys().copied().collect()
+        let mut d: Vec<usize> = self.base.seg.mats.keys().copied().collect();
+        d.extend(self.delta.mats.keys().filter(|k| !self.base.seg.mats.contains_key(*k)));
+        d
     }
 
     pub fn position(&self, memory_id: &str) -> Option<usize> {
-        self.pos.get(memory_id).copied()
+        let nb = self.base.seg.len();
+        if let Some(q) = self.delta.pos.get(memory_id) {
+            return Some(nb + q);
+        }
+        self.base.seg.pos.get(memory_id).copied().filter(|p| !self.dead[*p])
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -462,7 +594,8 @@ impl IndexData {
         until: Option<&str>,
         include_superseded: bool,
     ) -> Vec<bool> {
-        let n = self.ids.len();
+        let nb = self.base.seg.len();
+        let n = nb + self.delta.len();
         let mut m = vec![true; n];
         if n == 0 {
             return m;
@@ -472,17 +605,22 @@ impl IndexData {
         let windowed = since.is_some_and(|s| !s.is_empty()) || until.is_some_and(|s| !s.is_empty());
         let (lo, hi) = query_bounds(since, until);
         for (i, keep) in m.iter_mut().enumerate() {
-            if !include_superseded && !windowed && !self.active[i] {
+            if i < nb && self.dead[i] {
                 *keep = false;
                 continue;
             }
-            if subject.is_some_and(|s| self.subject[i] != s)
-                || speaker.is_some_and(|s| self.speaker[i] != s)
-                || chat_id.is_some_and(|s| self.chat[i] != s)
-                || kinds.is_some_and(|k| !k.contains(&self.kind[i]))
+            let (s, j) = self.at(i);
+            if !include_superseded && !windowed && !s.active[j] {
+                *keep = false;
+                continue;
+            }
+            if subject.is_some_and(|x| s.subject[j] != x)
+                || speaker.is_some_and(|x| s.speaker[j] != x)
+                || chat_id.is_some_and(|x| s.chat[j] != x)
+                || kinds.is_some_and(|k| !k.contains(&s.kind[j]))
                 // memory interval ends after the window starts, and starts before the window ends
-                || (!lo.is_empty() && self.t_hi[i] < lo)
-                || (!hi.is_empty() && self.t_lo[i] > hi)
+                || (!lo.is_empty() && s.t_hi[j] < lo)
+                || (!hi.is_empty() && s.t_lo[j] > hi)
             {
                 *keep = false;
             }
@@ -504,59 +642,67 @@ impl IndexData {
                 Err(e) => tracing::warn!("ivf search failed ({e}); vector channel uses the exact rows only"),
             }
         }
-        let Some(mat) = self.mats.get(&qvec.len()) else {
-            hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0)));
-            hits.truncate(k);
-            return hits.into_iter().map(|(i, s)| (self.ids[i].clone(), s as f64)).collect();
-        };
-        let scan = |rows: std::ops::Range<usize>| -> Vec<(usize, f32)> {
-            let mut out = Vec::new();
-            for row in rows {
-                let i = mat.idxs[row];
-                if !mask[i] {
-                    continue;
-                }
-                let sim = dot_f32(&mat.data[row * mat.dim..(row + 1) * mat.dim], &q);
-                if sim >= floor && sim.is_finite() {
-                    out.push((i, sim));
-                }
+        let nb = self.base.seg.len();
+        for (seg, offset) in [(&self.base.seg, 0), (&self.delta, nb)] {
+            if let Some(mat) = seg.mats.get(&qvec.len()) {
+                hits.extend(scan_matrix(mat, offset, mask, &q, floor));
             }
-            out
-        };
-        // Large indexes are scanned on every core; chunks are concatenated in row order, so the result is the
-        // same as a sequential scan.
-        let rows = mat.idxs.len();
-        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(16);
-        let scanned: Vec<(usize, f32)> = if threads > 1 && rows * mat.dim >= PARALLEL_SCAN_FLOPS {
-            let chunk = rows.div_ceil(threads);
-            std::thread::scope(|sc| {
-                let handles: Vec<_> =
-                    (0..threads).map(|t| sc.spawn(move || scan(t * chunk..((t + 1) * chunk).min(rows)))).collect();
-                handles.into_iter().flat_map(|h| h.join().expect("vector scan thread")).collect()
-            })
-        } else {
-            scan(0..rows)
-        };
-        let ivf_mode = self.ivf.is_some();
-        hits.extend(scanned);
-        // highest similarity first; ties keep index order (numpy's order for ties is unspecified)
-        if ivf_mode {
-            hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0)));
-        } else {
-            hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         }
+        // highest similarity first; ties keep index (insertion) order (numpy's order for ties is unspecified)
+        hits.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(self.seq(a.0).cmp(&self.seq(b.0))));
         hits.truncate(k);
-        hits.into_iter().map(|(i, s)| (self.ids[i].clone(), s as f64)).collect()
+        hits.into_iter().map(|(i, s)| (self.id(i).clone(), s as f64)).collect()
+    }
+}
+
+/// Cosine hits of one segment's matrix (snapshot positions = `offset` + segment position), in row order.
+fn scan_matrix(mat: &DimMatrix, offset: usize, mask: &[bool], q: &[f32], floor: f32) -> Vec<(usize, f32)> {
+    let scan = |rows: std::ops::Range<usize>| -> Vec<(usize, f32)> {
+        let mut out = Vec::new();
+        for row in rows {
+            let i = offset + mat.idxs[row];
+            if !mask[i] {
+                continue;
+            }
+            let sim = dot_f32(&mat.data[row * mat.dim..(row + 1) * mat.dim], q);
+            if sim >= floor && sim.is_finite() {
+                out.push((i, sim));
+            }
+        }
+        out
+    };
+    // Large indexes are scanned on every core; chunks are concatenated in row order, so the result is the
+    // same as a sequential scan.
+    let rows = mat.idxs.len();
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(16);
+    if threads > 1 && rows * mat.dim >= PARALLEL_SCAN_FLOPS {
+        let chunk = rows.div_ceil(threads);
+        std::thread::scope(|sc| {
+            let handles: Vec<_> = (0..threads).map(|t| sc.spawn(move || scan(t * chunk..((t + 1) * chunk).min(rows)))).collect();
+            handles.into_iter().flat_map(|h| h.join().expect("vector scan thread")).collect()
+        })
+    } else {
+        scan(0..rows)
     }
 }
 
 /// Below this many multiply-adds a vector scan is faster on one thread than spread over the cores.
 const PARALLEL_SCAN_FLOPS: usize = 2_000_000;
 
+/// The delta is folded into a new base once it holds more than this many rows, or 1/COMPACT_DIVISOR of the base,
+/// whichever is larger: a write costs O(delta) and a compaction O(index), amortised over that many writes.
+const COMPACT_MIN_ROWS: usize = 2048;
+const COMPACT_DIVISOR: usize = 16;
+
 /// Mutable side of the index: the rows, refreshed incrementally from the store.
 #[derive(Default)]
 struct IndexState {
-    rows: IndexMap<String, IndexRow>,
+    /// memory id -> (insertion sequence, row); a rewrite keeps its sequence, a re-insert after removal gets a new one
+    rows: IndexMap<String, (u64, IndexRow)>,
+    next_seq: u64,
+    /// ids changed since `base` was built
+    pending: IndexSet<String>,
+    base: Option<Arc<Base>>,
     last_updated_at: String,
     built: Option<Arc<IndexData>>,
     loaded: bool,
@@ -569,13 +715,40 @@ impl IndexState {
             if !r.updated_at.is_empty() && r.updated_at > self.last_updated_at {
                 self.last_updated_at = r.updated_at.clone();
             }
+            let id = r.memory_id.clone();
             if r.status == "active" || r.status == "superseded" {
-                self.rows.insert(r.memory_id.clone(), r);
+                if let Some(e) = self.rows.get_mut(&id) {
+                    e.1 = r;
+                } else {
+                    self.rows.insert(id.clone(), (self.next_seq, r));
+                    self.next_seq += 1;
+                }
             } else {
-                self.rows.shift_remove(&r.memory_id);
+                // order lives in the sequence numbers, so the O(1) removal is safe
+                self.rows.swap_remove(&id);
             }
+            self.pending.insert(id);
         }
         self.built = None;
+    }
+
+    fn snapshot(&mut self, ivf: Option<Arc<IvfIndex>>, nprobe: usize) -> IndexData {
+        let compact = match &self.base {
+            None => true,
+            Some(b) => {
+                let same_ivf = match (&b.ivf, &ivf) {
+                    (Some(a), Some(c)) => Arc::ptr_eq(a, c),
+                    (None, None) => true,
+                    _ => false,
+                };
+                !same_ivf || self.pending.len() > COMPACT_MIN_ROWS.max(b.seg.len() / COMPACT_DIVISOR)
+            }
+        };
+        if compact {
+            self.base = Some(Arc::new(Base::build(&self.rows, ivf)));
+            self.pending.clear();
+        }
+        IndexData::assemble(self.base.clone().expect("built above"), &self.rows, &self.pending, nprobe)
     }
 }
 
@@ -644,7 +817,7 @@ impl TemporalPrior {
         let mut span = None;
         if cues.order.is_some() {
             let days: Vec<NaiveDate> =
-                fused_ids.iter().filter_map(|m| index.position(m)).filter_map(|i| index_day(&index.t_lo[i])).collect();
+                fused_ids.iter().filter_map(|m| index.position(m)).filter_map(|i| index_day(index.t_lo(i))).collect();
             if let (Some(lo), Some(hi)) = (days.iter().min(), days.iter().max()) {
                 if hi > lo {
                     span = Some((*lo, *hi));
@@ -661,15 +834,15 @@ impl TemporalPrior {
     fn factor(&self, index: &IndexData, i: usize, w: f64) -> f64 {
         let mut f = 1.0;
         if let Some((lo, hi)) = &self.window {
-            let inside = index.t_hi[i].as_str() >= lo.as_str() && index.t_lo[i].as_str() <= hi.as_str();
+            let inside = index.t_hi(i) >= lo.as_str() && index.t_lo(i) <= hi.as_str();
             if inside {
                 f *= 1.0 + w;
-            } else if index.has_event[i] {
+            } else if index.has_event(i) {
                 f /= 1.0 + w / 2.0;
             }
         }
         if let (Some(order), Some((lo, hi))) = (self.order, self.span) {
-            if let Some(d) = index_day(&index.t_lo[i]) {
+            if let Some(d) = index_day(index.t_lo(i)) {
                 let newest = (d - lo).num_days() as f64 / (hi - lo).num_days() as f64;
                 f *= 1.0 + w * if order == OrderCue::Latest { newest } else { 1.0 - newest };
             }
@@ -774,7 +947,8 @@ impl MemoryRetriever {
             st.rev = Some(key);
         }
         if st.built.is_none() {
-            st.built = Some(Arc::new(IndexData::build(&st.rows, ivf, self.config.ivf_nprobe)));
+            let snap = st.snapshot(ivf, self.config.ivf_nprobe);
+            st.built = Some(Arc::new(snap));
         }
         Ok(st.built.clone().expect("built above"))
     }
@@ -951,12 +1125,12 @@ impl MemoryRetriever {
         let mut scored: Vec<(String, f64, IndexMap<String, f64>)> = Vec::new();
         for (mid, base) in &fused {
             let Some(i) = index.position(mid) else { continue };
-            let imp = index.importance[i] as f64;
-            let rec = recency(&index.observed[i], cfg.recency_half_life_days, now);
+            let imp = index.importance(i) as f64;
+            let rec = recency(index.observed(i), cfg.recency_half_life_days, now);
             let mut s = base * ((1.0 - cfg.importance_weight) + cfg.importance_weight * imp);
             s *= (1.0 - cfg.recency_weight) + cfg.recency_weight * rec;
             let mut boosts: Vec<(&str, f64)> = Vec::new();
-            if !q_ent_set.is_empty() && q_ent_set.contains(&index.subject[i]) {
+            if !q_ent_set.is_empty() && q_ent_set.iter().any(|e| e.as_str() == index.subject(i)) {
                 s *= cfg.subject_boost;
                 boosts.push(("subject", cfg.subject_boost));
             } else if !q_ent_set.is_empty()

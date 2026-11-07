@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>NeuralGraph</string>
+    <key>CFBundleDisplayName</key><string>NeuralGraph</string>
+    <key>CFBundleIdentifier</key><string>ai.neuralgraph.desktop</string>
+    <key>CFBundleExecutable</key><string>NeuralGraph</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSMinimumSystemVersion</key><string>13.0</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSAppTransportSecurity</key>
+    <dict><key>NSAllowsLocalNetworking</key><true/></dict>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>NeuralGraph Brain Archive</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSItemContentTypes</key><array><string>public.zip-archive</string></array>
+            <key>LSHandlerRank</key><string>Alternate</string>
+        </dict>
+    </array>
+</dict>
+</plist>

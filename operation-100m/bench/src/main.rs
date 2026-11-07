@@ -128,6 +128,34 @@ enum Cmd {
         #[arg(long)]
         out_dir: PathBuf,
     },
+    /// Concurrent readers while one writer inserts, updates (supersedes) and retracts memories; then verifies that
+    /// writes became visible and retired rows stopped being returned. Mutates the bank: run it on a copy.
+    Mixed {
+        #[arg(long, default_value_t = 0)]
+        bank: u32,
+        #[arg(long)]
+        n: u64,
+        #[arg(long, default_value_t = 20261031)]
+        seed: u64,
+        #[arg(long)]
+        db: PathBuf,
+        #[arg(long)]
+        queries: PathBuf,
+        #[arg(long)]
+        qvec: String,
+        #[arg(long, default_value_t = 4)]
+        readers: usize,
+        /// write operations: half inserts, a quarter updates, a quarter retractions
+        #[arg(long, default_value_t = 2000)]
+        ops: usize,
+        /// writer pace in operations per second (0 = as fast as possible)
+        #[arg(long, default_value_t = 20.0)]
+        write_rate: f64,
+        #[arg(long, default_value_t = 10)]
+        k: usize,
+        #[arg(long)]
+        out_dir: PathBuf,
+    },
 }
 
 fn file_size(p: &Path) -> u64 {
@@ -336,6 +364,10 @@ fn engine_config() -> (RetrievalConfig, bool, f64) {
     }
     if let Ok(v) = std::env::var("O100M_IVF_PATH") {
         cfg.ivf_path = Some(v);
+    }
+    // channel ablation: V (vector only), K (BM25 only), VK (the shipped hybrid); same queries, same bank
+    if let Ok(v) = std::env::var("O100M_CHANNELS") {
+        cfg.channels = v;
     }
     let pool = std::env::var("O100M_READ_POOL").is_ok_and(|v| v == "1");
     let max_df = std::env::var("O100M_KEYWORD_MAX_DF").map(|v| v.parse().expect("O100M_KEYWORD_MAX_DF")).unwrap_or(0.0);
@@ -557,8 +589,252 @@ fn cmd_profile(bank: u32, n: u64, seed: u64, db: &Path, queries: &Path, qvec: &s
     println!("{}", serde_json::to_string_pretty(&summary).unwrap());
 }
 
+/// Deterministic op stream (xorshift64*), so a mixed run touches the same rows every time.
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 >> 12;
+        self.0 ^= self.0 << 25;
+        self.0 ^= self.0 >> 27;
+        self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+}
+
+/// A new memory written the way the worker writes one (fresh id, `updated_at` = now), derived from an existing row so
+/// it has a real embedding; the `zq<i>x` token makes it individually findable by keyword.
+fn derived_memory(t: &Memory, i: usize, prefix: &str) -> Memory {
+    let now = neuralgraph_memory::models::now_iso();
+    let mut m = t.clone();
+    m.memory_id = format!("mx{i:08}");
+    m.text = format!("{prefix}{} Logged as note zq{i}x.", t.text);
+    m.status = "active".into();
+    m.superseded_by = None;
+    m.observed_at = now.clone();
+    m.created_at = now.clone();
+    m.updated_at = now;
+    m.text_hash = String::new();
+    m.source_message_ids = Vec::new();
+    m.entity_ids = Vec::new();
+    m
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cmd_mixed(
+    bank: u32, n: u64, seed: u64, db: &Path, queries: &Path, qvec: &str, readers: usize, ops: usize, write_rate: f64, k: usize,
+    out_dir: &Path,
+) {
+    use std::collections::{HashMap, HashSet};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Mutex;
+    std::fs::create_dir_all(out_dir).unwrap();
+    let c = Corpus::new(seed, bank, n);
+    let Loaded { queries, qvecs } = load_queries(&c, queries, qvec);
+    let disk_before = db_bytes(db);
+    let cpu0 = sys::cpu_seconds();
+    let (store, retriever, engine) = open_engine(db);
+    let search = |text: &str, o: &SearchOptions| futures::executor::block_on(retriever.search(text, o));
+    search(queries[0]["text"].as_str().unwrap(), &search_opts(&queries[0], &qvecs[0], k)).expect("warm-up search");
+
+    let active: Vec<String> = store
+        .with_conn(|c| {
+            let mut st = c.prepare("SELECT memory_id FROM memories WHERE status='active' ORDER BY memory_id")?;
+            let ids = st.query_map([], |r| r.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
+            Ok(ids)
+        })
+        .expect("active ids");
+    // every op gets its own target row, never reused
+    let mut rng = Rng(seed ^ 0x9E37_79B9_7F4A_7C15);
+    let mut used = HashSet::new();
+    let targets: Vec<String> = (0..ops)
+        .map(|_| loop {
+            let j = (rng.next() % active.len() as u64) as usize;
+            if used.insert(j) {
+                break active[j].clone();
+            }
+        })
+        .collect();
+
+    // retired id -> when the write that retired it returned; a read that STARTED after that instant must not see it
+    let retracted: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
+    let superseded: Mutex<HashMap<String, Instant>> = Mutex::new(HashMap::new());
+    let done = AtomicBool::new(false);
+    let next_q = AtomicUsize::new(0);
+    let t0 = Instant::now();
+
+    type ReadRow = (usize, f64, Result<Vec<String>, String>, Vec<String>);
+    type WriteRow = (usize, &'static str, String, Option<String>, f64, Option<String>);
+    let (read_rows, write_rows, read_wall): (Vec<ReadRow>, Vec<WriteRow>, f64) = std::thread::scope(|sc| {
+        let hs: Vec<_> = (0..readers)
+            .map(|_| {
+                let (done, next_q, queries, qvecs, retracted, superseded, search) =
+                    (&done, &next_q, &queries, &qvecs, &retracted, &superseded, &search);
+                sc.spawn(move || {
+                    let mut out = Vec::new();
+                    while !done.load(Ordering::SeqCst) {
+                        let qi = next_q.fetch_add(1, Ordering::SeqCst) % queries.len();
+                        let q = &queries[qi];
+                        let o = search_opts(q, &qvecs[qi], k);
+                        let ts = Instant::now();
+                        let r = search(q["text"].as_str().unwrap(), &o);
+                        let ms = ts.elapsed().as_secs_f64() * 1e3;
+                        let r: Result<Vec<String>, String> =
+                            r.map(|v| v.iter().map(|m| m.memory.memory_id.clone()).collect()).map_err(|e| e.to_string());
+                        let mut viol = Vec::new();
+                        if let Ok(top) = &r {
+                            let rt = retracted.lock().unwrap();
+                            let sp = superseded.lock().unwrap();
+                            for id in top {
+                                if rt.get(id).is_some_and(|at| *at < ts) {
+                                    viol.push(format!("retracted:{id}"));
+                                }
+                                if !o.include_superseded && sp.get(id).is_some_and(|at| *at < ts) {
+                                    viol.push(format!("superseded:{id}"));
+                                }
+                            }
+                        }
+                        out.push((qi, ms, r, viol));
+                    }
+                    out
+                })
+            })
+            .collect();
+        let mut writes = Vec::with_capacity(ops);
+        for (i, target) in targets.iter().enumerate() {
+            if write_rate > 0.0 {
+                let due = t0 + std::time::Duration::from_secs_f64(i as f64 / write_rate);
+                if let Some(wait) = due.checked_duration_since(Instant::now()) {
+                    std::thread::sleep(wait);
+                }
+            }
+            let kind = match i % 4 {
+                0 | 1 => "insert",
+                2 => "update",
+                _ => "retract",
+            };
+            let ts = Instant::now();
+            let res: Result<Option<String>, String> = (|| {
+                if kind == "retract" {
+                    store.retract(target, "o100m mixed workload").map_err(|e| e.to_string())?;
+                    return Ok(None);
+                }
+                let t = store.get_memories_by_ids(std::slice::from_ref(target), false).map_err(|e| e.to_string())?;
+                let t = t.first().ok_or("target row missing")?;
+                let m = derived_memory(t, i, if kind == "update" { "Update: " } else { "" });
+                store.insert_memory(&m, &[], std::slice::from_ref(&m.subject)).map_err(|e| e.to_string())?;
+                if kind == "update" {
+                    store.supersede(target, &m.memory_id, "supersedes").map_err(|e| e.to_string())?;
+                }
+                Ok(Some(m.memory_id))
+            })();
+            let ms = ts.elapsed().as_secs_f64() * 1e3;
+            let at = Instant::now();
+            if res.is_ok() {
+                match kind {
+                    "retract" => {
+                        retracted.lock().unwrap().insert(target.clone(), at);
+                    }
+                    "update" => {
+                        superseded.lock().unwrap().insert(target.clone(), at);
+                    }
+                    _ => {}
+                }
+            }
+            let (new_id, err) = match res {
+                Ok(id) => (id, None),
+                Err(e) => (None, Some(e)),
+            };
+            writes.push((i, kind, target.clone(), new_id, ms, err));
+        }
+        done.store(true, Ordering::SeqCst);
+        let reads: Vec<ReadRow> = hs.into_iter().flat_map(|h| h.join().unwrap()).collect();
+        (reads, writes, t0.elapsed().as_secs_f64())
+    });
+    let rss_after_load_and_writes = sys::current_rss_bytes();
+
+    // ---- verification, after the writer stopped: every check searches with the row's own text and embedding,
+    // the strongest query there is for it, through the full default pipeline
+    let own = |id: &str| -> Option<(String, Vec<f64>)> {
+        let m = store.get_memories_by_ids(&[id.to_string()], false).ok()?.into_iter().next()?;
+        Some((m.text, m.embedding?))
+    };
+    let own_search = |text: &str, emb: Vec<f64>| -> Vec<String> {
+        let o = SearchOptions { k, with_sources: false, query_embedding: Some(emb), touch: false, ..Default::default() };
+        search(text, &o).map(|v| v.into_iter().map(|m| m.memory.memory_id).collect()).unwrap_or_default()
+    };
+    let (mut new_found, mut new_total, mut retired_leaks, mut retired_total) = (0usize, 0usize, Vec::new(), 0usize);
+    let mut verify = BufWriter::new(File::create(out_dir.join("verify.jsonl")).unwrap());
+    for (i, kind, target, new_id, _, err) in &write_rows {
+        if err.is_some() {
+            continue;
+        }
+        if let Some(nid) = new_id {
+            let (text, emb) = own(nid).expect("written row readable");
+            let top = own_search(&text, emb);
+            let hit = top.contains(nid);
+            new_total += 1;
+            new_found += hit as usize;
+            writeln!(verify, "{}", json!({"op": i, "check": "new_row_visible", "id": nid, "ok": hit, "top": top})).unwrap();
+        }
+        if *kind != "insert" {
+            let (text, emb) = own(target).expect("retired row still stored");
+            let top = own_search(&text, emb);
+            let leak = top.contains(target);
+            retired_total += 1;
+            if leak {
+                retired_leaks.push(target.clone());
+            }
+            writeln!(verify, "{}", json!({"op": i, "check": format!("{kind}d_row_hidden"), "id": target, "ok": !leak, "top": top})).unwrap();
+        }
+    }
+    verify.flush().unwrap();
+
+    let mut raw = BufWriter::new(File::create(out_dir.join("raw_mixed.jsonl")).unwrap());
+    for (qi, ms, r, viol) in &read_rows {
+        let (ok, top, err) = match r {
+            Ok(t) => (true, t.clone(), None),
+            Err(e) => (false, Vec::new(), Some(e.clone())),
+        };
+        writeln!(raw, "{}", json!({"phase": "mixed_read", "qid": queries[*qi]["qid"], "latency_ms": ms, "ok": ok, "top": top, "err": err, "violations": viol})).unwrap();
+    }
+    for (i, kind, target, new_id, ms, err) in &write_rows {
+        writeln!(raw, "{}", json!({"phase": "write", "op": i, "kind": kind, "target": target, "new_id": new_id, "latency_ms": ms, "ok": err.is_none(), "err": err})).unwrap();
+    }
+    raw.flush().unwrap();
+
+    let read_lat: Vec<f64> = read_rows.iter().filter(|r| r.2.is_ok()).map(|r| r.1).collect();
+    let read_ok = read_lat.len();
+    let violations: Vec<&String> = read_rows.iter().flat_map(|r| r.3.iter()).collect();
+    let mut by_kind = serde_json::Map::new();
+    for kind in ["insert", "update", "retract"] {
+        let rows: Vec<&WriteRow> = write_rows.iter().filter(|w| w.1 == kind).collect();
+        by_kind.insert(kind.into(), json!({"n": rows.len(), "errors": rows.iter().filter(|w| w.5.is_some()).count(),
+            "latency": lat_summary(rows.iter().filter(|w| w.5.is_none()).map(|w| w.4).collect())}));
+    }
+    let summary = json!({
+        "bank": bank, "n": n, "db": db, "engine": engine, "readers": readers, "ops": ops, "write_rate_per_s": write_rate, "k": k,
+        "wall_s": read_wall,
+        "reads": {"requests": read_rows.len(), "ok": read_ok, "errors": read_rows.len() - read_ok,
+                  "successful_qps": read_ok as f64 / read_wall, "latency": lat_summary(read_lat),
+                  "consistency_violations": violations.len(), "violation_examples": violations.iter().take(10).collect::<Vec<_>>()},
+        "writes": {"ok": write_rows.iter().filter(|w| w.5.is_none()).count(), "by_kind": by_kind,
+                   "achieved_ops_per_s": ops as f64 / read_wall},
+        "verify": {"new_rows_visible": new_found, "new_rows_total": new_total,
+                   "retired_rows_leaked": retired_leaks.len(), "retired_rows_total": retired_total,
+                   "leak_examples": retired_leaks.iter().take(10).collect::<Vec<_>>()},
+        "rss_bytes": {"after_mixed": rss_after_load_and_writes, "peak": sys::peak_rss_bytes()},
+        "cpu_s": sys::cpu_seconds() - cpu0, "disk_bytes_before": disk_before, "disk_bytes_after": db_bytes(db), "env": sys::env(),
+        "timing_scope": "MemoryRetriever::search wall time in-process while one writer thread commits through ChatMemoryStore; query embedding precomputed and excluded",
+    });
+    std::fs::write(out_dir.join("mixed_summary.json"), serde_json::to_string_pretty(&summary).unwrap()).unwrap();
+    println!("{}", serde_json::to_string_pretty(&summary).unwrap());
+}
+
 fn main() {
     match Cli::parse().cmd {
+        Cmd::Mixed { bank, n, seed, db, queries, qvec, readers, ops, write_rate, k, out_dir } => {
+            cmd_mixed(bank, n, seed, &db, &queries, &qvec, readers, ops, write_rate, k, &out_dir)
+        }
         Cmd::BuildIvf { db, nlist, iterations, out } => cmd_build_ivf(&db, nlist, iterations, &out),
         Cmd::Profile { bank, n, seed, db, queries, qvec, limit, out } => cmd_profile(bank, n, seed, &db, &queries, &qvec, limit, &out),
         Cmd::Texts { bank, n, seed, nq, out_dir } => cmd_texts(bank, n, seed, nq, &out_dir),

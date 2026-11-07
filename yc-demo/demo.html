@@ -1,0 +1,827 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mycelic Labs TraceNOC Demo</title>
+<style>
+:root{
+  --bg:#09090a; --panel:#111113; --panel2:#151518; --line:#26262b; --line2:#3a3a41;
+  --text:#f4f4f5; --muted:#b4b4bb; --dim:#7c7c85; --faint:#4a4a52;
+  --warn:#d8a54a; --warnbg:rgba(216,165,74,.10);
+  --sans:-apple-system,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;
+  --mono:"SF Mono",Menlo,Monaco,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;background:var(--bg);overflow:hidden}
+body{font-family:var(--sans);color:var(--text);-webkit-font-smoothing:antialiased}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+.scene{position:absolute;inset:0;opacity:0;visibility:hidden}
+.abs{position:absolute}
+.mono{font-family:var(--mono)}
+.ap{opacity:0}
+/* chrome */
+.topbar{position:absolute;left:0;right:0;top:0;height:76px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 56px;gap:22px;background:#0c0c0e}
+.logo{display:flex;align-items:center;gap:14px;font-weight:650;font-size:26px;letter-spacing:.2px}
+.logo svg{width:30px;height:30px}
+.logo img{width:36px;height:37px;display:block}
+.product{font-family:var(--mono);font-size:21px;letter-spacing:2.5px;color:var(--muted);padding-left:22px;border-left:1px solid var(--line2)}
+.product b{color:var(--text);font-weight:600}
+.badge{margin-left:auto;font-family:var(--mono);font-size:18px;letter-spacing:2px;border:1px solid var(--line2);padding:8px 14px;border-radius:6px;color:var(--text);display:flex;align-items:center;gap:10px}
+.badge .dot{width:9px;height:9px;border-radius:50%;background:var(--text)}
+.footer{position:absolute;left:56px;right:56px;bottom:22px;font-size:20px;color:var(--dim);line-height:1.35}
+.panel{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.plabel{font-family:var(--mono);font-size:18px;letter-spacing:.6px;color:var(--dim)}
+.h1{font-size:54px;font-weight:650;letter-spacing:-.6px;line-height:1.1}
+.h2{font-size:38px;font-weight:600;letter-spacing:-.3px;line-height:1.18}
+.body{font-size:27px;line-height:1.38;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:17px;letter-spacing:1.5px;padding:6px 12px;border-radius:5px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.chip.fill{background:var(--text);color:#0a0a0a;border-color:var(--text);font-weight:600}
+.chip.warn{border-color:var(--warn);color:var(--warn)}
+.chip.out{border-color:var(--text);color:var(--text)}
+.warnline{color:var(--warn)}
+.tag{font-family:var(--mono);font-size:16px;letter-spacing:1.6px;color:var(--dim)}
+/* lowercase label system */
+.product,.badge{letter-spacing:1.2px}
+.tag,.chip,.alert .lbl,.stage8 .sn,.cfg .ck,.v1row .qq{letter-spacing:.8px}
+/* scene 1 */
+.introline{font-size:36px;line-height:1.3;font-weight:500;color:var(--text)}
+.stat{position:absolute;top:0;height:150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 24px}
+.stat .big{font-size:44px;font-weight:650;letter-spacing:-.5px}
+.stat .cap{font-size:21px;color:var(--muted);line-height:1.3;margin-top:6px}
+/* windows (scene 2) */
+.win{position:absolute;background:var(--panel);border:1px solid var(--line2);border-radius:10px;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,.45)}
+.win .wt{height:44px;background:#18181c;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 16px;gap:8px;font-family:var(--mono);font-size:18px;color:var(--muted)}
+.win .wt i{width:11px;height:11px;border-radius:50%;background:#3a3a41;display:inline-block}
+.win .wb{padding:16px 20px;font-family:var(--mono);font-size:22px;line-height:1.55;color:var(--text)}
+.win .wb .k{color:var(--dim)}
+.qrow{font-size:31px;font-weight:500;line-height:1.25;padding:14px 0;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:baseline}
+.qrow span.n{font-family:var(--mono);font-size:20px;color:var(--dim);width:34px}
+/* operator */
+.alert{position:absolute;left:56px;right:56px;top:96px;height:84px;border:1px solid var(--line2);background:var(--panel2);border-radius:12px;display:flex;align-items:center;padding:0 26px;gap:22px}
+.alert .lbl{font-family:var(--mono);font-size:19px;letter-spacing:2px;padding:7px 12px;border-radius:5px;background:var(--text);color:#000;font-weight:700}
+.alert .txt{font-size:27px;font-weight:500}
+.alert .time{font-family:var(--mono);font-size:21px;color:var(--muted)}
+.btn{margin-left:auto;font-size:23px;font-weight:600;padding:13px 22px;border-radius:9px;border:1px solid var(--text);color:var(--text);background:transparent;white-space:nowrap}
+.btn.pressed{background:var(--text);color:#000}
+.obj{position:absolute;left:24px;right:24px;height:98px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:18px}
+.obj .num{font-family:var(--mono);font-size:19px;color:var(--dim);width:30px}
+.obj .q{font-size:25px;font-weight:550;line-height:1.2}
+.obj .a{font-family:var(--mono);font-size:19px;color:var(--muted);margin-top:6px;line-height:1.3}
+.obj .st{margin-left:auto;width:168px;display:flex;justify-content:flex-end}
+.srcrow{font-size:22px;color:var(--muted);line-height:1.5}
+.srcrow b{color:var(--text);font-weight:600}
+/* loop */
+.stage8{position:absolute;width:404px;height:212px;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:22px 24px}
+.stage8 .sn{font-family:var(--mono);font-size:18px;color:var(--dim);letter-spacing:2px}
+.stage8 .stt{font-size:31px;font-weight:620;margin-top:8px;letter-spacing:-.2px}
+.stage8 .sd{font-size:22px;line-height:1.35;color:var(--muted);margin-top:12px}
+.stage8.on{border-color:var(--text);background:#18181b}
+.stage8.done .stt{color:var(--text)}
+/* research */
+.cell{position:absolute;width:56px;height:46px;border-radius:5px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:17px;color:var(--faint)}
+.cell.el{background:var(--text);color:#000;border-color:var(--text);font-weight:650}
+.cell.calm{background:transparent;border-color:var(--muted);color:var(--text)}
+.req{font-family:var(--mono);font-size:21px;line-height:1.3;color:var(--muted);display:flex;gap:14px;padding:9px 0;border-bottom:1px solid var(--line)}
+.req b{color:var(--text);font-weight:600}
+.v1row{display:flex;flex-direction:column;padding:13px 0;border-bottom:1px solid var(--line)}
+.v1row .qq{font-family:var(--mono);font-size:20px;color:var(--dim);letter-spacing:1px}
+.v1row .aa{font-size:24px;margin-top:4px;line-height:1.25}
+.slot{display:flex;align-items:center;gap:12px;font-size:23px;padding:7px 0;color:var(--muted)}
+.slot .ck{width:28px;height:28px;border-radius:5px;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:19px;color:#000}
+.slot.ok .ck{background:var(--text);border-color:var(--text)}
+.slot.ok{color:var(--text)}
+/* results */
+.barrow{position:absolute;left:40px;right:40px;height:150px}
+.barrow .bl{font-size:27px;font-weight:550}
+.barrow .track{position:absolute;left:0;right:0;top:52px;height:56px;background:#17171a;border-radius:8px;border:1px solid var(--line)}
+.barrow .fillb{position:absolute;left:0;top:0;bottom:0;border-radius:8px;background:var(--text)}
+.barrow .fillb.gray{background:#5b5b63}
+.barrow .val{position:absolute;top:118px;left:0;font-family:var(--mono);font-size:24px;color:var(--text)}
+.card{position:absolute;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 26px}
+.card .big{font-size:46px;font-weight:650;letter-spacing:-.5px;margin-top:8px}
+.card .cap{font-size:22px;color:var(--muted);line-height:1.35;margin-top:8px}
+/* business */
+.mstep{font-size:24px;color:var(--muted);padding:11px 0;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:baseline}
+.mstep .x{font-family:var(--mono);color:var(--dim);font-size:19px;width:30px}
+.find{padding:12px 0;border-bottom:1px solid var(--line)}
+.find .ft{font-size:24px;font-weight:560}
+.find .fp{font-family:var(--mono);font-size:18px;color:var(--dim);margin-top:4px}
+.calcrow{font-family:var(--mono);font-size:34px;color:var(--text);display:flex;gap:18px;align-items:baseline;padding:14px 0}
+.calcrow .op{color:var(--dim)}
+.hstep{display:flex;align-items:center;gap:22px;padding:18px 0;border-bottom:1px solid var(--line)}
+.hstep .hn{width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:21px;flex:none}
+.hstep>div{flex:1}
+.hstep .ht{font-size:28px;font-weight:600}
+.hstep .hd{font-family:var(--mono);font-size:20px;color:var(--muted);margin-top:6px}
+/* platform */
+.env{position:absolute;left:56px;width:700px;height:150px;border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:24px 28px}
+.env.sel{border-color:var(--text);background:#18181b}
+.env .et{font-size:31px;font-weight:620}
+.env .es{font-size:22px;color:var(--muted);margin-top:10px}
+.cfg{display:flex;padding:15px 0;border-bottom:1px solid var(--line);gap:24px}
+.cfg .ck{font-family:var(--mono);font-size:18px;letter-spacing:1.8px;color:var(--dim);width:210px;padding-top:4px;flex:none}
+.cfg .cv{font-size:25px;line-height:1.3;color:var(--text)}
+.layer{position:absolute;top:0;height:150px;border:1px solid var(--line);border-radius:12px;padding:18px 22px;background:var(--panel)}
+.layer .lt{font-size:25px;font-weight:620}
+.layer .ld{font-size:20px;color:var(--muted);margin-top:8px;line-height:1.3}
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- ============ S1 INCIDENT ============ -->
+<section class="scene" id="s1" data-s="0" data-e="13">
+  <svg id="tessS1" class="abs" width="1920" height="1080" style="left:0;top:0;opacity:0"></svg>
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product">Historical incident · <b>Public records</b></div>
+    <div class="badge"><span class="dot"></span>30 Aug 2020 · UTC</div>
+  </div>
+  <div class="abs" style="left:56px;top:118px;width:720px">
+    <div class="tag ap" data-in="0.2">30 August 2020 · CenturyLink / Level 3 (AS3356)</div>
+    <div class="introline ap" data-in="0.4" style="margin-top:30px">A backbone routing disruption spread across the internet.</div>
+    <div class="introline ap" data-in="2.0" style="margin-top:24px">Operators needed to reconstruct what changed, where, and when.</div>
+    <div class="introline ap" data-in="3.6" style="margin-top:24px">The evidence was fragmented across routing records and reachability observations.</div>
+    <div class="ap" data-in="5.4" style="margin-top:34px;padding-top:26px;border-top:1px solid var(--line2);font-size:38px;line-height:1.25;font-weight:650">With Mycelic Labs, small local AI agents investigate it together and verify before they answer.</div>
+  </div>
+  <div class="panel ap" data-in="0.6" style="left:830px;top:118px;width:1034px;height:690px">
+    <div class="plabel" style="position:absolute;left:28px;top:22px">BGP updates vs. normal</div>
+    <div class="abs" style="right:28px;top:18px;display:flex;gap:22px;font-size:19px;color:var(--muted)">
+      <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="#f4f4f5" stroke-width="3"/></svg> collector rrc00</span>
+      <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="#9a9aa2" stroke-width="3" stroke-dasharray="7 5"/></svg> collector rrc01</span>
+      <span><svg width="34" height="10"><line x1="0" y1="5" x2="34" y2="5" stroke="#7c7c85" stroke-width="1.5" stroke-dasharray="4 6"/></svg> 2× = elevated</span>
+    </div>
+    <svg id="churn" class="abs" style="left:0;top:56px" width="1034" height="400"></svg>
+    <div class="abs" style="left:28px;top:470px;font-size:21px;color:var(--muted);width:980px;line-height:1.35">
+      <b style="color:var(--text);font-weight:600">BGP</b> is how networks tell each other where to send traffic. Each update is a routing change. At 10:00 they surged to 3 to 7× normal.
+    </div>
+    <div class="plabel" style="position:absolute;left:28px;top:548px">RIPE Atlas · pings to K-root failing from probes in AS209 (CenturyLink)</div>
+    <svg id="atlas" class="abs" style="left:0;top:578px" width="1034" height="106"></svg>
+  </div>
+  <div class="abs" style="left:56px;top:836px;width:1808px;height:150px">
+    <div class="stat ap" data-in="6.6" style="left:0;width:560px">
+      <div class="big">Nearly 5 hours</div>
+      <div class="cap">Incident duration, per ThousandEyes outage analysis (Sep 2020)</div>
+    </div>
+    <div class="stat ap" data-in="7.3" style="left:584px;width:640px">
+      <div class="big">3.5%</div>
+      <div class="cap">Drop in global traffic seen by Cloudflare, nearly all from CenturyLink's US ISP outage (Cloudflare blog, 30 Aug 2020)</div>
+    </div>
+    <div class="stat ap" data-in="8.0" style="left:1248px;width:560px">
+      <div class="big">124.5M updates</div>
+      <div class="cap">158 RIPE RIS five-minute files + RIPE Atlas pings → 2,873 time-stamped records</div>
+    </div>
+  </div>
+  <div class="footer ap" data-in="8.6">Cloudflare's 3.5% is a share of traffic on Cloudflare's network, not of users. Historical public evidence used in research. CenturyLink is not a Mycelic Labs customer.</div>
+</section>
+
+<!-- ============ S2 OPERATOR PROBLEM ============ -->
+<section class="scene" id="s2" data-s="13" data-e="22">
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product">The NOC problem · <b>Manual correlation</b></div>
+  </div>
+  <div class="h1 abs ap" data-in="0.1" style="left:56px;top:110px;width:1800px">The evidence existed. It was scattered across separate tools.</div>
+  <div class="win ap" data-in="0.7" style="left:56px;top:230px;width:540px">
+    <div class="wt"><i></i><i></i><i></i>&nbsp;RIPE RIS · collector rrc00</div>
+    <div class="wb"><span class="k">09:45</span> updates 0.9× normal<br><span class="k">10:00</span> updates 3.2× normal</div>
+  </div>
+  <div class="win ap" data-in="1.1" style="left:636px;top:262px;width:540px">
+    <div class="wt"><i></i><i></i><i></i>&nbsp;RIPE RIS · collector rrc01</div>
+    <div class="wb"><span class="k">09:45</span> updates 1.0× normal<br><span class="k">10:00</span> updates 6.9× normal</div>
+  </div>
+  <div class="win ap" data-in="1.5" style="left:96px;top:470px;width:560px">
+    <div class="wt"><i></i><i></i><i></i>&nbsp;RIPE Atlas · K-root pings</div>
+    <div class="wb"><span class="k">probes in</span> AS209 (CenturyLink)<br><span class="k">by 13:00</span> 64% of pings failing</div>
+  </div>
+  <div class="win ap" data-in="1.9" style="left:696px;top:500px;width:500px">
+    <div class="wt"><i></i><i></i><i></i>&nbsp;AS-level route churn</div>
+    <div class="wb"><span class="k">elevated at both</span><br>AS3356 (Level 3) only</div>
+  </div>
+  <div class="win ap" data-in="2.3" style="left:56px;top:716px;width:1140px">
+    <div class="wt"><i></i><i></i><i></i>&nbsp;Public reports · after the fact</div>
+    <div class="wb"><span class="k">third party</span>&nbsp; "recovered around 14:30" &nbsp;<span class="warnline">✕ churn still 2.8 to 4.8× at 14:30</span><br><span class="k">operator</span>&nbsp; cause attributed to a Flowspec rule &nbsp;<span class="k">(not visible in routing data)</span></div>
+  </div>
+  <div class="abs" style="left:1260px;top:236px;width:604px">
+    <div class="plabel ap" data-in="2.8">What the operator must answer</div>
+    <div style="margin-top:12px">
+      <div class="qrow ap" data-in="3.3"><span class="n">01</span>When did it start?</div>
+      <div class="qrow ap" data-in="3.9"><span class="n">02</span>Which network is implicated?</div>
+      <div class="qrow ap" data-in="4.5"><span class="n">03</span>Who lost reachability?</div>
+      <div class="qrow ap" data-in="5.1"><span class="n">04</span>Has it actually recovered?</div>
+      <div class="qrow ap" data-in="5.7"><span class="n">05</span>What caused it, and can we prove it?</div>
+    </div>
+    <div class="body ap" data-in="6.6" style="margin-top:30px;color:var(--text)">Each answer means correlating different sources, clocks and claims by hand, while customers are down.</div>
+  </div>
+  <div class="footer ap" data-in="7.2">Illustration of a manual workflow. Figures are from the public 2020 records; no operator time was measured.</div>
+</section>
+
+<!-- ============ S3 OPERATOR VIEW ============ -->
+<section class="scene" id="s3" data-s="22" data-e="52">
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product"><b>TraceNOC operator</b></div>
+    <div class="badge"><span class="dot"></span>Recorded replay · Historical incident</div>
+  </div>
+  <div class="alert ap" data-in="0.1">
+    <span class="lbl">Alert</span>
+    <span class="txt">BGP update churn above 2× normal at two route collectors</span>
+    <span class="time">30 Aug 2020 · 10:00 UTC window</span>
+    <span class="btn" id="inspectBtn">Inspect investigation</span>
+  </div>
+  <div class="panel ap" data-in="0.3" style="left:56px;top:204px;width:820px;height:352px">
+    <div class="plabel" style="position:absolute;left:26px;top:20px">Topology · affected entities · RIPE RIS + RIPE Atlas</div>
+    <svg id="topo" class="abs" style="left:0;top:46px" width="820" height="320"></svg>
+  </div>
+  <div class="panel ap" data-in="0.5" style="left:56px;top:574px;width:820px;height:410px;padding:18px 26px">
+    <div class="plabel">Agent exchange · <span id="msgq" style="color:var(--text)"></span> · recorded</div>
+    <div id="msgs" style="margin-top:8px"></div>
+  </div>
+  <div class="panel ap" data-in="0.4" style="left:904px;top:204px;width:960px;height:780px">
+    <div class="abs" style="left:26px;top:20px;right:26px;display:flex;align-items:center">
+      <span class="plabel">Investigation · 6 objectives</span>
+      <span class="tag" style="margin-left:auto">Scout · Verifier · Synthesizer</span>
+    </div>
+    <div id="objs" class="abs" style="left:0;right:0;top:62px;height:600px"></div>
+    <div id="report" class="abs" style="left:24px;right:24px;bottom:18px;height:92px;border:1px solid var(--line2);border-radius:10px;padding:14px 20px;opacity:0">
+      <div style="font-size:23px;font-weight:600">Report · 6 of 6 decisions correct · 4 supported · 2 justified withholds</div>
+      <div class="tag" style="margin-top:10px">Recorded run ho-D-dev · Local · 1 Nov 2026 · Every finding cites record IDs</div>
+    </div>
+  </div>
+  <div class="footer ap" data-in="2.0">Replay of a recorded run on 6 development questions (not held out); timing compressed. In the larger evaluation the swarm showed no advantage over a planned central agent.</div>
+  <svg id="cursor" class="abs" width="34" height="40" style="left:0;top:0;opacity:0"><path d="M3 2 L3 32 L11 25 L17 38 L22 36 L16 23 L27 23 Z" fill="#f4f4f5" stroke="#000" stroke-width="2"/></svg>
+  <div id="clickring" class="abs" style="width:60px;height:60px;border-radius:50%;border:2px solid #f4f4f5;opacity:0"></div>
+</section>
+
+<!-- ============ S3b PRIOR WORK (inserted) ============ -->
+<section class="scene" id="s3b" data-s="52" data-e="60">
+  <svg id="tessS3b" class="abs" width="1920" height="1080" style="left:0;top:0"></svg>
+  <div id="fjA" class="abs" style="left:0;right:0;top:300px;text-align:center">
+    <div class="fjl" data-in="0.3" style="font-size:56px;font-weight:650;letter-spacing:-1px">ali built fujitsu's virtuora reconciliation agent.</div>
+    <div class="fjl" data-in="0.9" style="font-size:30px;color:var(--muted);margin-top:22px">virtuora is fujitsu's platform for managing and automating telecom networks.</div>
+  </div>
+  <div id="fjB" class="abs" style="left:0;right:0;top:420px;text-align:center;opacity:0">
+    <div style="font-size:150px;font-weight:720;letter-spacing:-4px;line-height:1">48 hours → 10 minutes</div>
+    <div style="font-size:34px;color:var(--muted);margin-top:28px">network configuration reconciliation.</div>
+  </div>
+  <div id="fjC" class="abs" style="left:0;right:0;top:770px;text-align:center;opacity:0">
+    <div style="font-size:38px;font-weight:600;line-height:1.3">what if we could detect, remember, and connect changes across an entire at&amp;t-scale network?</div>
+    <div style="font-size:28px;color:var(--muted);margin-top:16px">one use case for mycelic's enterprise intelligence platform.</div>
+  </div>
+  <div id="fjD" class="abs" style="left:56px;right:56px;bottom:28px;text-align:center;font-size:20px;color:var(--dim);opacity:0">prior work by ali at fujitsu, not a mycelic labs result. network-wide use is a future application, not an at&amp;t deployment.</div>
+</section>
+
+<!-- ============ S4 PROMPTING IS DEAD ============ -->
+<section class="scene" id="s4" data-s="60" data-e="70">
+  <svg id="tessS4" class="abs" width="1920" height="1080" style="left:0;top:0"></svg>
+  <div id="pidHead" class="abs" style="left:0;right:0;text-align:center">
+    <div style="font-size:108px;font-weight:700;letter-spacing:-2.5px;line-height:1">From alert to verified diagnosis.</div>
+    <div id="pidSub" style="font-size:38px;color:var(--muted);margin-top:28px;font-weight:450">Mycelic Labs runs the investigation loop: no prompts, no code, every answer tied to evidence.</div>
+  </div>
+  <div id="loopArea" class="abs" style="left:0;top:0;width:1920px;height:1080px;opacity:0">
+    <div class="abs" style="left:56px;top:270px;font-size:26px;color:var(--muted)">The system starts from an incident context and an authorized objective. No chat box, no prompt, no code.</div>
+    <div id="stages"></div>
+    <div class="abs" style="left:56px;top:938px;font-size:22px;color:var(--dim);width:1800px;line-height:1.4">Stage details from the TraceNOC paper's documented flow (Figs. 2, 3, 5). Automatic assembly of these loops for new environments is in development.</div>
+  </div>
+</section>
+
+<!-- ============ S5 RESEARCH REPLAY ============ -->
+<section class="scene" id="s5" data-s="900" data-e="901">
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product"><b>Research preview</b></div>
+    <div class="badge"><span class="dot"></span>Recorded research replay · Nov 2026</div>
+  </div>
+  <div class="abs ap" data-in="0.1" style="left:56px;top:100px;right:56px;display:flex;align-items:baseline;gap:20px">
+    <span class="h2">Same model. Revised investigation strategy.</span>
+    <span class="tag" style="margin-left:auto">Qwen3.5 9B (Q4_K_M) · Local · Temperature 0 · 6 dev questions</span>
+  </div>
+  <!-- v1 -->
+  <div class="panel ap" id="v1panel" data-in="0.4" style="left:56px;top:176px;width:640px;height:720px;padding:22px 26px">
+    <div style="display:flex;align-items:center"><span class="plabel">Strategy v1</span><span class="chip" style="margin-left:auto">No planner</span></div>
+    <div style="font-size:26px;font-weight:600;margin-top:10px">Central agent queries the stores itself</div>
+    <div style="margin-top:10px">
+      <div class="v1row ap" data-in="1.2"><span class="qq">When did the surge begin?</span><span class="aa">Answered "rrc01", a collector, not a time <span class="warnline">✕</span></span></div>
+      <div class="v1row ap" data-in="2.0"><span class="qq">Which network?</span><span class="aa">AS3356: right, but evidence incomplete</span></div>
+      <div class="v1row ap" data-in="2.8"><span class="qq">Who lost reachability?</span><span class="aa">AS209: supported ✓</span></div>
+      <div class="v1row ap" data-in="3.6"><span class="qq">When did it subside?</span><span class="aa">Withheld: recovery never established <span class="warnline">✕</span></span></div>
+    </div>
+    <div class="ap" data-in="4.6" style="margin-top:22px;font-size:25px;line-height:1.35"><b>1 of 6</b> supported-correct findings.<br><span style="color:var(--muted)">The failure was evidence acquisition, not reasoning.</span></div>
+  </div>
+  <!-- revision banner -->
+  <div class="panel" id="rev" style="left:724px;top:176px;width:1140px;height:150px;padding:18px 24px;opacity:0">
+    <div style="display:flex;align-items:center;gap:14px"><span class="chip out">Revision v1 → v2</span><span class="tag">Documented configuration change · Made by the researchers</span></div>
+    <div class="mono" style="font-size:20px;line-height:1.55;margin-top:12px;color:var(--text)">+ state-blind evidence planner: scan hourly, refine where state changes<br>+ evidence ledger · temporal comparator · answer cards</div>
+  </div>
+  <!-- v2 -->
+  <div class="panel" id="v2panel" style="left:724px;top:344px;width:1140px;height:552px;padding:20px 24px;opacity:0">
+    <div style="display:flex;align-items:center"><span class="plabel">Strategy v2 · question: when had the surge subsided?</span><span class="chip" id="v2state" style="margin-left:auto">Gathering</span></div>
+    <div class="abs" style="left:24px;top:62px;font-family:var(--mono);font-size:16px;color:var(--dim)" id="gridlbl"></div>
+    <div id="grid" class="abs" style="left:24px;top:60px;width:1092px;height:150px"></div>
+    <div class="abs" style="left:24px;top:214px;display:flex;gap:22px;font-size:18px;color:var(--muted)">
+      <span><span style="display:inline-block;width:18px;height:14px;background:#f4f4f5;border-radius:3px"></span> elevated (≥2× normal)</span>
+      <span><span style="display:inline-block;width:18px;height:14px;border:1px solid #b4b4bb;border-radius:3px"></span> calm</span>
+      <span><span style="display:inline-block;width:18px;height:14px;border:1px solid #26262b;border-radius:3px"></span> not retrieved</span>
+      <span id="stepLbl" style="margin-left:24px;color:var(--text);font-family:var(--mono)"></span>
+    </div>
+    <div class="abs" style="left:24px;top:262px;width:520px">
+      <div class="plabel">Answer card · surge_recovery(15:00)</div>
+      <div style="margin-top:10px">
+        <div class="slot" id="sl1"><span class="ck">✓</span>Surge seen before at 14:45: 3.2× / 4.3×</div>
+        <div class="slot" id="sl2"><span class="ck">✓</span>Calm at both at 15:00: 1.97× / 1.83×</div>
+        <div class="slot" id="sl3"><span class="ck">✓</span>Stays calm at 15:15 and 15:30</div>
+      </div>
+    </div>
+    <div class="abs" id="issue" style="left:570px;top:262px;width:546px;height:178px;border:1px solid var(--line2);border-radius:10px;padding:16px 20px;opacity:0">
+      <div class="tag">Evidence gate · All claim slots observed</div>
+      <div style="font-size:34px;font-weight:650;margin-top:10px">Issue: subsided 15:00 UTC</div>
+      <div style="font-size:22px;color:var(--muted);margin-top:10px">v2: <b style="color:var(--text)">4 of 6</b> supported-correct (v1: 1 of 6)</div>
+    </div>
+    <div class="abs" id="srccheck" style="left:24px;right:24px;bottom:16px;height:62px;border-top:1px solid var(--line);padding-top:14px;font-size:21px;color:var(--muted);opacity:0">
+      <b style="color:var(--text)">Source check:</b> third-party "around 14:30" recovery <span class="warnline">contradicted</span> (churn still 2.8 to 4.8×) · Flowspec cause is operator attribution only → <b style="color:var(--text)">withheld</b>
+    </div>
+  </div>
+  <div class="footer ap" data-in="0.6">Replay of the paper's documented local development study (Table 1, §8.2, Fig. 5). The planner change was made by researchers, not invented by the system. Window values: RIPE RIS reconstruction.</div>
+</section>
+
+<!-- ============ S6 ACCURACY ============ -->
+<section class="scene" id="s6" data-s="83" data-e="95">
+  <svg id="tessS6" class="abs" width="1920" height="1080" style="left:0;top:0"></svg>
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product"><b>Research preview</b></div>
+    <div class="badge"><span class="dot"></span>Measured · Qwen 9B Modal evaluation · 1 Nov 2026</div>
+  </div>
+  <div class="abs ap" data-in="0.1" style="left:56px;top:104px;width:1800px">
+    <div class="h1">The planner changed the result. We measured it.</div>
+    <div class="body" style="margin-top:12px">90 answerable incident questions · same Qwen 9B weights · 680 of 720 runs completed.</div>
+  </div>
+  <div class="panel ap" data-in="0.5" style="left:56px;top:276px;width:1060px;height:620px">
+    <div class="plabel" style="position:absolute;left:40px;top:28px">Correct answers on answerable questions</div>
+    <div class="barrow" style="top:84px">
+      <div class="bl">Central agent, no planner</div>
+      <div class="track"><div class="fillb gray" id="barA"></div></div>
+      <div class="val ap" data-in="1.6">19 / 90 · 21.1%</div>
+    </div>
+    <div class="barrow" style="top:262px">
+      <div class="bl">Central agent + evidence planner</div>
+      <div class="track"><div class="fillb" id="barC"></div></div>
+      <div class="val ap" data-in="2.6">69 / 90 · 76.7%</div>
+    </div>
+    <div class="abs ap" data-in="3.2" style="left:40px;top:452px;right:40px;display:flex;align-items:baseline;gap:22px">
+      <span style="font-size:64px;font-weight:700;letter-spacing:-1px">+55.6 pts</span>
+      <span style="font-size:24px;color:var(--muted)">same 9B model · correct decisions 55 → 86 of 180 · p &lt; 0.001</span>
+    </div>
+    <div class="abs ap" data-in="3.6" style="left:40px;bottom:24px;right:40px;font-size:21px;color:var(--dim)">Answerable benchmark questions, not production incident-resolution accuracy.</div>
+  </div>
+  <div class="card ap" data-in="4.8" style="left:1144px;top:276px;width:720px;height:196px;border-color:var(--warn)">
+    <div class="plabel" style="color:var(--warn)">Regression · correct withholds</div>
+    <div class="big" style="color:var(--warn)">36 / 90 → 17 / 90</div>
+    <div class="cap">When the right answer was "withhold", the planned agent withheld correctly less often.</div>
+  </div>
+  <div class="card ap" data-in="6.4" style="left:1144px;top:490px;width:720px;height:196px">
+    <div class="plabel">Evidence-first swarm, same planner</div>
+    <div class="big">52 / 78 · 66.7%</div>
+    <div class="cap">Completed answerable questions. Paired test: 75 vs 71 correct decisions, p = 0.54: no swarm advantage detected.</div>
+  </div>
+  <div class="card ap" data-in="7.8" style="left:1144px;top:704px;width:720px;height:192px">
+    <div class="plabel">Coverage</div>
+    <div class="big" style="font-size:40px">680 / 720 runs</div>
+    <div class="cap">4 shards stopped (10 swarm, 30 evidence-first). Missing runs not imputed.</div>
+  </div>
+  <div class="footer ap" data-in="8.6">Source: TraceNOC on the CenturyLink 2020 Outage, revised 1 Nov 2026, Tables 2 and 3. One historical incident: question diversity is not incident diversity.</div>
+</section>
+
+<!-- ============ S6b HARNESS, NOT WEIGHTS ============ -->
+<section class="scene" id="s6b" data-s="95" data-e="106">
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product"><b>Research preview</b></div>
+    <div class="badge"><span class="dot"></span>Self-evolving harness · In development</div>
+  </div>
+  <div class="abs ap" data-in="0.1" style="left:56px;top:104px;width:1808px">
+    <div class="h1">Why pay millions for RL? Improve the harness, not the weights.</div>
+    <div class="body" style="margin-top:12px">The 21% → 77% gain came from changing how the model investigates. Same Qwen 9B weights. No training run.</div>
+  </div>
+  <div class="panel ap" data-in="0.5" style="left:56px;top:270px;width:880px;height:590px;padding:26px 30px">
+    <div style="display:flex;align-items:center"><span class="plabel">How the planner was made</span><span class="chip out" style="margin-left:auto">Human-designed · Demonstrated</span></div>
+    <div class="hstep ap" data-in="1.2"><span class="hn">1</span><div><div class="ht">Run and record every step</div><div class="hd">baseline: 1 of 6 supported findings</div></div><span class="chip out">Done</span></div>
+    <div class="hstep ap" data-in="2.0"><span class="hn">2</span><div><div class="ht">Diagnose the failure from traces</div><div class="hd">evidence acquisition, not reasoning</div></div><span class="chip out">Done</span></div>
+    <div class="hstep ap" data-in="2.8"><span class="hn">3</span><div><div class="ht">Revise the strategy</div><div class="hd">evidence planner, written by the researchers</div></div><span class="chip">By hand</span></div>
+    <div class="hstep ap" data-in="3.6"><span class="hn">4</span><div><div class="ht">Measure before trusting</div><div class="hd">19/90 → 69/90 · withholds 36 → 17</div></div><span class="chip out">Done</span></div>
+    <div class="ap" data-in="4.4" style="margin-top:22px;font-size:25px;line-height:1.35;color:var(--text)">The adaptive harness is built to run this loop itself.</div>
+  </div>
+  <div class="panel ap" data-in="5.0" style="left:984px;top:270px;width:880px;height:590px;padding:26px 30px;border-color:var(--text)">
+    <div style="display:flex;align-items:center;gap:12px"><span class="plabel" style="color:var(--text)">Adaptive harness</span><span class="chip warn" style="margin-left:auto">In development</span></div>
+    <div style="font-size:30px;font-weight:600;margin-top:12px;line-height:1.25">Built to run this loop automatically.</div>
+    <div style="margin-top:18px">
+      <div class="mstep ap" data-in="5.8"><span class="x">01</span>Reads its own execution traces</div>
+      <div class="mstep ap" data-in="6.1"><span class="x">02</span>Finds where the strategy failed</div>
+      <div class="mstep ap" data-in="6.4"><span class="x">03</span>Proposes a revised strategy</div>
+      <div class="mstep ap" data-in="6.7"><span class="x">04</span>Validates it before anything ships</div>
+    </div>
+    <div class="ap" data-in="7.4" style="margin-top:24px;font-size:46px;font-weight:700;letter-spacing:-.5px">No retraining. Same weights.</div>
+  </div>
+  <div class="footer ap" data-in="8.8">The planner was designed by researchers. The adaptive harness is in development and has not yet produced a validated revision.</div>
+</section>
+
+<!-- ============ S8 BUSINESS ============ -->
+<section class="scene" id="s8" data-s="70" data-e="83">
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product"><b>TraceNOC operator</b></div>
+    <div class="badge"><span class="dot"></span>Workflow illustration · Scenario</div>
+  </div>
+  <div id="bizA" class="abs" style="inset:0">
+    <div class="h1 abs ap" data-in="0.1" style="left:56px;top:96px">Same evidence. Two ways to work.</div>
+    <div class="abs ap" data-in="0.3" style="left:56px;top:166px;font-size:26px;color:var(--muted)">What an operator pays for: faster investigations, fewer unsupported diagnoses, on infrastructure it already owns.</div>
+    <div class="panel ap" data-in="0.4" style="left:56px;top:222px;width:880px;height:680px;padding:26px 30px">
+      <div class="plabel">Without Mycelic Labs</div>
+      <div style="font-size:31px;font-weight:600;margin-top:10px">The operator correlates by hand</div>
+      <div style="margin-top:14px">
+        <div class="mstep ap" data-in="0.9"><span class="x">01</span>Open each collector's update data</div>
+        <div class="mstep ap" data-in="1.2"><span class="x">02</span>Work out what "normal" looked like</div>
+        <div class="mstep ap" data-in="1.5"><span class="x">03</span>Match ping failures to networks</div>
+        <div class="mstep ap" data-in="1.8"><span class="x">04</span>Reconcile conflicting public reports</div>
+        <div class="mstep ap" data-in="2.1"><span class="x">05</span>Decide what is proven, and write it up</div>
+      </div>
+      <div class="ap" data-in="2.4" style="margin-top:24px;font-size:24px;color:var(--muted)">Five tools · competing explanations · no shared record</div>
+    </div>
+    <div class="panel ap" data-in="2.8" style="left:984px;top:222px;width:880px;height:680px;padding:26px 30px;border-color:var(--text)">
+      <div class="plabel" style="color:var(--text)">With Mycelic Labs</div>
+      <div style="font-size:31px;font-weight:600;margin-top:10px">Source-linked findings for review</div>
+      <div style="margin-top:12px">
+        <div class="find ap" data-in="3.2"><div class="ft">Surge began 10:00 UTC</div><div class="fp">RIS rrc00 3.2× · rrc01 6.9× · prior window calm</div></div>
+        <div class="find ap" data-in="3.5"><div class="ft">AS3356 most implicated</div><div class="fp">only AS elevated at both collectors</div></div>
+        <div class="find ap" data-in="3.8"><div class="ft">AS209 end hosts lost reachability</div><div class="fp">RIPE Atlas · 64% of K-root pings failing</div></div>
+        <div class="find ap" data-in="4.1"><div class="ft">Subsided 15:00 UTC</div><div class="fp">1.97× / 1.83×, then calm · "14:30" report contradicted</div></div>
+        <div class="find ap" data-in="4.4"><div class="ft" style="color:var(--muted)">Internal cause: withheld</div><div class="fp">not identifiable from public data</div></div>
+      </div>
+    </div>
+    <div class="footer ap" data-in="1.0">Workflow illustration. No operator study has measured this comparison.</div>
+  </div>
+  <div id="bizB" class="abs" style="inset:0;opacity:0">
+    <div class="h1 abs" style="left:56px;top:104px">What reclaimed time could mean for a NOC.</div>
+    <div class="panel" style="left:56px;top:206px;width:1000px;height:560px;padding:30px 36px">
+      <div class="plabel">Annual staffing-capacity scenario · assumptions</div>
+      <div class="calcrow bz" data-in="0.6" style="margin-top:18px">100 <span class="op">operators</span></div>
+      <div class="calcrow bz" data-in="1.0"><span class="op">×</span> 2 <span class="op">hours reclaimed / operator / week</span></div>
+      <div class="calcrow bz" data-in="1.4"><span class="op">×</span> 52 <span class="op">weeks</span> <span class="op">=</span> 10,400 <span class="op">hours</span></div>
+      <div class="calcrow bz" data-in="2.0"><span class="op">×</span> $65 <span class="op">assumed fully loaded hourly cost</span></div>
+      <div class="calcrow bz" data-in="2.4" style="border-top:1px solid var(--line2);margin-top:8px;padding-top:20px"><span class="op">=</span> $676,000 <span class="op">per year</span></div>
+    </div>
+    <div class="card bz" data-in="3.0" style="left:1084px;top:206px;width:780px;height:268px">
+      <div class="big" style="font-size:64px">10,400</div>
+      <div class="cap" style="font-size:27px;color:var(--text)">potential operator-hours reclaimed annually</div>
+    </div>
+    <div class="card bz" data-in="3.5" style="left:1084px;top:498px;width:780px;height:268px">
+      <div class="big" style="font-size:64px">$676,000</div>
+      <div class="cap" style="font-size:27px;color:var(--text)">illustrative annual gross labor capacity</div>
+    </div>
+    <div class="abs bz" data-in="4.0" style="left:56px;top:800px;width:1808px;height:84px;border:1px solid var(--warn);border-radius:12px;background:var(--warnbg);display:flex;align-items:center;padding:0 30px;gap:24px">
+      <span style="font-size:30px;font-weight:650;color:var(--warn)">Scenario assumption, not measured customer savings</span>
+      <span style="font-size:21px;color:var(--muted)">Assumes all 52 weeks productive; no adjustment for leave, holidays or other costs.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ S9 PLATFORM ============ -->
+<section class="scene" id="s9" data-s="106" data-e="115">
+  <div class="topbar">
+    <div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div>
+    <div class="product"><b>Platform</b></div>
+    <div class="badge"><span class="dot"></span>Environment configuration</div>
+  </div>
+  <div class="abs ap" data-in="0.1" style="left:56px;top:96px;width:1808px"><div class="h1" style="font-size:44px">You already own the data and compute. Mycelic Labs makes them work together.</div><div class="body" style="margin-top:8px;font-size:25px">Small local models on hardware you already own, sharing verified findings, keeping sensitive data local. Telecom is the first application.</div></div>
+  <div class="env sel" id="envT" style="top:226px"><div class="et">Telecommunications</div><div class="es">TraceNOC: research demonstrated</div></div>
+  <div class="env" id="envA" style="top:392px"><div class="et">Automotive manufacturing</div><div class="es">Future application, not experimentally validated</div></div>
+  <div class="panel" style="left:790px;top:226px;width:1074px;height:452px;padding:4px 30px">
+    <div id="cfgT" class="abs" style="left:30px;right:30px;top:14px">
+      <div class="cfg"><span class="ck">Objects</span><span class="cv">Networks (AS), route collectors, probe groups</span></div>
+      <div class="cfg"><span class="ck">Evidence</span><span class="cv">RIPE RIS updates · RIPE Atlas pings (public)</span></div>
+      <div class="cfg"><span class="ck">Tools</span><span class="cv">Evidence planner · temporal comparator · evidence gate</span></div>
+      <div class="cfg"><span class="ck">Policy</span><span class="cv">Cite records or withhold · no invented internal causes</span></div>
+      <div class="cfg" style="border:0"><span class="ck">Goals</span><span class="cv">Onset · implicated network · reachability · recovery</span></div>
+    </div>
+    <div id="cfgA" class="abs" style="left:30px;right:30px;top:14px;opacity:0">
+      <div class="cfg"><span class="ck">Objects</span><span class="cv">Lines, stations, tools, parts</span></div>
+      <div class="cfg"><span class="ck">Evidence</span><span class="cv">e.g. MES events, PLC alarms, inspection results, kept on site</span></div>
+      <div class="cfg"><span class="ck">Tools</span><span class="cv">Planner and gate adapted to plant records</span></div>
+      <div class="cfg"><span class="ck">Policy</span><span class="cv">Raw records stay local · share verified findings only</span></div>
+      <div class="cfg" style="border:0"><span class="ck">Goals</span><span class="cv">e.g. explain a rise in a defect rate</span></div>
+    </div>
+    <div id="conceptStamp" class="abs" style="right:30px;bottom:20px;opacity:0"><span class="chip warn" style="font-size:19px">Concept configuration · No data · No results</span></div>
+  </div>
+  <div class="tag abs ap" data-in="0.8" style="left:56px;top:704px">One product · Mycelic Fabric · On hardware the enterprise already owns · Pilot version targeted Dec 2026</div>
+  <div class="abs" style="left:56px;top:742px;width:1808px;height:150px">
+    <div class="layer ap" data-in="1.0" style="left:0;width:570px"><div style="display:flex;align-items:center"><span class="lt">Remember</span><span class="chip out" style="margin-left:auto;font-size:14px">Implemented · Open source</span></div><div class="ld">NeuralGraph keeps evidence, memory and how findings connect, locally</div></div>
+    <div class="abs ap" data-in="1.2" style="left:578px;top:56px;font-size:26px;color:#6b6b74">→</div>
+    <div class="layer ap" data-in="1.4" style="left:619px;width:570px"><div style="display:flex;align-items:center"><span class="lt">Coordinate</span><span class="chip" style="margin-left:auto;font-size:14px">Prototype</span></div><div class="ld">Local models share verified findings; sensitive records stay where they are</div></div>
+    <div class="abs ap" data-in="1.6" style="left:1197px;top:56px;font-size:26px;color:#6b6b74">→</div>
+    <div class="layer ap" data-in="1.8" style="left:1238px;width:570px"><div style="display:flex;align-items:center"><span class="lt">Improve</span><span class="chip warn" style="margin-left:auto;font-size:14px">In development</span></div><div class="ld">Adaptive harness revises strategies from observed failures, no retraining</div></div>
+  </div>
+  <div class="footer ap" data-in="2.4">Private research preview since 2 Nov 2026 · early technical discussions · no paying customers or pilots yet.</div>
+  <svg id="cursor2" class="abs" width="34" height="40" style="left:0;top:0;opacity:0"><path d="M3 2 L3 32 L11 25 L17 38 L22 36 L16 23 L27 23 Z" fill="#f4f4f5" stroke="#000" stroke-width="2"/></svg>
+</section>
+
+<!-- ============ S10 END ============ -->
+<section class="scene" id="s10" data-s="115" data-e="120">
+  <svg id="tessS10" class="abs" width="1920" height="1080" style="left:0;top:0"></svg>
+  <div class="abs" style="left:0;right:0;top:640px;text-align:center">
+    <div class="ap" data-in="0.2" style="font-size:112px;font-weight:700;letter-spacing:-2.5px">See what others miss.</div>
+    <div class="ap" data-in="1.0" style="display:flex;align-items:center;justify-content:center;gap:22px;margin-top:40px"><img src="assets/mycelic-mark.png" alt="Mycelic" style="width:56px;height:58px"><span style="font-size:40px;font-weight:650;letter-spacing:-.3px;color:var(--text)">Mycelic</span></div>
+  </div>
+</section>
+
+</div>
+<script>
+const DUR = 120;
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease=x=>{x=clamp(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2};
+const ramp=(t,a,d=0.45)=>ease((t-a)/d);
+
+/* ---------- data (RIPE RIS reconstruction, ratio to 09:30/09:45 baseline) ---------- */
+const WIN=['09:30','09:45','10:00','10:15','10:30','10:45','11:00','11:15','11:30','11:45','12:00','12:15','12:30','12:45','13:00','13:15','13:30','13:45','14:00','14:15','14:30','14:45','15:00','15:15','15:30','15:45'];
+const R0=[1.14,0.86,3.24,3.06,2.13,2.02,1.98,2.2,2.61,1.63,1.95,2.13,2.54,2.58,2.65,2.62,2.68,2.15,2.37,4.06,2.78,3.21,1.97,1.72,1.26,1.1];
+const R1=[1.01,0.99,6.93,3.15,2.79,2.59,2.51,2.77,1.88,1.76,1.74,2.04,2.12,2.21,3.67,2.25,2.47,2.24,3.12,4.68,4.85,4.3,1.83,1.39,1.35,1.32];
+const AT=[0.32,5.7,6.71,6.99,10.07,30.8,64.29,61.23,51.92,49.33,1.0,0.0,0.97]; // 30-min, 09:30..15:30
+const ATW=['09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00','14:30','15:00','15:30'];
+
+/* ---------- build S1 charts ---------- */
+const NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+(function(){
+  const s=document.getElementById('churn');const L=86,Rr=30,T=20,B=350,W=1034;
+  const x=i=>L+i*(W-L-Rr)/(WIN.length-1), y=v=>B-(v/7.5)*(B-T);
+  [0,2,4,6].forEach(v=>{el('line',{x1:L,x2:W-Rr,y1:y(v),y2:y(v),stroke:'#222227'},s);const t=el('text',{x:L-14,y:y(v)+7,fill:'#7c7c85','font-size':19,'text-anchor':'end','font-family':'SF Mono,Menlo'},s);t.textContent=v+'×'});
+  el('line',{x1:L,x2:W-Rr,y1:y(2),y2:y(2),stroke:'#7c7c85','stroke-dasharray':'4 6'},s);
+  for(let i=0;i<WIN.length;i+=4){const t=el('text',{x:x(i),y:B+34,fill:'#7c7c85','font-size':19,'text-anchor':'middle','font-family':'SF Mono,Menlo'},s);t.textContent=WIN[i]}
+  const clip=el('clipPath',{id:'cc'},el('defs',{},s));window._cr=el('rect',{x:0,y:0,width:0,height:400},clip);
+  const g=el('g',{'clip-path':'url(#cc)'},s);
+  el('path',{d:R1.map((v,i)=>(i?'L':'M')+x(i)+' '+y(v)).join(''),fill:'none',stroke:'#9a9aa2','stroke-width':3,'stroke-dasharray':'8 6'},g);
+  el('path',{d:R0.map((v,i)=>(i?'L':'M')+x(i)+' '+y(v)).join(''),fill:'none',stroke:'#f4f4f5','stroke-width':3.5},g);
+  const a1=el('g',{opacity:0},s);window._a1=a1;
+  el('line',{x1:x(2),x2:x(2),y1:y(7.2),y2:B,stroke:'#f4f4f5','stroke-width':1.5},a1);
+  const t1=el('text',{x:x(2)+14,y:y(7.0),fill:'#f4f4f5','font-size':22,'font-weight':600},a1);t1.textContent='10:00 surge begins · 3.2× / 6.9×';
+  const a2=el('g',{opacity:0},s);window._a2=a2;
+  el('line',{x1:x(22),x2:x(22),y1:y(6.0),y2:B,stroke:'#f4f4f5','stroke-width':1.5},a2);
+  const t2=el('text',{x:x(22)-14,y:y(5.8),fill:'#f4f4f5','font-size':22,'font-weight':600,'text-anchor':'end'},a2);t2.textContent='15:00 subsides';
+  window._chartX=x;
+  const a=document.getElementById('atlas');const bw=(W-L-Rr)/ATW.length;
+  window._abars=[];
+  ATW.forEach((w,i)=>{const r=el('rect',{x:L+i*bw+6,y:96,width:bw-12,height:0,fill:i>=5&&i<=9?'#f4f4f5':'#5b5b63',rx:3},a);window._abars.push(r);
+    if(i%2==0){const t=el('text',{x:L+i*bw+bw/2,y:106+0,fill:'#7c7c85','font-size':16,'text-anchor':'middle','font-family':'SF Mono,Menlo'},a);}
+  });
+  const pk=el('text',{x:L+6*bw+bw/2,y:14,fill:'#f4f4f5','font-size':20,'text-anchor':'middle','font-weight':600,opacity:0},a);pk.textContent='64% at 12:30';window._apk=pk;
+  const l0=el('text',{x:L-14,y:96,fill:'#7c7c85','font-size':17,'text-anchor':'end','font-family':'SF Mono,Menlo'},a);l0.textContent='0%';
+})();
+function upS1(lt){
+  const p=clamp((lt-1.0)/6.0); _cr.setAttribute('width',86+p*(1034-86-30)+4);
+  _a1.setAttribute('opacity',ramp(lt,2.2));
+  _a2.setAttribute('opacity',ramp(lt,6.6));
+  const ap=clamp((lt-3.0)/4.5);
+  _abars.forEach((r,i)=>{const show=clamp(ap*ATW.length-i);const h=(AT[i]/70)*80*ease(show);r.setAttribute('height',h);r.setAttribute('y',96-h)});
+  _apk.setAttribute('opacity',ramp(lt,6.2));
+}
+
+/* ---------- S3 topology & objectives ---------- */
+const NODES={
+  rrc00:{x:125,y:60,l1:'RIS collector',l2:'rrc00'},
+  rrc01:{x:125,y:230,l1:'RIS collector',l2:'rrc01'},
+  as3356:{x:405,y:100,l1:'AS3356',l2:'Level 3 backbone',big:1},
+  peers:{x:405,y:250,l1:'Other networks',l2:'peers'},
+  as209:{x:680,y:100,l1:'AS209',l2:'CenturyLink access',big:1},
+  probes:{x:680,y:250,l1:'Atlas probes',l2:'in AS209 → K-root'}
+};
+const EDGES=[['as3356','rrc00'],['as3356','rrc01'],['as3356','peers'],['as3356','as209'],['as209','probes'],['peers','rrc01']];
+(function(){
+  const s=document.getElementById('topo');window._tn={};window._te=[];
+  EDGES.forEach(([a,b])=>{const A=NODES[a],B=NODES[b];window._te.push([a,b,el('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:'#3a3a41','stroke-width':2},s)])});
+  for(const k in NODES){const n=NODES[k];const g=el('g',{},s);const w=n.big?240:220,h=n.big?78:66;
+    const r=el('rect',{x:n.x-w/2,y:n.y-h/2,width:w,height:h,rx:10,fill:'#151518',stroke:'#3a3a41','stroke-width':2},g);
+    const t1=el('text',{x:n.x,y:n.y-4,fill:'#f4f4f5','font-size':n.big?25:21,'font-weight':650,'text-anchor':'middle'},g);t1.textContent=n.l1;
+    const t2=el('text',{x:n.x,y:n.y+22,fill:'#b4b4bb','font-size':18,'text-anchor':'middle','font-family':'SF Mono,Menlo'},g);t2.textContent=n.l2;
+    window._tn[k]={r,t1,t2};}
+})();
+const OBJ=[
+ {q:'Was routing abnormal before 10:00?',a:'no elevated churn record before the cutoff',st:'Withheld',cls:'out',hl:['rrc00','rrc01']},
+ {q:'When did the surge begin?',a:'10:00 UTC · rrc00 3.2× · rrc01 6.9×',st:'Supported',cls:'fill',hl:['rrc00','rrc01']},
+ {q:'Which network is implicated?',a:'AS3356 · only AS elevated at both collectors',st:'Supported',cls:'fill',hl:['as3356']},
+ {q:'Did end hosts lose reachability?',a:'AS209 · 64% of Atlas K-root pings failing',st:'Supported',cls:'fill',hl:['as209','probes']},
+ {q:'When did the surge subside?',a:'15:00 UTC · 1.97× / 1.83×, then calm',st:'Supported',cls:'fill',hl:['rrc00','rrc01']},
+ {q:'What internal failure caused it?',a:'no record supports an internal equipment or config failure',st:'Withheld',cls:'out',hl:[]}
+];
+(function(){
+  const c=document.getElementById('objs');window._ob=[];
+  OBJ.forEach((o,i)=>{const d=document.createElement('div');d.className='obj';d.style.top=(i*96)+'px';
+    d.innerHTML=`<span class="num">0${i+1}</span><div style="flex:1;min-width:0"><div class="q">${o.q}</div><div class="a" style="opacity:0">${o.a}</div></div><div class="st"><span class="chip">QUEUED</span></div>`;
+    c.appendChild(d);window._ob.push(d)});
+})();
+const MSGS=[[["Scout → Synthesizer", "status", "no_candidate: scanned as_churn pages 0 to 4; no record with y=true before the cutoff"], ["Synthesizer → all", "decision", "withhold"], ["Evidence gate", "check", "no elevated record before 10:00 → withheld"]], [["Scout → Verifier", "finding", "surge_onset(10:00): surge at both collectors (rrc00, rrc01); preceding window calm"], ["Verifier → Synthesizer", "verdict", "accept · time ok · lineage ok · contradiction none"], ["Synthesizer → all", "decision", "issue surge_onset(10:00)"], ["Evidence gate", "check", "surge ✓ r0bd2687 · corroboration ✓ r816ba07 · preceded ✓ r825c4e9 → supported"]], [["Scout → Verifier", "finding", "bgp_instability(AS3356): churn rise, breadth at both collectors, AS3356 first in top ASes"], ["Verifier → Synthesizer", "verdict", "accept · time ok · lineage ok · contradiction none"], ["Synthesizer → all", "decision", "issue bgp_instability(AS3356)"], ["Evidence gate", "check", "churn ✓ r266eb94 · dominance ✓ r0bd2687 · baseline ✓ → supported"]], [["Scout → Verifier", "finding", "reachability_loss(AS209): ping failures from 12:00 (rf7cacb9), worse by 12:30 (rf5ccd08)"], ["Verifier → Synthesizer", "verdict", "accept · time ok · lineage ok · contradiction none"], ["Synthesizer → all", "decision", "issue reachability_loss(AS209)"], ["Evidence gate", "check", "loss ✓ rf5ccd08 · baseline ✓ r316d92e → supported"]], [["Scout → Verifier", "finding", "surge_recovery(15:00): calm at both collectors at 15:00; stays calm 15:15 and 15:30"], ["Verifier → Synthesizer", "verdict", "accept · time ok · lineage ok · contradiction none"], ["Synthesizer → all", "decision", "issue surge_recovery(15:00)"], ["Evidence gate", "check", "surge ✓ r18e6611 · calm ✓ r1850572 · persists ✓ → supported"]], [["Synthesizer → all", "decision", "withhold: no record supports any specific internal equipment or configuration failure"], ["Evidence gate", "check", "no internal-cause record in public data → withheld"]]];
+const QN=["Routing before 10:00", "Surge onset", "Implicated network", "Reachability", "Recovery", "Internal cause"];
+const OB_START=i=>3.2+i*4.1, OB_RES=i=>OB_START(i)+0.3+MSGS[i].length*0.55+0.35;
+(function(){const c=document.getElementById('msgs');window._mg=[0,1,2,3].map(()=>{const d=document.createElement('div');
+  d.style.cssText='padding:8px 0;border-bottom:1px solid #26262b;opacity:0';
+  d.innerHTML='<div style="display:flex;gap:12px;align-items:center"><span class="chip out" style="font-size:15px;padding:3px 9px"></span><span class="tag"></span></div><div class="mono" style="font-size:18px;line-height:1.32;color:#f4f4f5;margin-top:5px"></div>';
+  c.appendChild(d);return d})})();
+function upS3(lt){
+  // cursor
+  const cur=document.getElementById('cursor'),ring=document.getElementById('clickring'),btn=document.getElementById('inspectBtn');
+  const br=btn.getBoundingClientRect(); const bx=br.left+br.width*0.55, by=br.top+br.height*0.6;
+  const sx=1500,sy=700; const m=ease((lt-1.0)/1.4);
+  cur.style.left=(sx+(bx-sx)*m)+'px'; cur.style.top=(sy+(by-sy)*m)+'px';
+  cur.style.opacity=clamp((lt-0.9)/0.3)*(1-clamp((lt-3.6)/0.4));
+  const cl=lt-2.6; ring.style.left=(bx-30)+'px'; ring.style.top=(by-30)+'px';
+  ring.style.opacity=cl>0&&cl<0.6?(1-cl/0.6):0; ring.style.transform=`scale(${0.5+clamp(cl/0.6)})`;
+  btn.classList.toggle('pressed',lt>=2.6);
+  btn.textContent=lt>=2.6?'Investigation running':'Inspect investigation';
+  if(lt>=OB_RES(5)+0.6) btn.textContent='Investigation complete';
+  // collectors pulse at alert
+  const hl=new Set();
+  if(lt>0.4&&lt<2.6){hl.add('rrc00');hl.add('rrc01')}
+  _ob.forEach((d,i)=>{
+    const t0=OB_START(i), tr=OB_RES(i), tn=i<5?OB_START(i+1):99; const ch=d.querySelector('.chip'); const a=d.querySelector('.a');
+    let st='Queued',cls='';
+    if(lt>=t0){st='Gathering';cls='out'}
+    if(lt>=t0+1.0){st='Verifying';cls='out'}
+    if(lt>=tr){st=OBJ[i].st;cls=OBJ[i].cls}
+    if(lt>=t0&&lt<tn) OBJ[i].hl.forEach(h=>hl.add(h));
+    if(ch.textContent!==st){ch.textContent=st;ch.className='chip '+cls}
+    a.style.opacity=ramp(lt,tr,0.35);
+    d.style.background=(lt>=t0&&lt<tn&&lt<OB_RES(5)+0.6)?'#18181b':'transparent';
+  });
+  // persistent affected entities
+  const aff=new Set();
+  if(lt>=OB_RES(2))aff.add('as3356');
+  if(lt>=OB_RES(3)){aff.add('as209');aff.add('probes')}
+  for(const k in _tn){const n=_tn[k];const on=hl.has(k),af=aff.has(k);
+    n.r.setAttribute('stroke',on||af?'#f4f4f5':'#3a3a41');n.r.setAttribute('stroke-width',on?4:(af?3:2));
+    n.r.setAttribute('fill',af?'#f4f4f5':(on?'#1e1e22':'#151518'));
+    n.t1.setAttribute('fill',af?'#0a0a0a':'#f4f4f5');n.t2.setAttribute('fill',af?'#2a2a2e':'#b4b4bb');}
+  _te.forEach(([a,b,l])=>{const on=(aff.has(a)&&aff.has(b))||(hl.has(a)&&hl.has(b))||((a==='as3356')&&hl.has(b));l.setAttribute('stroke',on?'#f4f4f5':'#3a3a41');l.setAttribute('stroke-width',on?3:2)});
+  document.getElementById('report').style.opacity=ramp(lt,OB_RES(5)+0.6);
+  let q=-1;for(let i=0;i<6;i++)if(lt>=OB_START(i))q=i;
+  const lbl=document.getElementById('msgq'); const nt=q<0?'waiting for the investigation to start':QN[q];
+  if(lbl.textContent!==nt)lbl.textContent=nt;
+  _mg.forEach((d,j)=>{const m=q<0?null:MSGS[q][j];
+    if(!m){d.style.opacity=0;return}
+    const sp=d.querySelectorAll('span'),tx=d.querySelector('.mono');
+    if(sp[0].textContent!==m[0]){sp[0].textContent=m[0];sp[1].textContent=m[1][0].toUpperCase()+m[1].slice(1);tx.textContent=m[2]}
+    const v=ramp(lt,OB_START(q)+0.3+j*0.55,0.3);d.style.opacity=v;d.style.transform=`translateY(${(1-v)*10}px)`});
+}
+
+/* ---------- S4 stages ---------- */
+const STG=[
+ ['Incident detected','Routing churn 3.2× / 6.9× normal at two collectors, 10:00 UTC'],
+ ['Map available evidence','158 RIS files · Atlas pings → 2,873 time-stamped records'],
+ ['Assign investigators','Qwen3.5 9B investigator · deterministic evidence planner'],
+ ['Gather records','Scan hourly, refine where the state changes · 8-request budget'],
+ ['Challenge hypotheses','Compare every candidate window · resolve contradicting sources'],
+ ['Verify conclusions','Issue only when every claim slot is observed'],
+ ['Retain findings','Records kept by identifier in a provenance ledger'],
+ ['Continue or stop','Budget left → gather more; otherwise withhold and say what is missing']
+];
+(function(){const c=document.getElementById('stages');window._st=[];
+  STG.forEach((s,i)=>{const d=document.createElement('div');d.className='stage8';const row=Math.floor(i/4),col=row?3-(i%4):i%4;
+    d.style.left=(56+col*452)+'px';d.style.top=(330+row*290)+'px';
+    d.innerHTML=`<div class="sn">0${i+1}</div><div class="stt">${s[0]}</div><div class="sd">${s[1]}</div>`;c.appendChild(d);_st.push(d);
+    if(i%4<3){const ac=row?col-1:col;const ar=document.createElement('div');ar.className='abs';ar.style.cssText=`left:${56+ac*452+414}px;top:${330+row*290+88}px;font-size:30px;color:#6b6b74`;ar.textContent=row?'←':'→';c.appendChild(ar);_st.push(null)}
+  });
+  const ar=document.createElement('div');ar.className='abs';ar.style.cssText='left:1650px;top:552px;font-size:30px;color:#6b6b74';ar.textContent='↓';c.appendChild(ar);
+  window._stc=_st.filter(Boolean);
+})();
+function upS4(lt){
+  const h=document.getElementById('pidHead'),sub=document.getElementById('pidSub'),la=document.getElementById('loopArea');
+  const m=ease((lt-2.6)/0.8);
+  h.style.top=(370+(96-370)*m)+'px';
+  h.style.transform=`scale(${1-0.42*m})`;h.style.transformOrigin='50% 0';
+  h.style.opacity=ramp(lt,0.1,0.6);
+  sub.style.opacity=ramp(lt,1.2,0.6);
+  la.style.opacity=ramp(lt,3.2,0.6);
+  _stc.forEach((d,i)=>{const t0=3.6+i*0.7;const vis=ramp(lt,t0-0.35,0.35);d.style.opacity=0.25+0.75*vis;
+    d.classList.toggle('on',lt>=t0&&lt<t0+0.7);});
+}
+
+/* ---------- S5 grid ---------- */
+const GW=WIN.slice(2); // 10:00..15:45 (24)
+(function(){
+  const g=document.getElementById('grid');window._cells={rrc00:[],rrc01:[]};
+  ['rrc00','rrc01'].forEach((c,ri)=>{
+    const lb=document.createElement('div');lb.className='abs mono';lb.style.cssText=`left:0;top:${30+ri*56+12}px;font-size:18px;color:#b4b4bb`;lb.textContent=c;g.appendChild(lb);
+    GW.forEach((w,i)=>{const d=document.createElement('div');d.className='cell';d.style.left=(78+i*42.5)+'px';d.style.top=(30+ri*56)+'px';d.style.width='40px';d.style.fontSize='13px';d.style.letterSpacing='-0.5px';g.appendChild(d);_cells[c].push(d)});
+  });
+  GW.forEach((w,i)=>{if(w.endsWith(':00')){const t=document.createElement('div');t.className='abs mono';t.style.cssText=`left:${78+i*42.5-8}px;top:0;font-size:16px;color:#7c7c85`;t.textContent=w;g.appendChild(t)}});
+})();
+const HOURLY=['10:00','11:00','12:00','13:00','14:00','15:00'];
+const REF1=['14:15','14:30','14:45'], REF2=['15:15','15:30'];
+function upS5(lt){
+  document.getElementById('rev').style.opacity=ramp(lt,5.6,0.5);
+  const v2=document.getElementById('v2panel');v2.style.opacity=ramp(lt,6.4,0.5);
+  // acquisition steps
+  const acq=new Set();let step='';
+  const tH=7.4,tR1=9.6,tR2=10.8;
+  HOURLY.forEach((w,i)=>{if(lt>=tH+i*0.28)acq.add(w)});
+  if(lt>=tH)step='1 · Hourly scan';
+  REF1.forEach((w,i)=>{if(lt>=tR1+i*0.22)acq.add(w)});
+  if(lt>=tR1)step='2 · Refine at the last elevated → calm change';
+  REF2.forEach((w,i)=>{if(lt>=tR2+i*0.22)acq.add(w)});
+  if(lt>=tR2)step='3 · Check it stays calm';
+  if(lt>=12.0)step='4 · Comparator: first calm window = 15:00';
+  document.getElementById('stepLbl').textContent=step;
+  ['rrc00','rrc01'].forEach(c=>{const R=c==='rrc00'?R0:R1;
+    GW.forEach((w,i)=>{const d=_cells[c][i];const v=R[i+2];
+      if(acq.has(w)){const cls=v>=2?'cell el':'cell calm';if(d.className!==cls)d.className=cls;d.textContent=v.toFixed(2)}
+      else{if(d.className!=='cell')d.className='cell';d.textContent=''}
+      const is15=w==='15:00'&&lt>=12.0;d.style.outline=is15?'3px solid #f4f4f5':'none';d.style.outlineOffset='3px';
+    })});
+  const slots=[['sl1',12.4],['sl2',12.8],['sl3',13.2]];
+  slots.forEach(([id,t])=>document.getElementById(id).classList.toggle('ok',lt>=t));
+  document.getElementById('issue').style.opacity=ramp(lt,13.7,0.4);
+  const vs=document.getElementById('v2state');const s=lt>=13.7?'Issued':(lt>=12.0?'Verifying':'Gathering');
+  if(vs.textContent!==s){vs.textContent=s;vs.className='chip '+(s==='Issued'?'fill':'')}
+  document.getElementById('srccheck').style.opacity=ramp(lt,14.4,0.5);
+}
+
+/* ---------- S6 bars ---------- */
+function upS6(lt){
+  document.getElementById('barA').style.width=(21.1*ease((lt-1.0)/0.8))+'%';
+  document.getElementById('barC').style.width=(76.7*ease((lt-2.0)/1.0))+'%';
+}
+/* ---------- S8 ---------- */
+function upS8(lt){
+  const a=document.getElementById('bizA'),b=document.getElementById('bizB');
+  a.style.opacity=1-ramp(lt,6.8,0.5); b.style.opacity=ramp(lt,7.2,0.5);
+  b.querySelectorAll('.bz').forEach(e=>{const t=parseFloat(e.dataset.in)+7.2;const v=ramp(lt,t,0.45);e.style.opacity=v;e.style.transform=`translateY(${(1-v)*12}px)`});
+}
+/* ---------- S9 ---------- */
+function upS9(lt){
+  const sw=lt>=4.4;
+  document.getElementById('envT').classList.toggle('sel',!sw);
+  document.getElementById('envA').classList.toggle('sel',sw);
+  document.getElementById('cfgT').style.opacity=1-ramp(lt,4.4,0.35);
+  document.getElementById('cfgA').style.opacity=ramp(lt,4.6,0.35);
+  document.getElementById('conceptStamp').style.opacity=ramp(lt,5.0,0.4);
+  const c=document.getElementById('cursor2');const m=ease((lt-2.8)/1.3);
+  c.style.left=(560+(680-560)*m)+'px';c.style.top=(300+(408-300)*m)+'px';
+  c.style.opacity=clamp((lt-2.7)/0.3)*(1-clamp((lt-5.2)/0.4));
+}
+
+/* ---------- tesseract (4D hypercube), rotation driven by t ---------- */
+const TV=[];for(let i=0;i<16;i++)TV.push([i&1?1:-1,i&2?1:-1,i&4?1:-1,i&8?1:-1]);
+const TE=[];for(let i=0;i<16;i++)for(let j=i+1;j<16;j++){const d=i^j;if((d&(d-1))===0)TE.push([i,j])}
+// 16 vertices of {-1,1}^4, 32 edges (pairs differing in one coordinate).
+// Rotate in the XW and YW planes (true 4D) plus YZ, then project 4D->3D (eye at w=3) and 3D->2D (eye at z=2.6).
+function tproj(a,b,c){return TV.map(v=>{let [x,y,z,w]=v;
+  const x1=x*Math.cos(a)-w*Math.sin(a), w1=x*Math.sin(a)+w*Math.cos(a);      // XW
+  const y1=y*Math.cos(b)-w1*Math.sin(b), w2=y*Math.sin(b)+w1*Math.cos(b);    // YW
+  const y2=y1*Math.cos(c)-z*Math.sin(c), z2=y1*Math.sin(c)+z*Math.cos(c);    // YZ
+  const k=1/(3-w2); const X=x1*k, Y=y2*k, Z=z2*k; const p=1/(2.6-Z); return [X*p,Y*p,w2]})}
+function tbuild(svg,stroke,sw){const L=TE.map(()=>el('line',{stroke,'stroke-width':sw,'stroke-linecap':'round'},svg));
+  const D=TV.map(()=>el('circle',{r:sw*1.6,fill:stroke},svg));return {L,D}}
+function tdraw(o,P,cx,cy,sz){o.L.forEach((l,i)=>{const [a,b]=TE[i];l.setAttribute('x1',cx+P[a][0]*sz);l.setAttribute('y1',cy+P[a][1]*sz);l.setAttribute('x2',cx+P[b][0]*sz);l.setAttribute('y2',cy+P[b][1]*sz);
+  l.setAttribute('opacity',0.3+0.7*clamp((P[a][2]+P[b][2]+4)/8))});
+  o.D.forEach((d,i)=>{d.setAttribute('cx',cx+P[i][0]*sz);d.setAttribute('cy',cy+P[i][1]*sz)})}
+const SCAT=TV.map((_,i)=>{const f=x=>{const s=Math.sin(x)*43758.5453;return s-Math.floor(s)};return [(f(i*12.99+1)-0.5)*1.3,(f(i*78.23+2)-0.5)*0.9]});
+function tdrawMix(o,P,cx,cy,sz,m){const Q=P.map((q,i)=>[SCAT[i][0]+(q[0]-SCAT[i][0])*m,SCAT[i][1]+(q[1]-SCAT[i][1])*m,q[2]]);
+  tdraw(o,Q,cx,cy,sz);o.L.forEach(l=>l.setAttribute('opacity',(+l.getAttribute('opacity'))*m))}
+document.querySelectorAll('svg.tlogo').forEach(sv=>{const o=tbuild(sv,'#f4f4f5',1.1);tdraw(o,tproj(0.55,0.42,0.3),16,16,46)});
+const T4=tbuild(document.getElementById('tessS4'),'#f4f4f5',1.6), T10=tbuild(document.getElementById('tessS10'),'#f4f4f5',1.8);
+const T3B=tbuild(document.getElementById('tessS3b'),'#f4f4f5',1.6);
+const T1=tbuild(document.getElementById('tessS1'),'#f4f4f5',1.4), T6=tbuild(document.getElementById('tessS6'),'#f4f4f5',1.4);
+function upTess1(lt){tdraw(T1,tproj(0.2+lt*0.30,0.1+lt*0.19,0.35+lt*0.11),410,470,1000);document.getElementById('tessS1').style.opacity=0.075*ramp(lt,0.2,1.5)}
+function upTess6(lt){tdrawMix(T6,tproj(0.9+lt*0.30,0.5+lt*0.19,0.4+lt*0.11),1690,170,300,ease((lt-0.8)/2.2));document.getElementById('tessS6').style.opacity=0.9*ramp(lt,0.4,0.5)}
+function upTess4(lt){const P=tproj(0.4+lt*0.32,0.3+lt*0.21,0.2+lt*0.13);const sv=document.getElementById('tessS4');
+  const m=ease((lt-2.6)/0.8);tdraw(T4,P,960,470,1150-650*m);sv.style.opacity=0.30*(1-0.75*m)*ramp(lt,0,0.8)}
+function upTess10(lt){const P=tproj(1.1+lt*0.32,0.8+lt*0.21,0.5+lt*0.13);tdraw(T10,P,960,360,820);document.getElementById('tessS10').style.opacity=0.8*ramp(lt,0,1.0)}
+// inserted prior-work slide: first reveal → impact at 3.0 s (center reveal) → final reveal at 5.2 s
+function upS3b(lt){
+  document.querySelectorAll('#s3b .fjl').forEach(x=>{const v=ramp(lt,parseFloat(x.dataset.in),0.45);x.style.opacity=v*(1-0.75*ramp(lt,2.7,0.4));x.style.transform=`translateY(${(1-v)*14-150*ease((lt-2.7)/0.5)}px)`});
+  const b=document.getElementById('fjB'),bv=ramp(lt,3.0,0.25);b.style.opacity=bv;b.style.transform=`scale(${1.06-0.06*bv})`;
+  const c=document.getElementById('fjC'),cv=ramp(lt,5.2,0.5);c.style.opacity=cv;c.style.transform=`translateY(${(1-cv)*14}px)`;
+  document.getElementById('fjD').style.opacity=ramp(lt,5.8,0.5);
+  const pulse=lt>=3.0?Math.exp(-(lt-3.0)/0.35):0;
+  tdraw(T3B,tproj(0.7+lt*0.30,0.4+lt*0.19,0.3+lt*0.11),960,500,1000+90*pulse);
+  document.getElementById('tessS3b').style.opacity=(0.10+0.28*pulse)*ramp(lt,0,0.6);
+}
+const UP={s3b:upS3b,s10:upTess10,s1:lt=>{upTess1(lt);upS1(lt)},s6:lt=>{upTess6(lt);upS6(lt)},s3:upS3,s4:lt=>{upTess4(lt);upS4(lt)},s5:upS5,s8:upS8,s9:upS9};
+const scenes=[...document.querySelectorAll('.scene')];
+function seek(t){
+  scenes.forEach((sc,idx)=>{
+    const s=+sc.dataset.s,e=+sc.dataset.e;
+    let o=1;
+    if(idx>0)o=Math.min(o,ease((t-s+0.25)/0.5));
+    if(idx<scenes.length-1)o=Math.min(o,1-ease((t-e+0.25)/0.5));
+    else o=Math.min(o,1-ease((t-(e-0.6))/0.6));
+    if(s>=900||t<s-0.3||t>e+0.3)o=0;
+    sc.style.opacity=o;sc.style.visibility=o>0.001?'visible':'hidden';
+    if(o<=0.001)return;
+    const lt=t-s;
+    sc.querySelectorAll('.ap').forEach(x=>{const ti=parseFloat(x.dataset.in||0);const v=ramp(lt,ti);x.style.opacity=v;x.style.transform=`translateY(${(1-v)*14}px)`});
+    if(UP[sc.id])UP[sc.id](lt);
+  });
+}
+window.seek=seek;window.DUR=DUR;
+seek(+(new URLSearchParams(location.search).get('t')||0));
+</script>
+</body>
+</html>

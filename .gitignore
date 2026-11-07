@@ -16,3 +16,10 @@ research/results/smoke*.json
 
 # Operation 100M: generated banks and embeddings (regenerable, large)
 operation-100m/work/
+
+# large local artifacts
+*.zip
+yc-demo/backup/
+desktop/macos/build/
+operation-100m/bench/results/**/raw_mixed.jsonl
+operation-100m/bench/results/**/sample.txt

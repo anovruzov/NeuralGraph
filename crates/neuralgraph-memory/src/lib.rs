@@ -20,6 +20,7 @@ pub mod extraction;
 pub mod jsonutil;
 pub mod llm;
 pub mod mcp;
+pub mod portable;
 pub mod models;
 pub mod prompts;
 pub mod pycompat;

@@ -1,0 +1,287 @@
+{
+ "overlay_engine_default": {
+  "candidate": "ablation-100k-real/overlay_engine_default",
+  "verdict": "FAIL",
+  "failures": [
+   "CONCURRENCY_DOES_NOT_SCALE",
+   "P99_CONCURRENT_OVER_BUDGET",
+   "PROJECTED_RSS_OVER_BUDGET"
+  ],
+  "recall@10": 0.9247379454926624,
+  "mrr@10": 0.5857651991614263,
+  "ndcg@10": 0.6613122474242534,
+  "latency": {
+   "1": {
+    "p50_ms": 14.448,
+    "p95_ms": 29.573,
+    "p99_ms": 45.587,
+    "successful_qps": 59.103
+   },
+   "8": {
+    "p50_ms": 100.355,
+    "p95_ms": 180.377,
+    "p99_ms": 222.26,
+    "successful_qps": 75.431
+   }
+  },
+  "resident_bytes_per_memory": 10983,
+  "disk_bytes": 452283936,
+  "top10_identity": {
+   "100k-real/round1-engine_default": {
+    "compared": 4000,
+    "differ": 0,
+    "first_differences": [],
+    "levels": [
+     1,
+     8
+    ]
+   }
+  }
+ },
+ "overlay2_engine_default": {
+  "candidate": "ablation-100k-real/overlay2_engine_default",
+  "verdict": "FAIL",
+  "failures": [
+   "CONCURRENCY_DOES_NOT_SCALE",
+   "PROJECTED_RSS_OVER_BUDGET"
+  ],
+  "recall@10": 0.9247379454926624,
+  "mrr@10": 0.5857651991614263,
+  "ndcg@10": 0.6613122474242534,
+  "latency": {
+   "1": {
+    "p50_ms": 13.332,
+    "p95_ms": 26.787,
+    "p99_ms": 32.093,
+    "successful_qps": 64.801
+   },
+   "8": {
+    "p50_ms": 91.748,
+    "p95_ms": 160.561,
+    "p99_ms": 186.396,
+    "successful_qps": 83.091
+   }
+  },
+  "resident_bytes_per_memory": 10955,
+  "disk_bytes": 452255744,
+  "top10_identity": {
+   "100k-real/round1-engine_default": {
+    "compared": 4000,
+    "differ": 0,
+    "first_differences": [],
+    "levels": [
+     1,
+     8
+    ]
+   }
+  }
+ },
+ "overlay_bounded_recall": {
+  "candidate": "ablation-100k-real/overlay_bounded_recall",
+  "verdict": "PASS",
+  "failures": [],
+  "recall@10": 0.9236897274633126,
+  "mrr@10": 0.6785482180293513,
+  "ndcg@10": 0.7336915484040588,
+  "latency": {
+   "1": {
+    "p50_ms": 9.619,
+    "p95_ms": 11.797,
+    "p99_ms": 16.814,
+    "successful_qps": 100.654
+   },
+   "8": {
+    "p50_ms": 32.148,
+    "p95_ms": 45.874,
+    "p99_ms": 57.854,
+    "successful_qps": 244.8
+   }
+  },
+  "resident_bytes_per_memory": 1460,
+  "disk_bytes": 452255744,
+  "top10_identity": {
+   "100k-real/round3-bounded_recall": {
+    "compared": 4000,
+    "differ": 4,
+    "first_differences": [
+     [
+      100,
+      1
+     ],
+     [
+      698,
+      1
+     ],
+     [
+      100,
+      8
+     ],
+     [
+      698,
+      8
+     ]
+    ],
+    "levels": [
+     1,
+     8
+    ]
+   },
+   "ablation-100k-real/repeat_bounded_recall_1": {
+    "compared": 4000,
+    "differ": 4,
+    "first_differences": [
+     [
+      100,
+      1
+     ],
+     [
+      698,
+      1
+     ],
+     [
+      100,
+      8
+     ],
+     [
+      698,
+      8
+     ]
+    ],
+    "levels": [
+     1,
+     8
+    ]
+   },
+   "ablation-100k-real/repeat_bounded_recall_2": {
+    "compared": 4000,
+    "differ": 4,
+    "first_differences": [
+     [
+      100,
+      1
+     ],
+     [
+      698,
+      1
+     ],
+     [
+      100,
+      8
+     ],
+     [
+      698,
+      8
+     ]
+    ],
+    "levels": [
+     1,
+     8
+    ]
+   },
+   "ablation-100k-real/repeat_bounded_recall_3": {
+    "compared": 4000,
+    "differ": 4,
+    "first_differences": [
+     [
+      100,
+      1
+     ],
+     [
+      698,
+      1
+     ],
+     [
+      100,
+      8
+     ],
+     [
+      698,
+      8
+     ]
+    ],
+    "levels": [
+     1,
+     8
+    ]
+   }
+  }
+ },
+ "overlay2_bounded_recall": {
+  "candidate": "ablation-100k-real/overlay2_bounded_recall",
+  "verdict": "PASS",
+  "failures": [],
+  "recall@10": 0.9236897274633126,
+  "mrr@10": 0.6785482180293513,
+  "ndcg@10": 0.7336915484040588,
+  "latency": {
+   "1": {
+    "p50_ms": 9.352,
+    "p95_ms": 10.531,
+    "p99_ms": 11.795,
+    "successful_qps": 105.728
+   },
+   "8": {
+    "p50_ms": 23.252,
+    "p95_ms": 31.902,
+    "p99_ms": 35.824,
+    "successful_qps": 345.459
+   }
+  },
+  "resident_bytes_per_memory": 1714,
+  "disk_bytes": 452255744,
+  "top10_identity": {
+   "100k-real/round3-bounded_recall": {
+    "compared": 4000,
+    "differ": 4,
+    "first_differences": [
+     [
+      100,
+      1
+     ],
+     [
+      698,
+      1
+     ],
+     [
+      698,
+      8
+     ],
+     [
+      100,
+      8
+     ]
+    ],
+    "levels": [
+     1,
+     8
+    ]
+   },
+   "ablation-100k-real/repeat_bounded_recall_1": {
+    "compared": 4000,
+    "differ": 4,
+    "first_differences": [
+     [
+      100,
+      1
+     ],
+     [
+      698,
+      1
+     ],
+     [
+      698,
+      8
+     ],
+     [
+      100,
+      8
+     ]
+    ],
+    "levels": [
+     1,
+     8
+    ]
+   }
+  }
+ }
+}

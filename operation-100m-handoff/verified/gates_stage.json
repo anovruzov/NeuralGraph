@@ -1,0 +1,14 @@
+{
+ "_note": "Declared 2026-10-31 before any 100K result existed. Engine-level timing (query embedding excluded), same scope as Hindsight's gRPC engine numbers.",
+ "recall_at_10_min": 0.8,
+ "p99_ms_max": 100,
+ "p99_ms_max_concurrent": 200,
+ "min_qps_speedup_at_max_concurrency": 2.0,
+ "peak_rss_fraction_of_ram": 0.25,
+ "projected_rss_fraction_of_ram": 0.5,
+ "next_stage_multiplier": 10,
+ "projected_disk_fraction_of_free": 0.5,
+ "full_regeneration_max_n": 2000000,
+ "max_recall_drop_vs_baseline": 0.01,
+ "_note_2": "2026-10-31: non-regression gate added after round 2 of 100k-real passed the absolute floor while losing 12 points of recall; an absolute floor alone allowed trading accuracy for latency."
+}

@@ -1,0 +1,274 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mycelic Vertical Cut</title>
+<style>
+:root{--bg:#09090a;--panel:#111113;--line:#26262b;--line2:#3a3a41;--text:#f4f4f5;--muted:#b4b4bb;--dim:#85858e;--warn:#d8a54a;
+  --sans:-apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif;--mono:"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1080px;height:1920px;background:var(--bg);overflow:hidden}
+body{font-family:var(--sans);color:var(--text);-webkit-font-smoothing:antialiased}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden}
+.scene{position:absolute;inset:0;opacity:0;visibility:hidden}
+.abs{position:absolute}
+.ap{opacity:0}
+.top{position:absolute;left:64px;right:64px;top:150px;display:flex;align-items:center;gap:18px}
+.logo{display:flex;align-items:center;gap:14px;font-weight:650;font-size:36px}
+.logo svg{width:44px;height:44px}
+.logo img{width:50px;height:51px;display:block}
+.prod{margin-left:auto;font-family:var(--mono);font-size:22px;letter-spacing:1px;color:var(--muted);text-align:right;line-height:1.35}
+.prod b{color:var(--text)}
+.tag{font-family:var(--mono);font-size:26px;letter-spacing:1px;color:var(--dim)}
+.hh{font-size:84px;font-weight:700;letter-spacing:-1.5px;line-height:1.05}
+.h2{font-size:58px;font-weight:650;letter-spacing:-.8px;line-height:1.12}
+.bd{font-size:38px;line-height:1.32;color:var(--muted)}
+.cap{position:absolute;left:64px;right:64px;top:1560px;font-size:28px;line-height:1.35;color:var(--dim)}
+.panel{position:absolute;left:64px;right:64px;background:var(--panel);border:1px solid var(--line);border-radius:20px}
+.win{position:absolute;left:64px;right:64px;background:var(--panel);border:1px solid var(--line2);border-radius:18px;overflow:hidden}
+.win .wt{height:62px;background:#18181c;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 24px;font-family:var(--mono);font-size:25px;color:var(--muted)}
+.win .wb{padding:20px 26px;font-family:var(--mono);font-size:33px;line-height:1.45}
+.win .k{color:var(--dim)}
+.chip{display:inline-flex;font-family:var(--mono);font-size:23px;letter-spacing:1.5px;padding:8px 14px;border-radius:7px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.chip.fill{background:var(--text);color:#000;border-color:var(--text);font-weight:650}
+.chip.out{border-color:var(--text);color:var(--text)}
+.chip.warn{border-color:var(--warn);color:var(--warn)}
+.obj{position:absolute;left:30px;right:30px;height:150px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px}
+.obj .q{font-size:35px;font-weight:600;line-height:1.15}
+.obj .a{font-family:var(--mono);font-size:25px;color:var(--muted);margin-top:8px;line-height:1.3}
+.obj .st{margin-left:auto;flex:none}
+.cell{position:absolute;width:34px;height:52px;border-radius:5px;border:1px solid var(--line)}
+.cell.el{background:var(--text);border-color:var(--text)}
+.cell.calm{border-color:var(--muted)}
+.bar{position:absolute;left:0;right:0;height:72px;background:#17171a;border:1px solid var(--line);border-radius:12px}
+.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:12px;background:var(--text)}
+.row{font-size:36px;line-height:1.3;padding:22px 0;border-bottom:1px solid var(--line);display:flex;gap:22px;align-items:baseline}
+.row .n{font-family:var(--mono);font-size:26px;color:var(--dim);width:40px;flex:none}
+.row .s{font-family:var(--mono);font-size:24px;color:var(--muted);display:block;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- V1 incident -->
+<section class="scene" data-s="0" data-e="7.5" id="v1">
+  <svg id="vt1" class="abs" width="1080" height="1920" style="left:0;top:0;opacity:0"></svg>
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Historical incident<br><b>Public records</b></div></div>
+  <div class="abs" style="left:64px;right:64px;top:300px">
+    <div class="tag ap" data-in="0.1">30 August 2020 · CenturyLink / Level 3</div>
+    <div class="hh ap" data-in="0.3" style="margin-top:22px">A major internet backbone failed for nearly 5 hours.</div>
+    <div class="bd ap" data-in="1.2" style="margin-top:28px">Routing updates surged to 3–7× normal. The evidence was scattered.</div>
+    <div class="ap" data-in="2.6" style="margin-top:30px;font-size:42px;font-weight:650;line-height:1.22">With Mycelic Labs, small local AI agents investigate it together — and verify before they answer.</div>
+  </div>
+  <div class="panel ap" data-in="0.8" style="top:960px;height:560px">
+    <div class="tag" style="position:absolute;left:32px;top:28px;font-size:22px">BGP updates vs. normal · UTC</div>
+    <svg id="vchurn" class="abs" style="left:0;top:60px" width="952" height="500"></svg>
+  </div>
+  <div class="cap ap" data-in="2.0">Historical public data (RIPE RIS) used in research. Duration: ThousandEyes. CenturyLink is not a Mycelic Labs customer.</div>
+</section>
+
+<!-- V2 scattered -->
+<section class="scene" data-s="7.5" data-e="13.5" id="v2">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">The NOC problem</div></div>
+  <div class="hh abs ap" data-in="0.1" style="left:64px;right:64px;top:290px">The evidence was scattered.</div>
+  <div class="win ap" data-in="0.6" style="top:520px"><div class="wt">RIPE RIS · collector rrc00</div><div class="wb"><span class="k">10:00</span> updates 3.2× normal</div></div>
+  <div class="win ap" data-in="1.0" style="top:720px"><div class="wt">RIPE RIS · collector rrc01</div><div class="wb"><span class="k">10:00</span> updates 6.9× normal</div></div>
+  <div class="win ap" data-in="1.4" style="top:920px"><div class="wt">RIPE Atlas · AS209 probes</div><div class="wb"><span class="k">13:00</span> 64% of pings failing</div></div>
+  <div class="win ap" data-in="1.8" style="top:1120px"><div class="wt">Public report</div><div class="wb">"recovered around 14:30"<br><span style="color:var(--warn)">✕ churn still 2.8–4.8×</span></div></div>
+  <div class="bd ap" data-in="2.6" style="position:absolute;left:64px;right:64px;top:1420px;color:var(--text)">Operators correlate it all by hand.</div>
+</section>
+
+<!-- V3 prompting is dead -->
+<section class="scene" data-s="13.5" data-e="19" id="v3">
+  <svg id="vt3" class="abs" width="1080" height="1920" style="left:0;top:0"></svg>
+  <div class="abs" style="left:64px;right:64px;top:720px;text-align:center">
+    <div class="ap" data-in="0.2" style="font-size:112px;font-weight:720;letter-spacing:-3px;line-height:1.02">From alert to<br>verified<br>diagnosis.</div>
+    <div class="ap" data-in="1.2" style="font-size:40px;color:var(--muted);margin-top:44px;line-height:1.3">Mycelic Labs runs the investigation<br>loop — no prompts, no code.</div>
+  </div>
+</section>
+
+<!-- V4 operator -->
+<section class="scene" data-s="19" data-e="28" id="v4">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod"><b>TraceNOC operator</b></div></div>
+  <div class="panel ap" data-in="0.1" style="top:280px;height:170px;padding:28px 32px;border-color:var(--line2)">
+    <div style="display:flex;align-items:center;gap:18px"><span class="chip fill">Alert</span><span class="tag" style="font-size:22px">Recorded replay · 30 Aug 2020</span></div>
+    <div style="font-size:36px;font-weight:600;margin-top:20px">Routing churn above 2× at two collectors</div>
+  </div>
+  <div class="panel ap" data-in="0.4" style="top:480px;height:950px">
+    <div class="tag" style="position:absolute;left:32px;top:28px;font-size:22px">No prompt · Scout · Verifier · Synthesizer</div>
+    <div id="vobjs" class="abs" style="left:0;right:0;top:76px"></div>
+  </div>
+  <div class="cap ap" data-in="7.2">Recorded run, 1 Nov 2026: 6 of 6 decisions correct on development questions. Timing compressed.</div>
+</section>
+
+<!-- V5 research replay -->
+<section class="scene" data-s="28" data-e="36" id="v5">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod"><b>Research preview</b></div></div>
+  <div class="tag abs ap" data-in="0.1" style="left:64px;top:290px">Recorded research replay</div>
+  <div class="h2 abs ap" data-in="0.2" style="left:64px;right:64px;top:345px">Same model. New investigation strategy.</div>
+  <div class="panel ap" data-in="0.6" style="top:520px;height:180px;padding:28px 32px">
+    <div class="tag" style="font-size:22px">V1 · No planner</div>
+    <div style="font-size:40px;font-weight:600;margin-top:14px"><b>1 of 6</b> supported findings</div>
+  </div>
+  <div class="panel" id="vrev" style="top:730px;height:170px;padding:28px 32px;border-color:var(--text);opacity:0">
+    <div class="tag" style="font-size:22px;color:var(--text)">Revision · Written by the researchers</div>
+    <div style="font-size:34px;margin-top:14px;font-family:var(--mono)">+ evidence planner</div>
+  </div>
+  <div class="panel" id="vgridp" style="top:930px;height:300px;padding:28px 32px;opacity:0">
+    <div class="tag" style="font-size:22px" id="vstep">Scan hourly · Refine where state changes</div>
+    <div id="vgrid" class="abs" style="left:32px;top:84px;width:890px;height:200px"></div>
+  </div>
+  <div class="panel" id="vissue" style="top:1260px;height:200px;padding:28px 32px;opacity:0">
+    <div class="tag" style="font-size:22px">Evidence gate · All slots observed</div>
+    <div style="font-size:44px;font-weight:700;margin-top:12px">Subsided 15:00 UTC</div>
+    <div style="font-size:30px;color:var(--muted);margin-top:8px">v2: <b style="color:var(--text)">4 of 6</b> supported (v1: 1)</div>
+  </div>
+  <div class="cap ap" data-in="1.0">Six development questions. The planner was built by researchers, not invented by the system.</div>
+</section>
+
+<!-- V6 results -->
+<section class="scene" data-s="36" data-e="44" id="v6">
+  <svg id="vt6" class="abs" width="1080" height="1920" style="left:0;top:0"></svg>
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Measured · Qwen 9B<br><b>Modal evaluation</b></div></div>
+  <div class="hh abs ap" data-in="0.1" style="left:64px;right:64px;top:290px">We measured it.</div>
+  <div class="abs" style="left:64px;right:64px;top:450px;height:420px">
+    <div class="ap" data-in="0.4" style="font-size:34px;font-weight:600">Central agent, no planner</div>
+    <div class="bar" style="top:56px"><i id="vbA" style="background:#5b5b63"></i></div>
+    <div class="ap" data-in="1.4" style="position:absolute;top:142px;font-family:var(--mono);font-size:32px">19 / 90 · 21.1%</div>
+    <div class="ap" data-in="0.8" style="position:absolute;top:220px;font-size:34px;font-weight:600">+ evidence planner</div>
+    <div class="bar" style="top:276px"><i id="vbC"></i></div>
+    <div class="ap" data-in="2.4" style="position:absolute;top:362px;font-family:var(--mono);font-size:32px">69 / 90 · 76.7%</div>
+  </div>
+  <div class="abs ap" data-in="2.9" style="left:64px;top:920px;font-size:110px;font-weight:760;letter-spacing:-2px">+55.6 pts</div>
+  <div class="panel ap" data-in="4.0" style="top:1090px;height:180px;padding:26px 32px;border-color:var(--warn)">
+    <div class="tag" style="font-size:22px;color:var(--warn)">Trade-off · Correct withholds</div>
+    <div style="font-size:52px;font-weight:700;color:var(--warn);margin-top:10px">36 / 90 → 17 / 90</div>
+  </div>
+  <div class="panel ap" data-in="5.2" style="top:1300px;height:180px;padding:26px 32px">
+    <div class="tag" style="font-size:22px">Swarm with same planner</div>
+    <div style="font-size:40px;font-weight:600;margin-top:14px">No advantage detected (p = 0.54)</div>
+  </div>
+  <div class="cap ap" data-in="3.4">Answerable benchmark questions on one historical incident — not production accuracy.</div>
+</section>
+
+<!-- V7 harness -->
+<section class="scene" data-s="44" data-e="51" id="v7">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">Self-evolving harness<br><b>In development</b></div></div>
+  <div class="hh abs ap" data-in="0.1" style="left:64px;right:64px;top:290px;font-size:78px">Why pay millions for RL?</div>
+  <div class="h2 abs ap" data-in="0.7" style="left:64px;right:64px;top:400px;color:var(--muted)">Improve the harness, not the weights.</div>
+  <div class="abs" style="left:64px;right:64px;top:600px">
+    <div class="row ap" data-in="1.4"><span class="n">1</span><span>Record every step<span class="s">baseline: 1 of 6</span></span></div>
+    <div class="row ap" data-in="1.9"><span class="n">2</span><span>Diagnose from traces<span class="s">evidence acquisition failed</span></span></div>
+    <div class="row ap" data-in="2.4"><span class="n">3</span><span>Revise the strategy<span class="s">planner — by hand today</span></span></div>
+    <div class="row ap" data-in="2.9"><span class="n">4</span><span>Measure before trusting<span class="s">same 9B weights · no training run</span></span></div>
+  </div>
+  <div class="panel ap" data-in="3.8" style="top:1250px;height:250px;padding:26px 32px;border-color:var(--text)">
+    <div class="tag" style="font-size:22px;color:var(--text)">Automating step 3 · Forge prototype</div>
+    <div style="font-size:48px;font-weight:700;margin-top:12px">27 proposed · 0 accepted</div>
+    <div style="font-size:28px;color:var(--muted);margin-top:10px">The validation gate rejected every unsupported rule. Rule generation is in development.</div>
+  </div>
+</section>
+
+<!-- V8 business -->
+<section class="scene" data-s="51" data-e="55.5" id="v8">
+  <div class="top"><div class="logo"><img class="tlogo" src="assets/mycelic-mark.png" alt="Mycelic Labs">Mycelic Labs</div><div class="prod">NOC scenario</div></div>
+  <div class="h2 abs ap" data-in="0.1" style="left:64px;right:64px;top:300px">What 2 reclaimed hours a week could mean.</div>
+  <div class="abs ap" data-in="0.6" style="left:64px;right:64px;top:560px;font-family:var(--mono);font-size:38px;line-height:1.7;color:var(--muted)">100 operators<br>× 2 h / week × 52 weeks<br>= <span style="color:var(--text)">10,400 hours</span><br>× $65 / hour</div>
+  <div class="abs ap" data-in="1.4" style="left:64px;top:980px;font-size:128px;font-weight:760;letter-spacing:-3px">$676,000</div>
+  <div class="abs ap" data-in="1.8" style="left:64px;right:64px;top:1140px;font-size:38px">illustrative annual gross labor capacity</div>
+  <div class="panel ap" data-in="2.2" style="top:1260px;height:130px;padding:0 32px;display:flex;align-items:center;border-color:var(--warn);background:rgba(216,165,74,.10)">
+    <span style="font-size:36px;font-weight:650;color:var(--warn)">Scenario — not measured savings</span>
+  </div>
+</section>
+
+<!-- V9 end -->
+<section class="scene" data-s="55.5" data-e="58.5" id="v9">
+  <svg id="vt9" class="abs" width="1080" height="1920" style="left:0;top:0"></svg>
+  <div class="abs" style="left:64px;right:64px;top:950px;text-align:center">
+    <div class="ap" data-in="0.1" style="font-size:36px;line-height:1.3;color:var(--muted)">You already own the data and compute.<br><span style="color:var(--text)">Mycelic Labs makes them work together.</span></div>
+    <div class="ap" data-in="0.3" style="font-size:112px;font-weight:720;letter-spacing:-3px;line-height:1;margin-top:40px">See what<br>others miss.</div>
+    <img class="ap" data-in="1.0" src="assets/mycelic-mark.png" alt="Mycelic Labs" style="width:68px;height:70px;margin-top:30px">
+    <div class="ap" data-in="1.0" style="font-family:var(--mono);font-size:27px;letter-spacing:1.5px;color:var(--muted);margin-top:16px;line-height:1.5">Mycelic Labs — sovereign<br>enterprise intelligence.</div>
+    <div class="ap" data-in="1.6" style="font-size:28px;color:var(--dim);margin-top:22px">Research preview · myceliclabs.com</div>
+  </div>
+</section>
+
+</div>
+<script>
+const DUR=58.5;
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease=x=>{x=clamp(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2};
+const ramp=(t,a,d=0.4)=>ease((t-a)/d);
+const NS='http://www.w3.org/2000/svg';
+function el(tag,at,p){const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);if(p)p.appendChild(e);return e}
+const WIN=['09:30','09:45','10:00','10:15','10:30','10:45','11:00','11:15','11:30','11:45','12:00','12:15','12:30','12:45','13:00','13:15','13:30','13:45','14:00','14:15','14:30','14:45','15:00','15:15','15:30','15:45'];
+const R0=[1.14,0.86,3.24,3.06,2.13,2.02,1.98,2.2,2.61,1.63,1.95,2.13,2.54,2.58,2.65,2.62,2.68,2.15,2.37,4.06,2.78,3.21,1.97,1.72,1.26,1.1];
+const R1=[1.01,0.99,6.93,3.15,2.79,2.59,2.51,2.77,1.88,1.76,1.74,2.04,2.12,2.21,3.67,2.25,2.47,2.24,3.12,4.68,4.85,4.3,1.83,1.39,1.35,1.32];
+// chart
+(function(){const s=document.getElementById('vchurn');const L=80,Rr=36,T=30,B=440,W=952;
+  const x=i=>L+i*(W-L-Rr)/(WIN.length-1),y=v=>B-(v/7.5)*(B-T);
+  [0,2,4,6].forEach(v=>{el('line',{x1:L,x2:W-Rr,y1:y(v),y2:y(v),stroke:'#222227'},s);const t=el('text',{x:L-14,y:y(v)+9,fill:'#85858e','font-size':24,'text-anchor':'end','font-family':'SF Mono,Menlo'},s);t.textContent=v+'×'});
+  el('line',{x1:L,x2:W-Rr,y1:y(2),y2:y(2),stroke:'#85858e','stroke-dasharray':'5 7'},s);
+  [0,8,16,24].forEach(i=>{const t=el('text',{x:x(i),y:B+44,fill:'#85858e','font-size':24,'text-anchor':'middle','font-family':'SF Mono,Menlo'},s);t.textContent=WIN[i]});
+  const clip=el('clipPath',{id:'vc'},el('defs',{},s));window._vcr=el('rect',{x:0,y:0,width:0,height:520},clip);
+  const g=el('g',{'clip-path':'url(#vc)'},s);
+  el('path',{d:R1.map((v,i)=>(i?'L':'M')+x(i)+' '+y(v)).join(''),fill:'none',stroke:'#9a9aa2','stroke-width':4,'stroke-dasharray':'10 7'},g);
+  el('path',{d:R0.map((v,i)=>(i?'L':'M')+x(i)+' '+y(v)).join(''),fill:'none',stroke:'#f4f4f5','stroke-width':5},g);
+  const a=el('g',{opacity:0},s);window._va=a;el('line',{x1:x(2),x2:x(2),y1:y(7.3),y2:B,stroke:'#f4f4f5','stroke-width':2},a);
+  const t1=el('text',{x:x(2)+16,y:y(7.0),fill:'#f4f4f5','font-size':30,'font-weight':650},a);t1.textContent='10:00 surge';
+  const b=el('g',{opacity:0},s);window._vb=b;el('line',{x1:x(22),x2:x(22),y1:y(6.2),y2:B,stroke:'#f4f4f5','stroke-width':2},b);
+  const t2=el('text',{x:x(22)-16,y:y(6.0),fill:'#f4f4f5','font-size':30,'font-weight':650,'text-anchor':'end'},b);t2.textContent='15:00 calm';
+})();
+function upV1(lt){_vcr.setAttribute('width',80+clamp((lt-0.9)/4.5)*840);_va.setAttribute('opacity',ramp(lt,1.6));_vb.setAttribute('opacity',ramp(lt,5.2))}
+// objectives
+const OBJ=[['Routing abnormal before 10:00?','no elevated churn before cutoff','Withheld','out'],['When did the surge begin?','10:00 UTC · 3.2× / 6.9×','Supported','fill'],['Which network?','AS3356 (Level 3)','Supported','fill'],['Who lost reachability?','AS209 · 64% pings failing','Supported','fill'],['When did it subside?','15:00 UTC, then calm','Supported','fill'],['What caused it?','no record of an internal failure','Withheld','out']];
+(function(){const c=document.getElementById('vobjs');window._vo=OBJ.map((o,i)=>{const d=document.createElement('div');d.className='obj';d.style.top=(i*142)+'px';
+  d.innerHTML=`<div style="flex:1;min-width:0"><div class="q">${o[0]}</div><div class="a" style="opacity:0">${o[1]}</div></div><div class="st"><span class="chip">QUEUED</span></div>`;c.appendChild(d);return d})})();
+function upV4(lt){_vo.forEach((d,i)=>{const t0=1.2+i*1.0;const ch=d.querySelector('.chip');let st='Queued',cl='';
+  if(lt>=t0){st='Gathering';cl='out'} if(lt>=t0+0.5){st=OBJ[i][2];cl=OBJ[i][3]}
+  if(ch.textContent!==st){ch.textContent=st;ch.className='chip '+cl}
+  d.querySelector('.a').style.opacity=ramp(lt,t0+0.5,0.3);d.style.background=(lt>=t0&&lt<t0+0.5)?'#18181b':'transparent'})}
+// grid
+const GW=WIN.slice(2);
+(function(){const g=document.getElementById('vgrid');window._vc={r0:[],r1:[]};
+  [['r0',R0],['r1',R1]].forEach(([k],ri)=>{GW.forEach((w,i)=>{const d=document.createElement('div');d.className='cell';d.style.left=(i*37)+'px';d.style.top=(40+ri*66)+'px';g.appendChild(d);_vc[k].push(d)})});
+  [0,4,8,12,16,20].forEach(i=>{const t=document.createElement('div');t.className='abs';t.style.cssText=`left:${i*37-4}px;top:0;font-family:SF Mono,Menlo;font-size:20px;color:#85858e`;t.textContent=GW[i];g.appendChild(t)})})();
+const HOURLY=['10:00','11:00','12:00','13:00','14:00','15:00'],REF=['14:15','14:30','14:45','15:15','15:30'];
+function upV5(lt){document.getElementById('vrev').style.opacity=ramp(lt,1.8);document.getElementById('vgridp').style.opacity=ramp(lt,2.6);
+  const acq=new Set();HOURLY.forEach((w,i)=>{if(lt>=3.0+i*0.22)acq.add(w)});REF.forEach((w,i)=>{if(lt>=4.6+i*0.2)acq.add(w)});
+  [['r0',R0],['r1',R1]].forEach(([k,R])=>GW.forEach((w,i)=>{const d=_vc[k][i];const c=acq.has(w)?(R[i+2]>=2?'cell el':'cell calm'):'cell';if(d.className!==c)d.className=c;
+    d.style.outline=(w==='15:00'&&lt>=5.9)?'3px solid #f4f4f5':'none';d.style.outlineOffset='3px'}));
+  document.getElementById('vstep').textContent=lt>=5.9?'First calm window · 15:00':'Scan hourly · refine where state changes';
+  document.getElementById('vissue').style.opacity=ramp(lt,6.2)}
+function upV6(lt){document.getElementById('vbA').style.width=(21.1*ease((lt-0.8)/0.7))+'%';document.getElementById('vbC').style.width=(76.7*ease((lt-1.5)/1.0))+'%'}
+// tesseract
+const TV=[];for(let i=0;i<16;i++)TV.push([i&1?1:-1,i&2?1:-1,i&4?1:-1,i&8?1:-1]);
+const TE=[];for(let i=0;i<16;i++)for(let j=i+1;j<16;j++){const d=i^j;if((d&(d-1))===0)TE.push([i,j])}
+// 16 vertices, 32 edges; rotate in XW and YW (true 4D) plus YZ; project 4D->3D (eye w=3) then 3D->2D (eye z=2.6).
+function tproj(a,b,c){return TV.map(v=>{let [x,y,z,w]=v;
+  const x1=x*Math.cos(a)-w*Math.sin(a), w1=x*Math.sin(a)+w*Math.cos(a);      // XW
+  const y1=y*Math.cos(b)-w1*Math.sin(b), w2=y*Math.sin(b)+w1*Math.cos(b);    // YW
+  const y2=y1*Math.cos(c)-z*Math.sin(c), z2=y1*Math.sin(c)+z*Math.cos(c);    // YZ
+  const k=1/(3-w2); const X=x1*k, Y=y2*k, Z=z2*k; const p=1/(2.6-Z); return [X*p,Y*p,w2]})}
+function tbuild(svg,sw){return {L:TE.map(()=>el('line',{stroke:'#f4f4f5','stroke-width':sw,'stroke-linecap':'round'},svg)),D:TV.map(()=>el('circle',{r:sw*1.6,fill:'#f4f4f5'},svg))}}
+function tdraw(o,P,cx,cy,sz){o.L.forEach((l,i)=>{const [a,b]=TE[i];l.setAttribute('x1',cx+P[a][0]*sz);l.setAttribute('y1',cy+P[a][1]*sz);l.setAttribute('x2',cx+P[b][0]*sz);l.setAttribute('y2',cy+P[b][1]*sz);l.setAttribute('opacity',0.3+0.7*clamp((P[a][2]+P[b][2]+4)/8))});o.D.forEach((d,i)=>{d.setAttribute('cx',cx+P[i][0]*sz);d.setAttribute('cy',cy+P[i][1]*sz)})}
+
+const T3=tbuild(document.getElementById('vt3'),2.2),T9=tbuild(document.getElementById('vt9'),2.4),T1=tbuild(document.getElementById('vt1'),1.8),T6=tbuild(document.getElementById('vt6'),1.8);
+const SCAT=TV.map((_,i)=>{const f=x=>{const s=Math.sin(x)*43758.5453;return s-Math.floor(s)};return [(f(i*12.99+1)-0.5)*0.75,(f(i*78.23+2)-0.5)*0.6]});
+function tdrawMix(o,P,cx,cy,sz,m){const Q=P.map((q,i)=>[SCAT[i][0]+(q[0]-SCAT[i][0])*m,SCAT[i][1]+(q[1]-SCAT[i][1])*m,q[2]]);tdraw(o,Q,cx,cy,sz);o.L.forEach(l=>l.setAttribute('opacity',(+l.getAttribute('opacity'))*m))}
+function upV1t(lt){tdraw(T1,tproj(0.2+lt*0.30,0.1+lt*0.19,0.35+lt*0.11),540,620,1300);document.getElementById('vt1').style.opacity=0.075*ramp(lt,0.2,1.5)}
+function upV6t(lt){tdrawMix(T6,tproj(0.9+lt*0.30,0.5+lt*0.19,0.4+lt*0.11),900,345,300,ease((lt-0.6)/2.0));document.getElementById('vt6').style.opacity=0.9*ramp(lt,0.3,0.5)}
+function upV3(lt){tdraw(T3,tproj(0.4+lt*0.32,0.3+lt*0.21,0.2+lt*0.13),540,880,1250);document.getElementById('vt3').style.opacity=0.32*ramp(lt,0,0.8)}
+function upV9(lt){tdraw(T9,tproj(1.1+lt*0.32,0.8+lt*0.21,0.5+lt*0.13),540,590,900);document.getElementById('vt9').style.opacity=0.85*ramp(lt,0,1.0)}
+const UP={v1:lt=>{upV1t(lt);upV1(lt)},v3:upV3,v4:upV4,v5:upV5,v6:lt=>{upV6t(lt);upV6(lt)},v9:upV9};
+const scenes=[...document.querySelectorAll('.scene')];
+function seek(t){scenes.forEach((sc,idx)=>{const s=+sc.dataset.s,e=+sc.dataset.e;let o=1;
+  if(idx>0)o=Math.min(o,ease((t-s+0.2)/0.4));
+  if(idx<scenes.length-1)o=Math.min(o,1-ease((t-e+0.2)/0.4));else o=Math.min(o,1-ease((t-(e-0.6))/0.6));
+  if(t<s-0.25||t>e+0.25)o=0;sc.style.opacity=o;sc.style.visibility=o>0.001?'visible':'hidden';if(o<=0.001)return;
+  const lt=t-s;sc.querySelectorAll('.ap').forEach(x=>{const v=ramp(lt,parseFloat(x.dataset.in||0));x.style.opacity=v;x.style.transform=`translateY(${(1-v)*16}px)`});
+  if(UP[sc.id])UP[sc.id](lt)})}
+window.seek=seek;window.DUR=DUR;seek(+(new URLSearchParams(location.search).get('t')||0));
+</script>
+</body>
+</html>

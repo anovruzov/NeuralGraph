@@ -524,3 +524,26 @@ The fixtures are the contract: change one only deliberately, in a commit that sa
 - [`../../README.md`](../../README.md) — NeuralGraph overview
 - `cargo run --release --example chat_memory_live_demo -- --fake-llm` — end-to-end demo; `--fake-llm` needs no
   model server
+
+## Portable brain archives
+
+`neuralgraph-memory brain` moves a whole brain between machines and agents (`src/portable.rs`):
+
+```bash
+neuralgraph-memory brain preview                          # counts and privacy findings, writes nothing
+neuralgraph-memory brain export --out brain.zip [--chat proj-] [--no-embeddings] [--extra-db other.db]
+neuralgraph-memory brain inspect brain.zip                # manifest after checking every SHA-256
+neuralgraph-memory brain import brain.zip --db ~/.neuralgraph/chat_memory.db            # restore (empty target)
+neuralgraph-memory brain import brain.zip --db ~/.neuralgraph/chat_memory.db --merge    # merge, no id collisions
+neuralgraph-memory brain verify brain.zip --db ~/.neuralgraph/chat_memory.db [--merge]  # round-trip check
+neuralgraph-memory brain agents                           # MCP snippets for Claude Code, Gemini CLI, Codex
+```
+
+The ZIP holds a SQLite snapshot, JSONL of every table, GraphML of the knowledge graph, Markdown memories with
+sources and quotes, agent configs and a versioned `manifest.json` (scope, counts, embedding model and dimension,
+privacy findings, checksums). Export refuses to continue on likely secrets unless `--allow-confidential` is given;
+nothing is ever uploaded. Merge renames colliding memory, message, relation and diverged chat ids with an
+`.<archive-tag>` suffix (recording `imported_from` in metadata), sums independent relation observations, keeps
+audit and job history, and drops vectors whose dimension differs from the target so the worker re-embeds them.
+REST: `GET /api/brain/preview`, `POST /api/brain/export {"path"}`. The macOS app in `desktop/macos` wraps this
+with native Save/Open panels (`desktop/macos/build.sh --install`).

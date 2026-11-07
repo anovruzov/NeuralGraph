@@ -68,8 +68,8 @@ cache is not purged (`purge` needs sudo). A true cold-disk number is **unknown**
 - recall@10 was 0.9237 every time (deterministic).
 - Serial p50 was 9.7–9.8 ms, serial p99 14.0–17.2 ms, about 100 QPS.
 - **c8 was noisy:** 225–323 QPS (2.25–3.27× serial), c8 p99 38.9–86.1 ms.
-- One earlier ablation run of the same configuration went straight from c1 to c8, with no c2/c4 warm-up. It
-  scaled only 1.95×, under the 2.0× gate.
+- An earlier ablation run of the same configuration scaled only 1.95×. Its timing is **void**: it overlapped
+  another session's benchmarks (load average 13–16 on 10 cores, 02:10–02:13), so it is not evidence either way.
 
 So concurrency headroom at 100K is real but thin. Treat it as the first thing to re-check at 1M.
 
@@ -110,10 +110,14 @@ These runs used concurrency 1 and 8 only, so their c8 numbers lack warm-up.
 | read pool only | 0.925 | 14.7 / 72.9 ms | 48 | 10,745 |
 | FTS prune, 1% df | **0.936** | 14.3 / 49.9 ms | 89 | 9,550 |
 | FTS prune, 5% df | 0.928 | 13.8 / 25.8 ms | 75 | 10,652 |
-| IVF 316/probe 16 + pool + prune | 0.873 | 9.8 / 26.6 ms | 280 | 1,404 |
-| IVF 316/probe 32 + pool + prune | 0.904 | 12.9 / 36.8 ms | 133 | 1,435 |
-| IVF 316/probe 48 + pool + prune | 0.924 | 13.1 / 52.7 ms | 123 | 1,378 |
+| IVF 316/probe 16 + pool + prune † | 0.873 | 9.8 / 26.6 ms | 280 | 1,404 |
+| IVF 316/probe 32 + pool + prune † | 0.904 | 12.9 / 36.8 ms | 133 | 1,435 |
+| IVF 316/probe 48 + pool + prune † | 0.924 | 13.1 / 52.7 ms | 123 | 1,378 |
 | mean-centred IVF, 4 settings | 0.778–0.897 | — | — | — |
+
+† Load-contaminated: these runs (finished 02:11–02:13) overlapped another session's six serial benchmark runs.
+Their recall is deterministic and valid; their latency and QPS are void. The round-3 run and its three repeats
+(02:20–02:23) were outside that window.
 
 Findings:
 
@@ -138,8 +142,7 @@ points against the shipped engine.
 
 ## Remaining failures and open risks
 
-- **Concurrency margin is thin** (2.25–3.27× at c8 across runs; one unwarmed run 1.95×). The suspected cause is
-  not yet proven.
+- **Concurrency margin is thin:** 2.25–3.27× at c8 across four clean runs. The suspected cause is not yet proven.
   - The bundled SQLite is compiled without `SQLITE_DEFAULT_MEMSTATUS=0`, so every SQLite allocation takes a
     process-wide mutex.
   - Candidate fix: build with `LIBSQLITE3_FLAGS=-DSQLITE_DEFAULT_MEMSTATUS=0`, or call

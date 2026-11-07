@@ -190,7 +190,30 @@ Plus three MCP resources and a `recall` prompt.
 
 **LoCoMo accuracy: 87.8%.**
 
-On the shipped assistant pipeline (9B local reader, 50-question LongMemEval Oracle sample), source quotes under each memory plus an "I don't know" cascade cut refusals from 24 to 14 of 50 and raised strict accuracy from 42 to 50 (Gemma-4-e4b judge); a 6000-character context block with three raw matching user messages and a routed reader (thinking only on count, duration and date-difference questions) then raised the ported official LongMemEval judge score from 58 to 74 (48 to 64 on a second ingest) and LoCoMo conversation 0 `strict_v2` from 56 to 68 (conversation 1: 63 to 68, strict unchanged), all single runs with a Gemma-4-e4b judge and none of the LoCoMo differences significant. Thinking on every question regressed LoCoMo conversation 1, which is why it is routed. On a fresh 50-question sample never used while tuning (seed 2) the routed protocol scored official 44 to 62 and `strict_v2` 50 to 72 against the original pipeline; an optional accuracy mode (Qwen3.6-35B-A3B as the thinker for routed questions, about 13 s mean per answer) adds a few points within noise. On the official LongMemEval judge prompts (run by Gemma-4-e4b), with a local 9B reader, over three 50-question Oracle draws (150 questions, 100 of them held-out), the shipped protocol scores 69, up from 52 for the original pipeline. Vendor figures (Zep 63.8-71.2, Mastra and Mem0 84-95) use frontier readers and judges and mostly the harder S variant, so they are not directly comparable. The measurement protocol is in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md#comparability-with-published-numbers), and [`research/overnight/README.md`](research/overnight/README.md) says how to reproduce it.
+Same memories, same retrieved context, different reader (strict_v2 / lenient non-IDK, 50-question
+sample; the Sonnet probe is a 20-question subset with its own 9B baseline):
+
+| Reader | strict_v2 | lenient | s/answer |
+|---|---:|---:|---:|
+| Qwen3.8-9B, concise | 58 | 68 | 3.2 |
+| Qwen3.8-9B, thinking (shipped default) | 68 | 74 | 7.1 |
+| Qwen3.8-27B, thinking | 70 | 86 | 57 |
+| Qwen3.8-9B, concise *(20-q subset)* | 55 | 75 | 4.8 |
+| **Claude Sonnet, concise** *(20-q subset)* | **75** | **95** | 1.5 |
+
+Evidence reaches the context block on 94-98% of questions; the reader is the remaining bottleneck.
+
+**Latency at 100,000 memories** (real conversational corpus, one SQLite file, disk IVF, single machine):
+
+| | |
+|---|---:|
+| p50 / p95 / p99, serial | **10.0 / 12.6 / 17.2 ms** |
+| QPS at 1 / 2 / 4 / 8 clients | 97 / 188 / 287 / 313 |
+| recall@10 (1,590 answerable) | 0.924 |
+| resident after index load | 161 MiB (1.4 KB per memory) |
+| errors | 0 |
+
+Protocol and every intermediate run: [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md), [`operation-100m/RESULTS.md`](operation-100m/RESULTS.md).
 
 ### Coordination track
 

@@ -103,6 +103,8 @@ CREATE INDEX IF NOT EXISTS idx_memories_subject ON memories(subject, status);
 CREATE INDEX IF NOT EXISTS idx_memories_chat ON memories(chat_id);
 CREATE INDEX IF NOT EXISTS idx_memories_text_hash ON memories(text_hash);
 CREATE INDEX IF NOT EXISTS idx_memories_observed ON memories(observed_at);
+-- the retriever's incremental refresh reads rows with updated_at >= its high-water mark on every write
+CREATE INDEX IF NOT EXISTS idx_memories_updated ON memories(updated_at);
 
 CREATE TABLE IF NOT EXISTS memory_sources (
     memory_id  TEXT NOT NULL,
@@ -2030,13 +2032,17 @@ impl ChatMemoryStore {
             Some(r) => format!("CASE WHEN rid > {r} THEN embedding END"),
             None => "embedding".to_string(),
         };
-        let mut sql = format!("SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, event_time_precision, status, updated_at, {emb} FROM memories WHERE 1=1");
+        let updated_after = updated_after.filter(|s| !s.is_empty());
+        // left alone, the planner scans the whole table in rid order to skip the sort, which turns every incremental
+        // refresh into a full read of the memories table; the updated_at range is a handful of rows
+        let hint = if updated_after.is_some() { " INDEXED BY idx_memories_updated" } else { "" };
+        let mut sql = format!("SELECT memory_id, subject, speaker, chat_id, kind, importance, observed_at, event_time, event_time_precision, status, updated_at, {emb} FROM memories{hint} WHERE 1=1");
         let mut args = Vec::new();
         if let Some(s) = status.filter(|s| !s.is_empty()) {
             sql.push_str(" AND status=?");
             args.push(text_v(s));
         }
-        if let Some(u) = updated_after.filter(|s| !s.is_empty()) {
+        if let Some(u) = updated_after {
             sql.push_str(" AND updated_at >= ?");
             args.push(text_v(u));
         }
