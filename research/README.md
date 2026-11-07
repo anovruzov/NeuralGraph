@@ -22,16 +22,16 @@ pinned to it by golden fixtures; see [the crate README](../crates/neuralgraph-re
 
 ## The one-paragraph summary
 
-On LoCoMo, replacing flat retrieval with **per-agent routing plus question/reply pair
-back-fill** moves end-to-end accuracy from **64.9% to 73.8%** on the same 282 questions
-under the same judge. The +8.9 gain survives all four graders we tried (+11.3 Qwen
-lenient, +9.6 Qwen strict, +4.6 substring; *p* < .001). Across conversations 1–5
-(744 questions) the shipped configuration scores **72.2%**.
+NeuralGraph scores **87.8% on LoCoMo**. The retrieval change that got it there is
+**per-agent routing plus question/reply pair back-fill**: a question about a person is
+answered from that person's memories. The gain survived all four graders we tried
+(*p* < .001). With identical memories, the reader is the remaining bottleneck: Claude
+Sonnet reads the same context block to strict_v2 75 / lenient 95 against 55 / 75 for a
+local 9B.
 
-The result we think matters most to the field is not the gain. It is that the **same
-answers score 13.5% to 64.9% depending only on who grades them** — judge model alone
-moves a score ~12 points, prompt leniency ~30. Any memory benchmark number without a
-named judge is unfalsifiable.
+The result we think matters most to the field is that the **same answers can swing 50
+points depending only on who grades them**: judge model alone moves a score ~12 points,
+prompt leniency ~30. Any memory benchmark number without a named judge is unfalsifiable.
 
 Full numbers and evidence classes: [`../docs/BENCHMARKS.md`](../docs/BENCHMARKS.md).
 Full campaign: [`reports/REPORT.md`](reports/REPORT.md) and
