@@ -540,6 +540,82 @@ pub fn merge_mcp_json(existing: Option<&str>, exe: &str) -> std::result::Result<
     Ok(serde_json::to_string_pretty(&root).unwrap_or_default() + "\n")
 }
 
+/// Install (`command: Some`) or remove (`None`) the Claude Code hooks that make memory automatic, in the text of
+/// `~/.claude/settings.json`: `Stop` saves each turn, `UserPromptSubmit` recalls memories for each prompt. Other
+/// hooks and settings are kept; earlier copies of ours (any binary path) are replaced, never duplicated.
+pub fn merge_claude_hooks(existing: Option<&str>, command: Option<&str>) -> std::result::Result<String, String> {
+    let mut root: Value = match existing.map(str::trim).filter(|s| !s.is_empty()) {
+        None => json!({}),
+        Some(s) => serde_json::from_str(s).map_err(|e| format!("not valid JSON ({e}); left untouched"))?,
+    };
+    let obj = root.as_object_mut().ok_or("top level is not a JSON object; left untouched")?;
+    let hooks = obj.entry("hooks").or_insert_with(|| json!({}));
+    let hooks = hooks.as_object_mut().ok_or("\"hooks\" is not an object; left untouched")?;
+    let ours = |h: &Value| {
+        h.get("command")
+            .and_then(Value::as_str)
+            .is_some_and(|c| c.contains(SERVER_NAME) && c.contains("hook claude-code"))
+    };
+    for groups in hooks.values_mut() {
+        let Some(groups) = groups.as_array_mut() else { continue };
+        for g in groups.iter_mut() {
+            if let Some(list) = g.get_mut("hooks").and_then(Value::as_array_mut) {
+                list.retain(|h| !ours(h));
+            }
+        }
+        groups.retain(|g| g.get("hooks").and_then(Value::as_array).is_none_or(|l| !l.is_empty()));
+    }
+    hooks.retain(|_, v| v.as_array().is_none_or(|a| !a.is_empty()));
+    if let Some(cmd) = command {
+        for (event, timeout) in [("Stop", 30), ("UserPromptSubmit", 15)] {
+            let entry = json!({"hooks": [{"type": "command", "command": cmd, "timeout": timeout}]});
+            match hooks.entry(event).or_insert_with(|| json!([])) {
+                Value::Array(a) => a.push(entry),
+                _ => return Err(format!("\"hooks.{event}\" is not a list; left untouched")),
+            }
+        }
+    } else if hooks.is_empty() {
+        obj.remove("hooks");
+    }
+    Ok(serde_json::to_string_pretty(&root).unwrap_or_default() + "\n")
+}
+
+/// `$CLAUDE_CONFIG_DIR/settings.json`, else `~/.claude/settings.json`.
+fn claude_settings_path() -> PathBuf {
+    std::env::var_os("CLAUDE_CONFIG_DIR")
+        .filter(|d| !d.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home().join(".claude"))
+        .join("settings.json")
+}
+
+/// The hook command line for `exe` (single-quoted when the path needs it).
+fn hook_command(exe: &str) -> String {
+    if exe.chars().all(|c| c.is_ascii_alphanumeric() || "/._-+".contains(c)) {
+        format!("{exe} hook claude-code")
+    } else {
+        format!("'{}' hook claude-code", exe.replace('\'', "'\\''"))
+    }
+}
+
+/// Write the hooks (or remove them) and keep a `.bak` of the previous settings.
+fn set_claude_hooks(exe: Option<&str>) -> std::result::Result<String, String> {
+    let path = claude_settings_path();
+    let existing = std::fs::read_to_string(&path).ok();
+    let merged = merge_claude_hooks(existing.as_deref(), exe.map(hook_command).as_deref())?;
+    if existing.as_deref() == Some(merged.as_str()) {
+        return Ok(format!("{} unchanged", tilde(&path)));
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    if let Some(old) = &existing {
+        std::fs::write(path.with_extension("json.bak"), old).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, merged).map_err(|e| e.to_string())?;
+    Ok(format!("wrote {}{}", tilde(&path), if existing.is_some() { " (backup: .bak)" } else { "" }))
+}
+
 #[derive(Clone, Debug)]
 enum Client {
     /// a CLI with `mcp add/get/remove` subcommands
@@ -872,7 +948,7 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
             n += 1;
             println!("    {} {} {:<15}{}", ui.accent("●"), ui.dim(&format!("{n}.")), c.name(), ui.dim(how));
         } else {
-            println!("    {}    {:<15}{}", ui.dim("○"), ui.dim(c.name()), ui.dim(&format!("not found · {how}")));
+            println!("    {}    {}", ui.dim("○"), ui.dim(&format!("{:<15}not found · {how}", c.name())));
         }
     }
     if found_clients.is_empty() {
@@ -911,6 +987,24 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
             Err(e) => ui.fail(name, e),
         }
     }
+    // automatic memory: without hooks, Claude only saves when it decides to call a tool
+    let mut auto: Option<bool> = None;
+    let claude_found = clients.iter().any(|(c, ok, _)| *ok && c.name() == "Claude Code");
+    let claude_linked = connected.iter().any(|(n, r)| n == "Claude Code" && r.is_ok());
+    if interactive && (claude_linked || claude_found) {
+        println!();
+        ui.note("Without this, Claude only saves a memory when it decides to call a tool.");
+        ui.note("With it, every reply is queued and your local model learns from it in the background,");
+        ui.note("and relevant memories are added to each new prompt. Nothing leaves this machine.");
+        let on = ui.confirm("Make memory automatic in Claude Code?", true);
+        match set_claude_hooks(on.then_some(exe.as_str())) {
+            Ok(msg) => {
+                ui.ok("Auto-memory", &format!("{} · {msg}", if on { "on" } else { "off" }));
+                auto = Some(on);
+            }
+            Err(e) => ui.fail("Auto-memory", &e),
+        }
+    }
 
     // 5. summary
     ui.step(5, total, "Ready");
@@ -933,6 +1027,11 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
     ];
     for (name, r) in &connected {
         lines.push(format!("  {} {name}", if r.is_ok() { ui.sgr("32", "✓") } else { ui.sgr("31", "✗") }));
+    }
+    match auto {
+        Some(true) => lines.push(format!("  {} auto     saves every Claude Code turn", ui.sgr("32", "✓"))),
+        Some(false) => lines.push(format!("  {} auto     off (Claude saves only when it calls a tool)", ui.dim("–"))),
+        None => {}
     }
     lines.extend([
         String::new(),

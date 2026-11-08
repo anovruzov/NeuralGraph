@@ -284,6 +284,17 @@ impl ChatMemory {
 
     // ------------------------------------------------------------------ ingestion (never blocks on the LLM)
     pub fn add_message(&self, chat_id: &str, speaker: &str, text: &str, input: MessageInput) -> Result<ChatMessage> {
+        Ok(self.add_message_checked(chat_id, speaker, text, input)?.0)
+    }
+
+    /// [`Self::add_message`], also saying whether the message was new (false: an earlier copy was kept).
+    pub fn add_message_checked(
+        &self,
+        chat_id: &str,
+        speaker: &str,
+        text: &str,
+        input: MessageInput,
+    ) -> Result<(ChatMessage, bool)> {
         if chat_id.is_empty() {
             return Err(MemoryError::Value("chat_id must be a non-empty string".into()));
         }
@@ -308,7 +319,7 @@ impl ChatMemory {
         if created {
             self.worker.wake();
         }
-        Ok(msg)
+        Ok((msg, created))
     }
 
     /// Bulk import: each item is {"speaker", "text", "role"?, "sent_at"?, "message_id"?, "metadata"?}.

@@ -180,6 +180,22 @@ claude mcp add --transport http neuralgraph-memory http://127.0.0.1:8765/mcp \
 
 Ask Claude *"what do you remember about me?"* — if `memory_status` comes back, you are wired up.
 
+### Automatic memory in Claude Code
+
+MCP alone only saves a memory when Claude decides to call a tool. `setup` offers two
+Claude Code [hooks](https://docs.claude.com/en/docs/claude-code/hooks) that make memory
+automatic. They are written to `~/.claude/settings.json`, any hooks you already have are kept,
+and a `.bak` copy of the old file is saved.
+
+| Hook | What it does |
+|---|---|
+| `Stop` | After every reply, queues your prompt and Claude's final answer from the session transcript. Any running `mcp` or `serve` process turns them into memories in the background. Tool calls, tool output, thinking, system reminders and subagents are skipped. Re-reading a transcript never stores anything twice. |
+| `UserPromptSubmit` | Before Claude sees a prompt, adds the most relevant memories (up to 6) to it, so Claude can use them without being asked. |
+
+Both hooks run `neuralgraph-memory hook claude-code`, take milliseconds, and never block
+Claude Code: if something fails, the hook logs it and steps aside. To turn them off, re-run
+`neuralgraph-memory setup` and answer *no* to "Make memory automatic in Claude Code?".
+
 > Full client configuration, transports, tokens and troubleshooting:
 > **[Chat Memory User Guide](crates/neuralgraph-memory/README.md)**
 
