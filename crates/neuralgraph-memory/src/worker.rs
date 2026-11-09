@@ -327,7 +327,7 @@ impl MemoryWorker {
             if pending == 0 && self.busy.load(Ordering::SeqCst) == 0 {
                 return Ok(true);
             }
-            if !self.running() {
+            if !self.running() || self.store.is_paused() {
                 return Ok(pending == 0);
             }
             let remaining = deadline.map(|d| d.saturating_duration_since(Instant::now()).as_secs_f64());
@@ -347,6 +347,9 @@ impl MemoryWorker {
     }
 
     fn lease(&self) -> Result<Vec<Job>> {
+        if self.store.is_paused() {
+            return Ok(Vec::new()); // jobs wait in the queue until the user resumes
+        }
         let cfg = &self.config;
         self.store.lease_job(
             &self.worker_id,
@@ -373,6 +376,9 @@ impl MemoryWorker {
         let mut n = 0;
         self.store.requeue_expired_leases()?;
         while max_batches.is_none_or(|m| n < m) {
+            if self.store.is_paused() {
+                break; // the queue is kept for when the user resumes
+            }
             if !self.run_once().await? {
                 // nothing runnable now: maybe backing off, or a lease left behind by a crashed process
                 if self.store.pending_jobs(None)? == 0 {

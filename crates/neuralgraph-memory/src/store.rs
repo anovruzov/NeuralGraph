@@ -736,6 +736,16 @@ impl ChatMemoryStore {
         })
     }
 
+    /// Whether the user paused NeuralGraph (shared by every process on this database: `serve`, `mcp`, hooks).
+    /// While paused nothing calls the model: the worker leases no jobs and retrieval is keyword-only.
+    pub fn is_paused(&self) -> bool {
+        self.get_meta("paused").ok().flatten().is_some_and(|v| v == "1")
+    }
+
+    pub fn set_paused(&self, paused: bool) -> Result<()> {
+        self.set_meta("paused", if paused { "1" } else { "0" })
+    }
+
     // ------------------------------------------------------------------ chats & messages
     fn row_message(r: &Row) -> rusqlite::Result<ChatMessage> {
         Ok(ChatMessage {

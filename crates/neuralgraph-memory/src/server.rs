@@ -18,6 +18,13 @@
 //! POST /api/remember          {"text", "subject"?, "kind"?, "importance"?, "when"?}
 //! POST /api/forget            {"memory_id", "reason"?}
 //! POST /api/maintain          run one maintenance pass now
+//! GET  /api/control           {paused, models}; POST {action: "pause"|"resume"} stops or restarts all model use
+//! GET  /api/settings          saved settings, model servers and their models, tools and their connection state
+//! POST /api/settings          {llm_base_url?, llm_model?, embed_model?, user_name?}: save + switch models live
+//! POST /api/settings/test     {llm_base_url, llm_model, embed_model}: one chat and one embedding call
+//! POST /api/connect           {client}: register the MCP server with Claude Code / Codex / Claude Desktop / Cursor
+//! POST /api/auto-memory       {on}: install or remove the Claude Code hooks
+//! GET  /api/chats             chats with message counts
 //! *    /mcp                   MCP Streamable HTTP transport (see [`crate::mcp`])
 //!
 //! The API is what a chat application calls after every turn ("all automatic"): POST the message, forget about
@@ -32,6 +39,7 @@ use crate::mcp::{
 use crate::pycompat::{dumps, py_float_from_value, py_int_parse, py_strip, py_truthy, JsonFormat};
 use crate::retrieval::SearchOptions;
 use crate::service::{ChatMemory, MessageInput, RememberOptions};
+use crate::setup;
 use crate::store::MemoryQuery;
 use axum::body::{Body, Bytes};
 use axum::extract::{Request, State};
@@ -329,6 +337,10 @@ async fn route(
                 return not_allowed("GET,HEAD");
             }
         }
+        "/api/control" | "/api/settings" | "/api/settings/test" | "/api/connect" | "/api/auto-memory"
+        | "/api/chats" => {
+            return control_route(st, method, path, headers, &body).await;
+        }
         "/api/messages" | "/api/messages/batch" | "/api/remember" | "/api/forget" | "/api/maintain" | "/api/answer" => {
             if *method != Method::POST {
                 return not_allowed("POST");
@@ -594,6 +606,154 @@ async fn route(
     }
     .await;
     result.unwrap_or_else(internal)
+}
+
+/// Settings-changing requests must come from this page: JSON (which a cross-site form cannot send without a CORS
+/// preflight) and, when the browser says where it comes from, the same origin as the server.
+fn same_origin_json(headers: &HeaderMap) -> bool {
+    let h = |k: &str| headers.get(k).and_then(|v| v.to_str().ok());
+    let json = h("content-type").is_some_and(|v| v.starts_with("application/json"));
+    let origin_ok = match h("origin") {
+        None => true,
+        Some(o) => h("host").is_some_and(|host| o == format!("http://{host}") || o == format!("https://{host}")),
+    };
+    json && origin_ok
+}
+
+/// The control-panel API: pause/resume, settings, tool connections, auto-memory, chats.
+async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers: &HeaderMap, body: &[u8]) -> Response {
+    let cm = &st.cm;
+    let get_like = *method == Method::GET || *method == Method::HEAD;
+    let post = *method == Method::POST;
+    let allowed = match path {
+        "/api/control" | "/api/settings" => get_like || post,
+        "/api/chats" => get_like,
+        _ => post,
+    };
+    if !allowed {
+        let mut r = text_error(405, "405: Method Not Allowed");
+        let allow = match path {
+            "/api/control" | "/api/settings" => "GET,HEAD,POST",
+            "/api/chats" => "GET,HEAD",
+            _ => "POST",
+        };
+        set_header(&mut r, "Allow", allow);
+        return r;
+    }
+    if post && !same_origin_json(headers) {
+        return bad("send JSON from the dashboard's own origin", 403);
+    }
+    let b = if post {
+        match body_object(body) {
+            Ok(b) => b,
+            Err(r) => return *r,
+        }
+    } else {
+        serde_json::Map::new()
+    };
+    let s = |k: &str| b.get(k).and_then(Value::as_str).map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+    let llm = cm.control.current();
+    let models = || json!({"base_url": llm.base_url(), "chat": llm.model(), "embed": llm.embed_model()});
+    let steps = |v: Vec<crate::control::Step>| Value::Array(v.iter().map(|x| x.to_value()).collect());
+    match (path, post) {
+        ("/api/control", false) => json_resp(&json!({"paused": cm.store.is_paused(), "models": models()}), 200),
+        ("/api/control", true) => {
+            let r = match s("action").as_deref() {
+                Some("pause") => cm.pause().await,
+                Some("resume") => cm.resume().await,
+                _ => return bad("action must be \"pause\" or \"resume\"", 400),
+            };
+            match r {
+                Ok(v) => json_resp(&json!({"paused": cm.store.is_paused(), "steps": steps(v)}), 200),
+                Err(e) => internal(e),
+            }
+        }
+        ("/api/chats", _) => match cm.store.list_chats(200, 0) {
+            Ok(chats) => json_resp(&json!({"chats": chats}), 200),
+            Err(e) => internal(e),
+        },
+        ("/api/settings", false) => {
+            let path = setup::config_path();
+            let saved = setup::load_saved(&path).unwrap_or_default();
+            let servers = setup::discover_servers(Some(llm.base_url())).await;
+            let clients = tokio::task::spawn_blocking(setup::clients_status).await.unwrap_or_default();
+            let exe = setup::current_exe();
+            json_resp(
+                &json!({
+                    "models": models(),
+                    "user_name": saved.user_name.clone().or_else(|| std::env::var("NEURALGRAPH_USER_NAME").ok()),
+                    "db_path": cm.store.db_path,
+                    "config_path": path.display().to_string(),
+                    "servers": servers,
+                    "clients": clients,
+                    "auto_memory": setup::claude_hooks_installed(),
+                    "exe": exe,
+                    "exe_in_build_dir": exe.contains("/target/debug/") || exe.contains("/target/release/"),
+                    "paused": cm.store.is_paused(),
+                }),
+                200,
+            )
+        }
+        ("/api/settings", true) => {
+            let url = s("llm_base_url");
+            if url.as_deref().is_some_and(|u| !(u.starts_with("http://") || u.starts_with("https://"))) {
+                return bad("llm_base_url must start with http:// or https://", 400);
+            }
+            let path = setup::config_path();
+            let mut cfg = setup::load_saved(&path).unwrap_or_default();
+            if url.is_some() && url != cfg.llm_base_url {
+                cfg.llm_backend = None; // guessed again from the new URL
+            }
+            for (field, v) in [
+                (&mut cfg.llm_base_url, url.clone()),
+                (&mut cfg.llm_model, s("llm_model")),
+                (&mut cfg.embed_model, s("embed_model")),
+                (&mut cfg.user_name, s("user_name")),
+            ] {
+                if v.is_some() {
+                    *field = v;
+                }
+            }
+            if let Err(e) = setup::save(&path, &cfg) {
+                return internal(e.into());
+            }
+            for (k, v) in cfg.env_pairs() {
+                std::env::set_var(k, v);
+            }
+            cm.switch_models(url, s("llm_model"), s("embed_model"));
+            json_resp(
+                &json!({"saved": true, "models": {
+                "base_url": cm.control.current().base_url(),
+                "chat": cm.control.current().model(),
+                "embed": cm.control.current().embed_model(),
+            }, "note": if s("user_name").is_some() { "A new name applies to memories extracted after the next restart." } else { "" }}),
+                200,
+            )
+        }
+        ("/api/settings/test", _) => {
+            let url = s("llm_base_url").unwrap_or_else(|| llm.base_url());
+            let chat = s("llm_model").unwrap_or_else(|| llm.model());
+            let embed = s("embed_model").unwrap_or_else(|| llm.embed_model());
+            json_resp(&setup::test_models(&url, &chat, &embed).await, 200)
+        }
+        ("/api/connect", _) => {
+            let Some(name) = s("client") else { return bad("'client' is required", 400) };
+            match tokio::task::spawn_blocking(move || setup::connect_client(&name)).await {
+                Ok(Ok(msg)) => json_resp(&json!({"ok": true, "message": msg}), 200),
+                Ok(Err(e)) => json_resp(&json!({"ok": false, "message": e}), 200),
+                Err(e) => bad(&e.to_string(), 500),
+            }
+        }
+        ("/api/auto-memory", _) => {
+            let Some(on) = b.get("on").and_then(Value::as_bool) else { return bad("'on' must be true or false", 400) };
+            let exe = setup::current_exe();
+            match setup::set_claude_hooks(on.then_some(exe.as_str())) {
+                Ok(msg) => json_resp(&json!({"ok": true, "on": on, "message": msg}), 200),
+                Err(e) => json_resp(&json!({"ok": false, "on": !on, "message": e}), 200),
+            }
+        }
+        _ => text_error(404, "404: Not Found"),
+    }
 }
 
 fn internal(e: crate::error::MemoryError) -> Response {

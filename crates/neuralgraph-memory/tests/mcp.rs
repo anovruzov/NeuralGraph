@@ -9,6 +9,7 @@ use axum::body::Body;
 use axum::http::Request;
 use http_body_util::BodyExt;
 use neuralgraph_memory::graph::{ascii_tree, export_html, graph_value, GraphOptions};
+use neuralgraph_memory::llm::LlmClient;
 use neuralgraph_memory::mcp::{
     serve_stdio_with, tools, McpProtocol, JSONRPC_INVALID_PARAMS, JSONRPC_METHOD_NOT_FOUND, LATEST_PROTOCOL_VERSION,
 };
@@ -308,7 +309,7 @@ async fn test_dashboard_and_api() {
     let (_f, app) = http_fx().await;
     let (st, _, html) = send(&app, "GET", "/", &[], None).await;
     assert_eq!(st, 200);
-    assert!(html.contains("Pentagon grade"));
+    assert!(html.contains("NeuralGraph on or off") && html.contains("#/settings"));
     let (_, _, body) = send(&app, "GET", "/api/status", &[], None).await;
     let st: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(st["memories"]["by_status"]["active"], 2);
@@ -427,6 +428,66 @@ async fn test_graph_endpoint_closed_over_top_entities() {
     assert!(tree.contains("~ Luna [pet]  (1 memory)"), "{tree}");
     assert!(ascii_tree(&g, Some("nobody"), 1, 5).is_none());
     assert!(ascii_tree(&g, None, 1, 2).unwrap().contains(" connections"));
+}
+
+#[tokio::test]
+async fn test_control_panel_pause_resume_and_settings() {
+    let (f, app) = http_fx().await;
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("NEURALGRAPH_CONFIG", dir.path().join("config.json"));
+    let json_h = [("Content-Type", "application/json")];
+    let get = |path: &'static str| {
+        let app = app.clone();
+        async move { serde_json::from_str::<Value>(&send(&app, "GET", path, &[], None).await.2).unwrap() }
+    };
+    assert_eq!(get("/api/control").await["paused"], false);
+
+    // settings changes only from the page itself: JSON, same origin
+    let pause = json!({"action": "pause"}).to_string();
+    let (code, _, _) = send(&app, "POST", "/api/control", &[("Content-Type", "text/plain")], Some(pause.clone())).await;
+    assert!([403, 415].contains(&code), "a cross-site form cannot send JSON: {code}");
+    let evil = [("Content-Type", "application/json"), ("Origin", "https://evil.example")];
+    let (code, _, _) = send(&app, "POST", "/api/control", &evil, Some(pause.clone())).await;
+    assert_eq!(code, 403);
+    let (code, _, _) = send(&app, "DELETE", "/api/control", &[], None).await;
+    assert_eq!(code, 405);
+
+    // pause: flag shared through the database, no model calls, chats still queue, search still answers
+    let own = [("Content-Type", "application/json"), ("Origin", "http://127.0.0.1:8765")];
+    let (code, _, body) = send(&app, "POST", "/api/control", &own, Some(pause)).await;
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["paused"], true);
+    assert!(f.cm.store.is_paused());
+    assert!(f.cm.control.generate("hi", 4, 0.0, 5.0).await.is_err(), "paused: the model is not called");
+    let (code, _, _) =
+        post_json(&app, "/api/messages", &[], json!({"chat_id": "p", "speaker": "Ali", "text": "I like tea."})).await;
+    assert_eq!(code, 202);
+    assert_eq!(f.cm.worker.drain(None).await.unwrap(), 0, "the queue waits while paused");
+    let hits = get("/api/search?q=Luna").await;
+    assert_eq!(hits["results"].as_array().unwrap().len(), 1, "keyword search still works");
+
+    let (_, _, body) = send(&app, "POST", "/api/control", &json_h, Some(json!({"action": "resume"}).to_string())).await;
+    let r: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(r["paused"], false);
+    assert!(r["steps"].as_array().unwrap().iter().all(|s| s["ok"] == true), "{r}");
+    assert!(f.cm.worker.drain(None).await.unwrap() > 0, "resumed: the waiting chat is learned");
+
+    // settings: saved to the config file and applied live
+    let chats = get("/api/chats").await;
+    assert!(chats["chats"].as_array().unwrap().iter().any(|c| c["chat_id"] == "p"));
+    let (code, _, _) =
+        send(&app, "POST", "/api/settings", &json_h, Some(json!({"llm_base_url": "ftp://x"}).to_string())).await;
+    assert_eq!(code, 400);
+    let new = json!({"llm_base_url": "http://127.0.0.1:9", "llm_model": "m-chat", "embed_model": "m-embed", "user_name": "Ada"});
+    let (code, _, body) = send(&app, "POST", "/api/settings", &json_h, Some(new.to_string())).await;
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(f.cm.control.current().model(), "m-chat");
+    assert_eq!(f.cm.control.current().base_url(), "http://127.0.0.1:9");
+    let saved: Value = serde_json::from_str(&std::fs::read_to_string(dir.path().join("config.json")).unwrap()).unwrap();
+    assert_eq!(saved["llm_model"], "m-chat");
+    assert_eq!(saved["user_name"], "Ada");
+    let (code, _, _) = send(&app, "POST", "/api/auto-memory", &json_h, Some(json!({"on": "yes"}).to_string())).await;
+    assert_eq!(code, 400);
 }
 
 #[tokio::test]

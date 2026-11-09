@@ -14,6 +14,7 @@ pub mod backend;
 pub mod bm25;
 pub mod cli;
 pub mod clock;
+pub mod control;
 pub mod difflib;
 pub mod error;
 pub mod extraction;

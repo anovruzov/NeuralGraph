@@ -358,20 +358,30 @@ share nothing.
 ## REST API and dashboard
 
 `serve` runs four things in one process: the worker, MCP at `/mcp`, a REST API under
-`/api/*`, and a live dashboard at `/`.
+`/api/*`, and the web app at `/`. Everything can be controlled from the web app:
 
-The dashboard polls `/api/status` every two seconds and shows an avatar that pulses while
-the worker is busy, the **tokens saved** figure (raw chat tokens digested minus the tokens
-of the memories that replace them), and a **pentagon grade** across five axes — coverage,
-compression, connectivity, freshness and reliability.
+| Section | What it holds |
+|---|---|
+| **Home** | Whether NeuralGraph is on, learning or paused; memories, entities, chats and tokens saved; recently learned memories; a health grade |
+| **Memories** | *Browse* (filter, forget), *Ask* (an answer written only from your memories, with its sources), *Add* (remember something now) |
+| **Graph** | The entity graph explorer (below) |
+| **Activity** | *Chats* read, the *Queue* of messages still to learn, and a *Log* of recent work |
+| **Settings** | *General* (name, on/off, theme), *Models* (pick the server and models, test them, switch live), *Connections* (connect Claude Code, Codex, Claude Desktop or Cursor, and turn on automatic memory), *Advanced* (files, endpoints, CLI equivalents) |
 
 <div align="center">
-  <img src="docs/images/dashboard.png" alt="The NeuralGraph memory dashboard: tokens saved, pentagon grade, live memory stream and entity graph" width="820">
+  <img src="docs/images/dashboard.png" alt="The NeuralGraph web app: sidebar with an on/off switch and five sections; the Home page shows status, counts, recent memories and health" width="820">
 </div>
 
-The live memory stream shows each memory as it is extracted, with its kind, subject,
-source chat, date and importance. You can search memory and feed it a chat turn straight
-from the page.
+**On/off switch.** The switch at the top of the sidebar pauses NeuralGraph and unloads its
+chat and embedding models from LM Studio or Ollama, so their RAM is free for something else.
+Other models you have loaded are left alone. While paused, no NeuralGraph process calls a
+model: chats are still saved and queue up, search falls back to keyword matching, and
+*Remember* still works. Switching it back on loads both models again and learns whatever
+queued up. The same switch is `neuralgraph-memory pause` and `neuralgraph-memory resume`.
+
+Settings changes made in the web app apply immediately and are saved to
+`~/.neuralgraph/config.json`. Requests that change settings are accepted only as JSON from the
+page's own origin, so other websites cannot change them.
 
 ### Entity graph
 
