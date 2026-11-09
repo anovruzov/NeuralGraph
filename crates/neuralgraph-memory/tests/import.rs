@@ -98,13 +98,41 @@ fn uploads_are_detected_by_type() {
 }
 
 #[test]
-fn documents_split_at_paragraphs() {
-    let para = "word ".repeat(200);
-    let text = format!("{para}\n\n{para}\n\n{para}");
-    let c = document("notes.md", &text, text.as_bytes()).unwrap();
-    assert_eq!(c.messages.len(), 3, "each ~1000-char paragraph fits once per 1500-char message");
+fn documents_split_into_titled_sections() {
+    let text = "# Me\n\nIntro line.\n\n## Work\n\n".to_string()
+        + &"- I build memory systems in Rust.\n".repeat(40)
+        + "\n## Photography\n\n### Cameras\n\n"
+        + &"- Canon 5D Mark III, 41,000 shutter count.\n".repeat(30);
+    let c = document("me.md", &text, text.as_bytes()).unwrap();
     assert!(c.id.starts_with("import-doc-") && c.messages.iter().all(|m| m.role == "user"));
+    let first: Vec<&str> = c.messages.iter().map(|m| m.text.lines().next().unwrap()).collect();
+    assert_eq!(first[0], "[me.md › Me]");
+    assert!(first.contains(&"[me.md › Me › Work]"), "a section that continues keeps its heading: {first:?}");
+    assert!(first.contains(&"[me.md › Me › Photography › Cameras]"), "{first:?}");
+    assert!(c.messages.iter().all(|m| m.text.len() <= 1300), "sections stay small enough for one model call");
+    let body: String = c.messages.iter().map(|m| m.text.as_str()).collect();
+    assert_eq!(body.matches("Canon 5D Mark III").count(), 30, "no line is lost or repeated");
+    assert_eq!(body.matches("memory systems in Rust").count(), 40);
+
+    // a PDF page arrives as one long line: cut at sentence ends, nothing dropped
+    let page = "Ada ran the Lyon marathon. ".repeat(120);
+    let c = document("page.pdf", &page, page.as_bytes()).unwrap();
+    assert!(c.messages.len() >= 3);
+    let joined: String = c.messages.iter().map(|m| m.text.as_str()).collect();
+    assert_eq!(joined.matches("Ada ran the Lyon marathon.").count(), 120);
     assert!(document("x", "  \n\n ", b"x").is_none());
+    assert!(document("x", "# Only a heading\n", b"y").is_none());
+}
+
+#[test]
+fn documents_are_read_one_section_per_call() {
+    use neuralgraph_memory::store::{batch_for, is_digest_chat};
+    assert_eq!(batch_for("import-doc-abc"), Some(1));
+    assert_eq!(batch_for("import-claude-abc"), Some(20));
+    assert_eq!(batch_for("claude-code-abc"), Some(20));
+    assert_eq!(batch_for("my-chat"), None);
+    assert!(is_digest_chat("import-chatgpt-1") && is_digest_chat("claude-code-1"));
+    assert!(!is_digest_chat("import-doc-1"), "a document's sections are the user's own words: all of it counts");
 }
 
 #[test]

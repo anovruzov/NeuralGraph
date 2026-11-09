@@ -24,6 +24,9 @@
 //! POST /api/settings/test     {llm_base_url, llm_model, embed_model}: one chat and one embedding call
 //! POST /api/connect           {client}: register the MCP server with Claude Code / Codex / Claude Desktop / Cursor
 //! POST /api/auto-memory       {on}: install or remove the Claude Code hooks
+//! GET  /api/update            {current, latest, available} (?force=1 asks GitHub again); POST installs the latest
+//!                             release (SHA-256 checked) and restarts in place
+//! POST /api/restart           restart the server in place (same pid), e.g. after `neuralgraph-memory update`
 //! GET  /api/chats             chats with message counts
 //! POST /api/chats/relearn     {chat_id}: archive the chat's memories and learn it again with the current rules
 //! POST /api/cleanup           {all_minor?}: merge near-duplicates, archive minor memories nobody recalled
@@ -361,10 +364,12 @@ async fn route(
         | "/api/cleanup"
         | "/api/chats/relearn"
         | "/api/memories/restore"
+        | "/api/update"
+        | "/api/restart"
         | "/api/import/claude-code"
         | "/api/import/text"
         | "/api/import/commit" => {
-            return control_route(st, method, path, headers, &body).await;
+            return control_route(st, method, path, headers, &body, query.get("force").is_some_and(|v| v == "1")).await;
         }
         "/api/import/upload" => {
             if *method != Method::POST {
@@ -652,19 +657,26 @@ fn same_origin_json(headers: &HeaderMap) -> bool {
 }
 
 /// The control-panel API: pause/resume, settings, tool connections, auto-memory, chats.
-async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers: &HeaderMap, body: &[u8]) -> Response {
+async fn control_route(
+    st: &Arc<AppState>,
+    method: &Method,
+    path: &str,
+    headers: &HeaderMap,
+    body: &[u8],
+    query_force: bool,
+) -> Response {
     let cm = &st.cm;
     let get_like = *method == Method::GET || *method == Method::HEAD;
     let post = *method == Method::POST;
     let allowed = match path {
-        "/api/control" | "/api/settings" => get_like || post,
+        "/api/control" | "/api/settings" | "/api/update" => get_like || post,
         "/api/chats" => get_like,
         _ => post,
     };
     if !allowed {
         let mut r = text_error(405, "405: Method Not Allowed");
         let allow = match path {
-            "/api/control" | "/api/settings" => "GET,HEAD,POST",
+            "/api/control" | "/api/settings" | "/api/update" => "GET,HEAD,POST",
             "/api/chats" => "GET,HEAD",
             _ => "POST",
         };
@@ -723,6 +735,10 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
                         "model": crate::vision::configured_vision_model(),
                     },
                     "exe": exe,
+                    "version": crate::update::current_version(),
+                    "db_setting": saved.db.clone().unwrap_or_else(|| crate::cli::DEFAULT_DB_FALLBACK.into()),
+                    "db_from_flag": std::env::args().any(|a| a == "--db" || a.starts_with("--db=")),
+                    "system": setup::system_info(),
                     "exe_in_build_dir": exe.contains("/target/debug/") || exe.contains("/target/release/"),
                     "paused": cm.store.is_paused(),
                 }),
@@ -749,6 +765,17 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
                     *field = v;
                 }
             }
+            // a new memory file takes effect after a restart (which this request triggers)
+            let new_db = s("db").filter(|d| Some(d) != cfg.db.as_ref());
+            if let Some(d) = &new_db {
+                if std::env::args().any(|a| a == "--db" || a.starts_with("--db=")) {
+                    return bad(
+                        "this server was started with --db; restart it without that flag to change the file here",
+                        409,
+                    );
+                }
+                cfg.db = Some(d.clone());
+            }
             if b.contains_key("vision_model") {
                 // "" clears it: images then need a chat model that can see
                 cfg.vision_model = s("vision_model");
@@ -763,6 +790,12 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
                 std::env::set_var(k, v);
             }
             cm.switch_models(url, s("llm_model"), s("embed_model"));
+            if new_db.is_some() {
+                tokio::spawn(async {
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    crate::update::request_restart();
+                });
+            }
             json_resp(
                 &json!({"saved": true, "models": {
                 "base_url": cm.control.current().base_url(),
@@ -785,6 +818,45 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
                 Ok(Err(e)) => json_resp(&json!({"ok": false, "message": e}), 200),
                 Err(e) => bad(&e.to_string(), 500),
             }
+        }
+        ("/api/update", false) => {
+            let st = crate::update::status(query_force).await;
+            json_resp(
+                &json!({
+                    "current": st.current, "latest": st.latest, "available": st.available,
+                    "blocked": st.blocked, "error": st.error,
+                    "old_copies": crate::update::other_copies().iter().filter(|c| c.mode == "mcp").count(),
+                }),
+                200,
+            )
+        }
+        ("/api/update", true) => {
+            let st = crate::update::status(true).await;
+            let Some(tag) = st.latest.filter(|_| st.available) else {
+                return json_resp(
+                    &json!({"ok": false, "message": st.error.unwrap_or_else(|| "already up to date".into())}),
+                    200,
+                );
+            };
+            match crate::update::install(&tag).await {
+                Ok(bytes) => {
+                    // answer first, then stop outdated copies and restart in place on the new binary
+                    tokio::spawn(async {
+                        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                        crate::update::stop_old_mcp();
+                        crate::update::request_restart();
+                    });
+                    json_resp(&json!({"ok": true, "version": tag, "bytes": bytes}), 200)
+                }
+                Err(e) => json_resp(&json!({"ok": false, "message": e}), 200),
+            }
+        }
+        ("/api/restart", _) => {
+            tokio::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                crate::update::request_restart();
+            });
+            json_resp(&json!({"ok": true}), 200)
         }
         ("/api/cleanup", _) => {
             let all = b.get("all_minor").and_then(Value::as_bool).unwrap_or(true);

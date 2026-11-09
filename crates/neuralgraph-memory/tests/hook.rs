@@ -1,7 +1,9 @@
 //! Claude Code hooks: which transcript lines become messages, incremental and idempotent ingestion, and the
 //! settings.json merge that installs or removes the hooks.
 
-use neuralgraph_memory::hook::{clean_text, ingest_transcript, parse_transcript};
+mod common;
+
+use neuralgraph_memory::hook::{clean_text, ingest_transcript, parse_transcript, pick_relevant, RECALL_MIN_SIM};
 use neuralgraph_memory::service::{ChatMemory, ChatMemoryConfig};
 use neuralgraph_memory::setup::merge_claude_hooks;
 use neuralgraph_memory::testing::scripted_fake_llm;
@@ -91,8 +93,8 @@ async fn ingestion_is_incremental_and_idempotent() {
     write!(f, "{{\"type\": \"user\", \"half-written").unwrap(); // a line still being written
     drop(f);
     let session = "abcdef12-3456";
-    assert_eq!(ingest_transcript(&cm, &path, session, Some("/work/proj")).unwrap(), 2);
-    assert_eq!(ingest_transcript(&cm, &path, session, Some("/work/proj")).unwrap(), 0, "nothing new");
+    assert_eq!(ingest_transcript(&cm, &path, session, Some("/work/proj"), false).unwrap(), 2);
+    assert_eq!(ingest_transcript(&cm, &path, session, Some("/work/proj"), false).unwrap(), 0, "nothing new");
 
     // the rest of the session arrives (the half line is completed as a real one)
     let mut f = std::fs::OpenOptions::new().write(true).truncate(true).open(&path).unwrap();
@@ -101,9 +103,9 @@ async fn ingestion_is_incremental_and_idempotent() {
     }
     drop(f);
     // same bytes up to the saved offset, so only the new lines are read
-    let added = ingest_transcript(&cm, &path, session, Some("/work/proj")).unwrap();
+    let added = ingest_transcript(&cm, &path, session, Some("/work/proj"), false).unwrap();
     std::fs::remove_file(dir.path().join("hooks/claude-code/abcdef12-3456.offset")).unwrap();
-    let again = ingest_transcript(&cm, &path, session, Some("/work/proj")).unwrap();
+    let again = ingest_transcript(&cm, &path, session, Some("/work/proj"), false).unwrap();
     assert_eq!(again, 0, "a full re-read stores nothing twice");
     assert_eq!(added, 2, "the second prompt and its answer");
 
@@ -149,4 +151,35 @@ fn hooks_merge_installs_once_and_keeps_other_settings() {
     let fresh: Value = serde_json::from_str(&merge_claude_hooks(None, None).unwrap()).unwrap();
     assert_eq!(fresh, json!({}));
     assert!(merge_claude_hooks(Some("{bad"), None).is_err());
+}
+
+#[test]
+fn recall_keeps_only_semantically_close_memories() {
+    use neuralgraph_memory::models::RetrievedMemory;
+    let hit = |text: &str, sim: Option<f64>| {
+        let mut channels = indexmap::IndexMap::new();
+        if let Some(s) = sim {
+            channels.insert("vector".to_string(), s);
+        }
+        channels.insert("keyword".to_string(), 1.0);
+        RetrievedMemory {
+            memory: common::mem(text),
+            score: 0.03,
+            channels,
+            sources: vec![],
+            entities: vec![],
+            explanation: String::new(),
+        }
+    };
+    let results = vec![
+        hit("keyword only", None),
+        hit("weak", Some(0.50)),
+        hit("good", Some(0.61)),
+        hit("best", Some(0.83)),
+        hit("border", Some(RECALL_MIN_SIM)),
+    ];
+    let texts: Vec<String> = pick_relevant(results, RECALL_MIN_SIM).into_iter().map(|r| r.memory.text).collect();
+    assert_eq!(texts, ["best", "good", "border"], "sorted by similarity; keyword-only and weak hits are dropped");
+    let many: Vec<RetrievedMemory> = (0..9).map(|i| hit(&format!("m{i}"), Some(0.9 - i as f64 * 0.01))).collect();
+    assert_eq!(pick_relevant(many, RECALL_MIN_SIM).len(), 5, "at most five per prompt");
 }

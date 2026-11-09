@@ -582,6 +582,30 @@ pub const CODING_BATCH: i64 = 20;
 pub const MINOR_IMPORTANCE: f64 = 0.6;
 pub const ARCHIVE_MINOR_AFTER_DAYS: f64 = 14.0;
 
+/// Coding sessions and imported history: read in big batches, and only what the user themself said becomes a memory
+/// (the assistant's turns are context). Its long answers are status reports and explanations, not facts about the
+/// user, and were the main source of junk memories.
+pub fn is_digest_chat(chat_id: &str) -> bool {
+    (chat_id.starts_with(CODING_CHAT_PREFIX) || chat_id.starts_with(crate::import::IMPORT_CHAT_PREFIX))
+        && !chat_id.starts_with(crate::import::DOC_CHAT_PREFIX)
+}
+
+/// Messages per extraction pass for chats with their own rhythm: digested chats 20 at a time; documents one section
+/// at a time, because a section is dense with facts and one pass records at most a dozen.
+pub fn batch_for(chat_id: &str) -> Option<i64> {
+    if chat_id.starts_with(crate::import::DOC_CHAT_PREFIX) {
+        Some(1)
+    } else if is_digest_chat(chat_id) {
+        Some(CODING_BATCH)
+    } else {
+        None
+    }
+}
+
+/// The worker generation that understands every job in this database. A worker from an older install (still running
+/// inside an AI tool that was not restarted after an update) must not process the queue with outdated rules.
+pub const WORKER_GENERATION: i64 = 2;
+
 /// SQLite-backed store. See module docs.
 pub struct ChatMemoryStore {
     pub db_path: String,
@@ -761,6 +785,21 @@ impl ChatMemoryStore {
     pub fn hold_queue(&self, seconds: i64) -> Result<()> {
         let until = if seconds > 0 { crate::models::utcnow().timestamp() + seconds } else { 0 };
         self.set_meta("queue_held_until", &until.to_string())
+    }
+
+    /// Record this binary's worker generation (keeps the highest one any process has seen).
+    pub fn announce_generation(&self) -> Result<()> {
+        let seen: i64 = self.get_meta("worker_generation")?.and_then(|v| v.parse().ok()).unwrap_or(0);
+        if WORKER_GENERATION > seen {
+            self.set_meta("worker_generation", &WORKER_GENERATION.to_string())?;
+        }
+        Ok(())
+    }
+
+    /// Whether a newer install has used this database: then this process leaves the queue to it.
+    pub fn outdated(&self) -> bool {
+        self.get_meta("worker_generation").ok().flatten().and_then(|v| v.parse::<i64>().ok()).unwrap_or(0)
+            > WORKER_GENERATION
     }
 
     /// Paused by the user, or held for a model swap.
@@ -1287,6 +1326,8 @@ impl ChatMemoryStore {
     /// messages of the same chat (contiguous `seq`), so one LLM pass covers a turn.
     ///
     /// Per-chat ordering: a job is runnable only when no earlier-seq job of the same chat is queued or leased.
+    /// Imported documents are the exception: their sections do not build on each other, so several workers read
+    /// one document at the same time.
     /// Returns `[]` when nothing is runnable.
     pub fn lease_job(
         &self,
@@ -1303,7 +1344,7 @@ impl ChatMemoryStore {
         self.tx(|c| {
             let mut sql = "SELECT j.* FROM jobs j
                          WHERE j.status = 'queued' AND j.available_at <= ?
-                           AND (j.chat_id IS NULL OR NOT EXISTS (
+                           AND (j.chat_id IS NULL OR j.chat_id LIKE 'import-doc-%' OR NOT EXISTS (
                                  SELECT 1 FROM jobs j2
                                  WHERE j2.chat_id = j.chat_id AND j2.job_id <> j.job_id
                                    AND j2.status IN ('queued', 'leased') AND j2.seq < j.seq))"
@@ -1322,11 +1363,9 @@ impl ChatMemoryStore {
             // cannot poison its neighbours and the retried prompt differs from the failed one
             let shift = |v: i64| if head.attempts >= 63 || head.attempts < 0 { 0 } else { v >> head.attempts };
             // coding sessions and imported history are read in big batches
-            let coding = head.chat_id.as_deref().is_some_and(|c| {
-                c.starts_with(CODING_CHAT_PREFIX) || c.starts_with(crate::import::IMPORT_CHAT_PREFIX)
-            });
-            let eff_batch = shift(if coding { CODING_BATCH } else { batch_size }).max(1);
-            let eff_words = if coding { 0 } else { shift(batch_words).max(0) };
+            let own = head.chat_id.as_deref().and_then(batch_for);
+            let eff_batch = shift(own.unwrap_or(batch_size)).max(1);
+            let eff_words = if own.is_some() { 0 } else { shift(batch_words).max(0) };
             if head.kind == "extract" && eff_words > 0 && head.chat_id.is_some() {
                 // word mode: keep pulling contiguous queued messages until the batch holds eff_words words
                 let wtext: Option<String> = c

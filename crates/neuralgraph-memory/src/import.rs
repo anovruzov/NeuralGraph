@@ -23,8 +23,9 @@ use std::path::{Path, PathBuf};
 
 /// Chats created by an import start with this (see `store::digest_kind`).
 pub const IMPORT_CHAT_PREFIX: &str = "import-";
-/// Characters per message when a document is split up.
-const DOC_CHUNK: usize = 1500;
+/// Characters per section when a document is split up: small enough that one model call (at most 12 memories) can
+/// record every fact in it.
+const DOC_CHUNK: usize = 900;
 /// Largest upload the import endpoint accepts.
 pub const MAX_UPLOAD: usize = 512 * 1024 * 1024;
 /// Media type of an upload: files framed as `[u32 name length][name][u64 size][bytes]…`, big-endian. A browser can
@@ -244,39 +245,98 @@ fn parse_conversations_json(bytes: &[u8]) -> std::result::Result<ImportPlan, Str
 
 // ------------------------------------------------------------------------------------------------ documents
 
-/// A document as one conversation of the user's own words, split at paragraph breaks into ~1500-character messages.
-pub fn document(title: &str, text: &str, key: &[u8]) -> Option<ImportConv> {
-    let hash = short_hash(key);
+/// Chats made from documents (notes, PDFs, screenshots, pasted text): `import-doc-…`.
+pub const DOC_CHAT_PREFIX: &str = "import-doc-";
+
+/// Split a document into sections of about [`DOC_CHUNK`] characters. A new section starts at a Markdown heading (once
+/// the current one has some body) or when the size is reached, always at a line break; every section opens with
+/// `[title › heading › subheading]` so a fact keeps its context ("Cameras" under "Photography").
+pub fn chunk_document(title: &str, text: &str) -> Vec<String> {
+    let mut path: Vec<(usize, String)> = Vec::new();
     let mut chunks: Vec<String> = Vec::new();
     let mut cur = String::new();
-    for para in text.split("\n\n").map(str::trim).filter(|p| !p.is_empty()) {
-        if !cur.is_empty() && cur.len() + para.len() > DOC_CHUNK {
-            chunks.push(std::mem::take(&mut cur));
+    let mut cur_path = String::new();
+    let label = |path: &[(usize, String)]| {
+        let mut parts = vec![title.to_string()];
+        parts.extend(path.iter().map(|(_, h)| h.clone()));
+        format!("[{}]", parts.join(" › "))
+    };
+    let flush = |cur: &mut String, cur_path: &str, chunks: &mut Vec<String>| {
+        let body = cur.trim();
+        // a section that is only headings says nothing
+        if body.lines().any(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#')) {
+            chunks.push(format!("{cur_path}\n{body}"));
         }
-        if !cur.is_empty() {
-            cur.push_str("\n\n");
+        cur.clear();
+    };
+    for raw in text.lines() {
+        let line = raw.trim_end();
+        let heading = line.trim_start().strip_prefix('#').map(|rest| {
+            let level = 1 + rest.chars().take_while(|c| *c == '#').count();
+            (level, rest.trim_start_matches('#').trim().to_string())
+        });
+        if let Some((level, name)) = heading.filter(|(l, n)| *l <= 4 && !n.is_empty()) {
+            if cur.len() >= 300 {
+                flush(&mut cur, &cur_path, &mut chunks);
+            }
+            path.retain(|(l, _)| *l < level);
+            path.push((level, name));
+            if cur.is_empty() {
+                cur_path = label(&path);
+            }
+            cur.push_str(line);
+            cur.push('\n');
+            continue;
         }
-        cur.push_str(para);
+        // very long lines (a PDF paragraph) are cut at sentence ends
+        let mut rest = line;
+        loop {
+            if cur.is_empty() {
+                cur_path = label(&path);
+            }
+            let room = DOC_CHUNK.saturating_sub(cur.len());
+            if rest.len() <= room.max(200) {
+                cur.push_str(rest);
+                cur.push('\n');
+                break;
+            }
+            if cur.len() >= 300 {
+                flush(&mut cur, &cur_path, &mut chunks);
+                continue;
+            }
+            let mut cut =
+                rest.char_indices().map(|(i, _)| i).take_while(|i| *i <= DOC_CHUNK).last().unwrap_or(rest.len());
+            if let Some(dot) = rest[..cut].rfind(". ") {
+                if dot > DOC_CHUNK / 3 {
+                    cut = dot + 1;
+                }
+            }
+            cur.push_str(&rest[..cut]);
+            flush(&mut cur, &cur_path, &mut chunks);
+            rest = rest[cut..].trim_start();
+            if rest.is_empty() {
+                break;
+            }
+        }
+        if cur.len() >= DOC_CHUNK {
+            flush(&mut cur, &cur_path, &mut chunks);
+        }
     }
-    if !cur.trim().is_empty() {
-        chunks.push(cur);
-    }
-    let messages: Vec<ImportMsg> = chunks
-        .iter()
+    flush(&mut cur, &cur_path, &mut chunks);
+    chunks
+}
+
+/// A document as one conversation in the user's own words, one message per section.
+pub fn document(title: &str, text: &str, key: &[u8]) -> Option<ImportConv> {
+    // "s2": the second sectioning scheme, so files imported by 1.5.0 (ten big parts in one call) can be read again
+    let hash = short_hash(&[key, b"s2"].concat());
+    let messages: Vec<ImportMsg> = chunk_document(title, text)
+        .into_iter()
         .enumerate()
-        .filter_map(|(i, c)| {
-            // documents keep their code: a note's snippet can be the point; long chunks are still capped
-            let text: String = c.chars().take(DOC_CHUNK * 2).collect();
-            (!text.trim().is_empty()).then(|| ImportMsg {
-                id: format!("imp-doc-{hash}-{i}"),
-                role: "user".into(),
-                text,
-                at: None,
-            })
-        })
+        .map(|(i, text)| ImportMsg { id: format!("imp-doc-{hash}-{i}"), role: "user".into(), text, at: None })
         .collect();
     (!messages.is_empty()).then(|| ImportConv {
-        id: format!("{IMPORT_CHAT_PREFIX}doc-{hash}"),
+        id: format!("{DOC_CHAT_PREFIX}{hash}"),
         title: title.to_string(),
         created_at: None,
         messages,
@@ -500,9 +560,14 @@ pub async fn transcribe_image(base: &str, name: &str, bytes: &[u8], model: &str)
 
 // ------------------------------------------------------------------------------------------------ preview + commit
 
-/// Model calls to learn `convs` (imports are read 20 messages per call).
+/// Model calls to learn one conversation: documents one section per call, chats 20 messages per call.
+pub fn calls_for(c: &ImportConv) -> usize {
+    c.messages.len().div_ceil(crate::store::batch_for(&c.id).unwrap_or(2) as usize)
+}
+
+/// Model calls to learn `convs`.
 pub fn estimate_calls(convs: &[&ImportConv]) -> usize {
-    convs.iter().map(|c| c.messages.len().div_ceil(crate::store::CODING_BATCH as usize)).sum()
+    convs.iter().map(|c| calls_for(c)).sum()
 }
 
 /// What the preview shows: every conversation with its size and whether it is already in memory.
@@ -528,6 +593,9 @@ pub fn preview(cm: &ChatMemory, plan: &ImportPlan, token: &str) -> Value {
             "title": c.title,
             "created_at": c.created_at,
             "messages": c.messages.len(),
+            "calls": calls_for(c),
+            "document": c.id.starts_with(DOC_CHAT_PREFIX),
+            "chars": c.messages.iter().map(|m| m.text.len()).sum::<usize>(),
             "imported": known.contains(&c.id),
         })).collect::<Vec<_>>(),
     })

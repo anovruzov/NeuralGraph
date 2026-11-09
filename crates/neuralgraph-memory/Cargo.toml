@@ -1,6 +1,6 @@
 [package]
 name = "neuralgraph-memory"
-version = "1.5.0"
+version = "1.6.0"
 description = "NeuralGraph cross-chat memory: SQLite store, background extraction worker, hybrid retrieval, MCP + REST + dashboard"
 edition.workspace = true
 license.workspace = true
@@ -30,6 +30,7 @@ blake2 = "0.11.0"
 chrono = "0.4.45"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 fancy-regex = "0.19.2"
+flate2 = "1.1.11"
 futures = "0.3.34"
 indexmap = "2.14.2"
 pdf-extract = "0.12.1"
@@ -39,6 +40,8 @@ reqwest = { version = "0.13.5", default-features = false, features = ["rustls", 
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.11.1"
+tar = "0.4.46"
 tokio = { version = "1.54.0", features = ["full"] }
 tokio-util = "0.7.20"
 tracing = "0.1.44"

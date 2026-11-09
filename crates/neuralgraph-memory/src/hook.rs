@@ -159,11 +159,27 @@ pub fn ingest_transcript(
     transcript: &Path,
     session: &str,
     cwd: Option<&str>,
+    wait_for_reply: bool,
 ) -> crate::error::Result<usize> {
     let state = offset_file(session);
     let offset = std::fs::read_to_string(&state).ok().and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-    let (lines, next) = read_new_lines(transcript, offset)?;
-    let turns = parse_transcript(lines.iter().map(String::as_str));
+    let (mut lines, mut next) = read_new_lines(transcript, offset)?;
+    let mut turns = parse_transcript(lines.iter().map(String::as_str));
+    // Claude Code can run the Stop hook a moment before it writes the reply to the transcript: when the newest turn
+    // is still the user's, give the reply a second to land so it is not saved one turn late
+    if wait_for_reply && turns.last().is_some_and(|t| t.role == "user") {
+        for _ in 0..4 {
+            std::thread::sleep(Duration::from_millis(250));
+            let (l2, n2) = read_new_lines(transcript, offset)?;
+            if n2 > next {
+                (lines, next) = (l2, n2);
+                turns = parse_transcript(lines.iter().map(String::as_str));
+                if turns.last().is_some_and(|t| t.role == "assistant") {
+                    break;
+                }
+            }
+        }
+    }
     let chat_id = format!("claude-code-{}", session.chars().take(8).collect::<String>());
     if !turns.is_empty() {
         let project = cwd.and_then(|c| Path::new(c).file_name()).map(|n| n.to_string_lossy().into_owned());
@@ -200,20 +216,54 @@ fn worth_recalling(prompt: &str) -> bool {
     p.chars().count() >= 12 && !p.starts_with('/')
 }
 
+/// Lowest cosine similarity (query vs memory) a memory needs to be added to a prompt. Measured with
+/// nomic-embed-text on real data: on-topic memories score 0.58-0.82, unrelated ones 0.38-0.56.
+/// `NEURALGRAPH_RECALL_MIN_SIM` overrides it (other embedding models spread their scores differently).
+pub const RECALL_MIN_SIM: f64 = 0.57;
+/// Most memories added to one prompt.
+const RECALL_MAX: usize = 5;
+
+fn recall_min_sim() -> f64 {
+    std::env::var("NEURALGRAPH_RECALL_MIN_SIM").ok().and_then(|v| v.parse().ok()).unwrap_or(RECALL_MIN_SIM)
+}
+
+/// The memories worth adding to `prompt`: semantically close ones only. Keyword-only hits are left out (a shared
+/// common word is not relevance), so nothing is recalled while the embedding model is unavailable.
+pub fn pick_relevant(
+    results: Vec<crate::models::RetrievedMemory>,
+    min_sim: f64,
+) -> Vec<crate::models::RetrievedMemory> {
+    let mut hits: Vec<(f64, crate::models::RetrievedMemory)> = results
+        .into_iter()
+        .filter_map(|r| r.channels.get("vector").copied().filter(|s| *s >= min_sim).map(|s| (s, r)))
+        .collect();
+    hits.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    hits.into_iter().take(RECALL_MAX).map(|(_, r)| r).collect()
+}
+
 /// The block printed for UserPromptSubmit, or `None` when nothing relevant is stored.
 pub async fn recall(cm: &ChatMemory, prompt: &str) -> Option<String> {
     if !worth_recalling(prompt) {
         return None;
     }
-    let filters = SearchOptions::default();
-    let fut = cm.context_for(prompt, Some(6), Some(1500), &filters);
-    let block = tokio::time::timeout(Duration::from_secs(8), fut).await.ok()?.ok()?;
-    let block = block.trim();
-    if block.is_empty() {
+    // long prompts: the first part carries the topic, and embedding it is faster
+    let query: String = prompt.chars().take(600).collect();
+    let opts = SearchOptions { k: 12, with_sources: false, ..Default::default() };
+    let results = tokio::time::timeout(Duration::from_secs(8), cm.search(&query, &opts)).await.ok()?.ok()?;
+    let picked = pick_relevant(results, recall_min_sim());
+    if picked.is_empty() {
         return None;
     }
+    let lines: Vec<String> = picked
+        .iter()
+        .map(|r| {
+            let when = r.memory.event_time.as_deref().unwrap_or(&r.memory.observed_at);
+            format!("- {} ({})", r.memory.text, when.chars().take(10).collect::<String>())
+        })
+        .collect();
     Some(format!(
-        "<neuralgraph-memory>\n{block}\n(From the local NeuralGraph store, recalled automatically; ignore anything unrelated.)\n</neuralgraph-memory>"
+        "<neuralgraph-memory>\nWhat you know about the user from earlier chats (local NeuralGraph memory, recalled automatically; ignore anything unrelated):\n{}\n</neuralgraph-memory>",
+        lines.join("\n")
     ))
 }
 
@@ -231,7 +281,8 @@ pub async fn run_claude_code_hook(cm: &ChatMemory) -> i32 {
     match s("hook_event_name").unwrap_or("") {
         "Stop" | "SessionEnd" | "PreCompact" => {
             if let (Some(path), Some(session)) = (s("transcript_path"), s("session_id")) {
-                if let Err(e) = ingest_transcript(cm, Path::new(path), session, s("cwd")) {
+                let stop = s("hook_event_name") == Some("Stop");
+                if let Err(e) = ingest_transcript(cm, Path::new(path), session, s("cwd"), stop) {
                     eprintln!("neuralgraph-memory hook: could not save this turn: {e}");
                 }
             }

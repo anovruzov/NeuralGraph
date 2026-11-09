@@ -35,6 +35,7 @@ pub mod store;
 pub mod temporal;
 pub mod testing;
 pub mod textutil;
+pub mod update;
 pub mod vision;
 pub mod worker;
 

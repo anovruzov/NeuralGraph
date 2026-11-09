@@ -194,6 +194,11 @@ pub struct MemoryWorker {
     pub store: Arc<ChatMemoryStore>,
     llm: RwLock<Arc<dyn LlmClient>>,
     pub extractor: Arc<MemoryExtractor>,
+    /// for coding sessions and imported history: memories come from the user's own turns only
+    pub digest_extractor: Arc<MemoryExtractor>,
+    /// for imported documents: every section is new facts about one subject, so only near-identical memories are
+    /// worth a "same fact?" model call (asking at the default similarity made 70% of an import's calls)
+    pub doc_extractor: Arc<MemoryExtractor>,
     pub config: WorkerConfig,
     metrics: Mutex<WorkerMetrics>,
     pub worker_id: String,
@@ -226,6 +231,16 @@ impl MemoryWorker {
         let w = MemoryWorker {
             store,
             llm: RwLock::new(llm),
+            doc_extractor: Arc::new(MemoryExtractor::new(extractor.store.clone(), extractor.llm.clone(), {
+                let mut c = extractor.config.clone();
+                c.reconcile_cosine = c.reconcile_cosine.max(0.8);
+                c
+            })),
+            digest_extractor: Arc::new(MemoryExtractor::new(extractor.store.clone(), extractor.llm.clone(), {
+                let mut c = extractor.config.clone();
+                c.extract_assistant = false;
+                c
+            })),
             extractor,
             config,
             metrics: Mutex::new(WorkerMetrics::default()),
@@ -347,8 +362,9 @@ impl MemoryWorker {
     }
 
     fn lease(&self) -> Result<Vec<Job>> {
-        if self.store.is_held() {
-            return Ok(Vec::new()); // jobs wait in the queue until the user resumes (or a model swap ends)
+        if self.store.is_held() || self.store.outdated() {
+            // jobs wait in the queue until the user resumes (or a model swap ends); a newer install owns the queue
+            return Ok(Vec::new());
         }
         let cfg = &self.config;
         self.store.lease_job(
@@ -561,7 +577,17 @@ impl MemoryWorker {
         let attempt = jobs.iter().map(|j| j.attempts).max().unwrap_or(1).max(1);
         let cancel = self.cancel.lock().unwrap_or_else(|e| e.into_inner()).clone();
         let built = tokio::select! {
-            r = self.extractor.build_plan(&messages, &ids, attempt) => Some(r),
+            r = async {
+                let chat = messages.first().map(|m| m.chat_id.as_str()).unwrap_or("");
+                let ex = if crate::store::is_digest_chat(chat) {
+                    &self.digest_extractor
+                } else if chat.starts_with(crate::import::DOC_CHAT_PREFIX) {
+                    &self.doc_extractor
+                } else {
+                    &self.extractor
+                };
+                ex.build_plan(&messages, &ids, attempt).await
+            } => Some(r),
             _ = cancel.cancelled() => None,
         };
         let outcome = match built {

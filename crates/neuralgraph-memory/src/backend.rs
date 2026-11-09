@@ -75,6 +75,11 @@ async fn post_json(client: &reqwest::Client, url: &str, body: &Value, timeout_se
         .map_err(|e| e.to_string())?;
     let status = resp.status();
     if !status.is_success() {
+        // the server's own explanation ("model unloaded", "context length exceeded") is the useful part
+        let why: String = resp.text().await.unwrap_or_default().chars().take(300).collect();
+        if !why.trim().is_empty() {
+            tracing::warn!("model server answered {}: {}", status.as_u16(), why.replace('\n', " "));
+        }
         return Err(format!(
             "{}, message='{}', url='{}'",
             status.as_u16(),

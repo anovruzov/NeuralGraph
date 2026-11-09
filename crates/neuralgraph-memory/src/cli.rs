@@ -2,6 +2,7 @@
 //!
 //! ```text
 //!     neuralgraph-memory setup     # first run: models, your name, connect Claude Code / Codex
+//!     neuralgraph-memory update    # get the latest version (also a button in the web app)
 //!     neuralgraph-memory serve     # worker + dashboard + REST API + MCP (Streamable HTTP)
 //!     neuralgraph-memory mcp       # worker + MCP over stdio (Claude Desktop / Claude Code)
 //!     neuralgraph-memory ingest chats.jsonl [--process]
@@ -43,6 +44,7 @@ fn default_db() -> String {
 const ABOUT: &str = "Command line for the cross-chat memory system.
 
     neuralgraph-memory setup     # first run: models, your name, connect Claude Code / Codex
+    neuralgraph-memory update    # get the latest version (also a button in the web app)
     neuralgraph-memory serve     # worker + dashboard + REST API + MCP (Streamable HTTP)
     neuralgraph-memory mcp       # worker + MCP over stdio (Claude Desktop / Claude Code)
     neuralgraph-memory ingest chats.jsonl [--process]
@@ -146,6 +148,18 @@ pub enum Command {
         /// accept every default without asking (connects no tools)
         #[arg(short = 'y', long)]
         yes: bool,
+    },
+    /// download the latest version, replace this program and restart the dashboard
+    Update {
+        /// only say whether a newer version exists
+        #[arg(long)]
+        check: bool,
+        /// install this release instead of the latest (e.g. v1.5.0)
+        #[arg(long)]
+        version: Option<String>,
+        /// leave copies that AI tools started earlier running (they keep the old version until those tools restart)
+        #[arg(long = "keep-running")]
+        keep_running: bool,
     },
     /// run worker + dashboard + API + MCP (HTTP)
     Serve(ServeArgs),
@@ -306,7 +320,7 @@ impl Command {
     /// The shared options (`setup` has none).
     pub fn common(&self) -> Option<&Common> {
         Some(match self {
-            Command::Setup { .. } => return None,
+            Command::Setup { .. } | Command::Update { .. } => return None,
             Command::Serve(ServeArgs { common, .. })
             | Command::Mcp { common }
             | Command::Ingest { common, .. }
@@ -446,6 +460,7 @@ async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
         }
     }
     let cm = build(&args.common)?;
+    cm.store.announce_generation()?;
     cm.start().await?;
     let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
     let mcp_token = args.mcp_token.clone().filter(|t| !t.is_empty()).or_else(|| env("NEURALGRAPH_MCP_TOKEN"));
@@ -484,10 +499,101 @@ async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
         "dashboard: http://{host}:{port}/   MCP: http://{host}:{port}/mcp   db: {}",
         cm.store.db_path
     ));
-    shutdown_signal().await;
-    println_flush("shutting down…");
+    let restart = tokio::select! {
+        _ = shutdown_signal() => false,
+        _ = crate::update::restart_requested() => true,
+    };
+    println_flush(if restart { "restarting…" } else { "shutting down…" });
     runner.cleanup().await;
     cm.close().await;
+    if restart {
+        // same process id and terminal, the binary now on disk, the settings now saved
+        let e = crate::update::exec_serve();
+        eprintln!("could not restart: {e}. Start it again with: neuralgraph-memory serve");
+        return Ok(1);
+    }
+    Ok(0)
+}
+
+/// `update`: check, download, verify, replace, restart the dashboard, stop outdated copies.
+async fn cmd_update(check: bool, version: Option<String>, keep_running: bool) -> Result<i32> {
+    use crate::update;
+    let current = update::current_version();
+    let tag = match version {
+        Some(v) => {
+            if v.starts_with('v') {
+                v
+            } else {
+                format!("v{v}")
+            }
+        }
+        None => match update::latest_tag(true).await {
+            Ok(t) => {
+                if !update::newer(&t, current) {
+                    println_flush(&format!("NeuralGraph v{current} is the latest version."));
+                    return Ok(0);
+                }
+                t
+            }
+            Err(e) => {
+                eprintln!("Could not check for updates: {e}");
+                return Ok(1);
+            }
+        },
+    };
+    if check {
+        println_flush(&format!("Update available: v{current} → {tag}. Install it with: neuralgraph-memory update"));
+        return Ok(0);
+    }
+    if let Some(why) = update::blocked_reason() {
+        eprintln!("Cannot update automatically: {why}");
+        return Ok(1);
+    }
+    println_flush(&format!("Updating NeuralGraph v{current} → {tag}…"));
+    match update::install(&tag).await {
+        Ok(bytes) => println_flush(&format!(
+            "✓ downloaded {:.1} MB, checksum verified, installed to {}",
+            bytes as f64 / 1e6,
+            update::exe_path().display()
+        )),
+        Err(e) => {
+            eprintln!("✗ {e}");
+            return Ok(1);
+        }
+    }
+    // the dashboard: ask it to restart itself; one from before v1.6 cannot, so it is replaced
+    let port: u16 = std::env::var("NEURALGRAPH_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8765);
+    let http = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{port}");
+    let running = http.get(format!("{base}/healthz")).timeout(std::time::Duration::from_secs(2)).send().await.is_ok();
+    if running {
+        let asked = http
+            .post(format!("{base}/api/restart"))
+            .json(&serde_json::json!({}))
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+            .is_ok_and(|r| r.status().is_success());
+        if asked {
+            println_flush(&format!("✓ dashboard restarting on the new version: {base}/"));
+        } else if crate::setup::replace_dashboard(port).await {
+            println_flush(&format!(
+                "✓ dashboard restarted in the background: {base}/  (log: ~/.neuralgraph/serve.log)"
+            ));
+        } else {
+            println_flush("! the dashboard is still on the old version: stop it and run `neuralgraph-memory serve`");
+        }
+    }
+    if !keep_running {
+        let n = update::stop_old_mcp();
+        if n > 0 {
+            println_flush(&format!(
+                "✓ stopped {n} older cop{} that your AI tools had started. Restart Claude Code / Claude Desktop to reconnect.",
+                if n == 1 { "y" } else { "ies" }
+            ));
+        }
+    }
+    println_flush(&format!("NeuralGraph is now {tag}."));
     Ok(0)
 }
 
@@ -510,6 +616,7 @@ pub async fn shutdown_signal() {
 
 async fn cmd_mcp(common: &Common) -> Result<i32> {
     let cm = build(common)?;
+    cm.store.announce_generation()?;
     cm.start().await?;
     let r = crate::mcp::serve_stdio(cm.clone()).await;
     cm.close().await;
@@ -798,10 +905,12 @@ async fn cmd_maintain(common: &Common) -> Result<i32> {
 pub async fn run(cli: Cli) -> Result<i32> {
     match cli.cmd {
         Command::Setup { yes } => cmd_setup(yes).await,
+        Command::Update { check, version, keep_running } => cmd_update(check, version, keep_running).await,
         Command::Hook { common, .. } => {
             let mut cfg = build_config(&common);
             cfg.debounce_seconds = crate::hook::CODING_DEBOUNCE_SECONDS;
             let cm = ChatMemory::open(&common.db, None, cfg)?;
+            cm.store.announce_generation()?;
             let code = crate::hook::run_claude_code_hook(&cm).await;
             cm.close().await;
             Ok(code)
