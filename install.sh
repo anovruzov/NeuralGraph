@@ -63,6 +63,12 @@ if [ "$OS" = Darwin ] && [ "$arch" = x86_64 ] && [ "$(sysctl -n sysctl.proc_tran
 fi
 TARGET="$arch-$os"
 
+# GitHub's download servers sometimes answer 502/503/504 for a moment; curl retries those (and timeouts) itself.
+# Prints the final HTTP status; the body goes to $2.
+fetch() {
+    curl -sSL --retry 5 --retry-delay 2 --connect-timeout 15 -w '%{http_code}' -o "$2" "$1" 2>/dev/null || true
+}
+
 sha256() {
     if have shasum; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi
 }
@@ -78,8 +84,14 @@ fetch_prebuilt() {
     fi
     asset="$BIN-$TARGET.tar.gz"
     step "Downloading $BIN for $TARGET"
-    curl -fsSL "$base/$asset" -o "$TMP/$asset" 2>/dev/null || return 1
-    curl -fsSL "$base/$asset.sha256" -o "$TMP/$asset.sha256" 2>/dev/null || die "release has no checksum for $asset"
+    code="$(fetch "$base/$asset" "$TMP/$asset")"
+    case "$code" in
+        200) ;;
+        404) return 1 ;; # no prebuilt binary for this machine: build from source
+        *) die "GitHub did not deliver $asset (HTTP ${code:-no answer}). Its servers hiccup now and then: run the same command again in a minute." ;;
+    esac
+    code="$(fetch "$base/$asset.sha256" "$TMP/$asset.sha256")"
+    [ "$code" = 200 ] || die "GitHub did not deliver the checksum for $asset (HTTP ${code:-no answer}). Run the same command again in a minute."
     want="$(cut -d' ' -f1 <"$TMP/$asset.sha256")"
     got="$(sha256 "$TMP/$asset")"
     [ "$want" = "$got" ] || die "checksum mismatch for $asset (expected $want, got $got)"
