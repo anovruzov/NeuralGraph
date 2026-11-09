@@ -156,7 +156,7 @@ pub fn apply_saved_config() {
     }
 }
 
-fn save(path: &Path, cfg: &SavedConfig) -> std::io::Result<()> {
+pub fn save(path: &Path, cfg: &SavedConfig) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
@@ -599,7 +599,7 @@ fn hook_command(exe: &str) -> String {
 }
 
 /// Write the hooks (or remove them) and keep a `.bak` of the previous settings.
-fn set_claude_hooks(exe: Option<&str>) -> std::result::Result<String, String> {
+pub fn set_claude_hooks(exe: Option<&str>) -> std::result::Result<String, String> {
     let path = claude_settings_path();
     let existing = std::fs::read_to_string(&path).ok();
     let merged = merge_claude_hooks(existing.as_deref(), exe.map(hook_command).as_deref())?;
@@ -669,13 +669,14 @@ fn tilde(p: &Path) -> String {
 }
 
 /// Register the server with one client. Returns a one-line outcome.
-fn connect(ui: &Ui, client: &Client, exe: &str) -> std::result::Result<String, String> {
+/// `ui: None` (the web UI) replaces an existing entry without asking.
+fn connect(ui: Option<&Ui>, client: &Client, exe: &str) -> std::result::Result<String, String> {
     match client {
         Client::Cli { name, bin, scope } => {
             let run = |args: &[&str]| Command::new(bin).args(args).output();
             let exists = run(&["mcp", "get", SERVER_NAME]).is_ok_and(|o| o.status.success());
             if exists {
-                if !ui.confirm(&format!("{name} already has {SERVER_NAME}. Replace it?"), true) {
+                if ui.is_some_and(|ui| !ui.confirm(&format!("{name} already has {SERVER_NAME}. Replace it?"), true)) {
                     return Ok("kept the existing entry".into());
                 }
                 let mut rm = vec!["mcp", "remove", SERVER_NAME];
@@ -974,7 +975,7 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
         };
         for i in picked {
             let c = &found_clients[i].0;
-            connected.push((c.name().to_string(), connect(&ui, c, &exe)));
+            connected.push((c.name().to_string(), connect(Some(&ui), c, &exe)));
         }
     } else {
         ui.note(
@@ -1081,4 +1082,89 @@ fn short(e: &str) -> String {
     } else {
         e.to_string()
     }
+}
+
+// ------------------------------------------------------------------------------------------------ web UI helpers
+
+/// This binary's absolute path (what MCP clients and hooks should launch).
+pub fn current_exe() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.canonicalize().ok())
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| SERVER_NAME.to_string())
+}
+
+/// Model servers that answer right now: `[{kind, label, url, models: {chat: [...], embedding: [...]}, recommended}]`.
+pub async fn discover_servers(custom: Option<String>) -> Vec<Value> {
+    let http = reqwest::Client::new();
+    probe_all(&http, custom)
+        .await
+        .into_iter()
+        .map(|f| {
+            let (chat, embed): (Vec<String>, Vec<String>) = f.models.iter().cloned().partition(|m| !is_embedding_model(m));
+            let (rc, re) = f.recommended();
+            json!({
+                "kind": match f.kind { Kind::LmStudio => "lmstudio", Kind::Ollama => "ollama", Kind::Custom => "openai" },
+                "label": f.label(),
+                "url": f.url,
+                "models": {"chat": chat, "embedding": embed},
+                "recommended": {"chat": rc, "embedding": re},
+            })
+        })
+        .collect()
+}
+
+/// Whether our hooks are in Claude Code's settings.
+pub fn claude_hooks_installed() -> bool {
+    std::fs::read_to_string(claude_settings_path())
+        .is_ok_and(|s| s.contains(SERVER_NAME) && s.contains("hook claude-code"))
+}
+
+/// Every supported tool: `[{name, found, connected, where}]`. Asks each CLI, so it takes about a second.
+pub fn clients_status() -> Vec<Value> {
+    detect_clients()
+        .into_iter()
+        .map(|(c, found, how)| {
+            let connected = found
+                && match &c {
+                    Client::Cli { bin, .. } => {
+                        Command::new(bin).args(["mcp", "get", SERVER_NAME]).output().is_ok_and(|o| o.status.success())
+                    }
+                    Client::Json { path, .. } => std::fs::read_to_string(path)
+                        .ok()
+                        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+                        .is_some_and(|v| v["mcpServers"].get(SERVER_NAME).is_some()),
+                };
+            json!({"name": c.name(), "found": found, "connected": connected, "where": how})
+        })
+        .collect()
+}
+
+/// Connect one tool by name (replacing an earlier entry), as `setup` does.
+pub fn connect_client(name: &str) -> std::result::Result<String, String> {
+    let (client, found, how) = detect_clients()
+        .into_iter()
+        .find(|(c, _, _)| c.name().eq_ignore_ascii_case(name))
+        .ok_or_else(|| format!("unknown tool {name:?}"))?;
+    if !found {
+        return Err(format!("{} is not installed here ({how})", client.name()));
+    }
+    connect(None, &client, &current_exe())
+}
+
+/// One chat and one embedding call against the given server and models.
+pub async fn test_models(url: &str, chat: &str, embed: &str) -> Value {
+    let http = reqwest::Client::new();
+    let t = Instant::now();
+    let chat_r = match llm_generate(&http, "Reply with one word: ready", chat, url, 0.0, 16, 180.0).await {
+        Ok(_) => json!({"ok": true, "text": format!("replied in {:.1}s", t.elapsed().as_secs_f64())}),
+        Err(e) => json!({"ok": false, "text": short(&e)}),
+    };
+    let embed_r = match llm_embed(&http, "hello memory", embed, url, 120.0).await {
+        Ok(v) if !v.is_empty() => json!({"ok": true, "text": format!("{} dimensions", v.len())}),
+        Ok(_) => json!({"ok": false, "text": "empty vector (is this an embedding model?)"}),
+        Err(e) => json!({"ok": false, "text": short(&e)}),
+    };
+    json!({"chat": chat_r, "embed": embed_r})
 }

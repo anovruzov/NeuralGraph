@@ -3,377 +3,509 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NeuralGraph Memory</title>
-<meta name="description" content="Live dashboard for the cross-chat memory worker: avatar, tokens saved, pentagon grade, memory stream.">
+<title>NeuralGraph</title>
+<meta name="description" content="Control panel for NeuralGraph local memory: status, memories, graph, activity and settings.">
 <style>
 :root{
   color-scheme:light;
-  --surface-0:#f4f3f0; --surface-1:#fcfcfb; --surface-2:#ecebe7; --line:#dcdad4;
+  --surface-0:#f4f3f0; --surface-1:#fcfcfb; --surface-2:#ecebe7; --line:#e3e1db; --line-strong:#d2d0c9;
   --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7a7873;
-  --accent:#2a78d6; --accent-soft:#cde2fb; --accent-deep:#1c5cab;
-  --series-2:#eb6834; --series-3:#1baf7a;
-  --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
-  --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.05);
+  --accent:#2a78d6; --accent-soft:#e3eefc; --on:#0ca30c; --warn:#b77c00; --bad:#d03b3b;
+  --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
-    --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#33332f;
-    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
-    --accent:#3987e5; --accent-soft:#184f95; --accent-deep:#86b6ef;
-    --series-2:#d95926; --series-3:#199e70;
-    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#2c2c29; --line-strong:#3a3a36;
+    --text-primary:#f5f5f3; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
+    --accent:#3987e5; --accent-soft:#16304f; --on:#2fbf4a; --warn:#e0a526; --bad:#e66767;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3);
   }
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#33332f;
-  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
-  --accent:#3987e5; --accent-soft:#184f95; --accent-deep:#86b6ef;
-  --series-2:#d95926; --series-3:#199e70;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  --surface-0:#121211; --surface-1:#1a1a19; --surface-2:#242422; --line:#2c2c29; --line-strong:#3a3a36;
+  --text-primary:#f5f5f3; --text-secondary:#c3c2b7; --text-muted:#8d8c84;
+  --accent:#3987e5; --accent-soft:#16304f; --on:#2fbf4a; --warn:#e0a526; --bad:#e66767;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3);
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--surface-0);color:var(--text-primary);
-  font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif}
-a{color:var(--accent)}
-.wrap{max-width:1240px;margin:0 auto;padding:20px 16px 48px}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-header h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
-header h1 span{color:var(--text-muted);font-weight:500}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--surface-2);
-  color:var(--text-secondary);font-size:12.5px;border:1px solid var(--line)}
-.pill i{width:8px;height:8px;border-radius:50%;background:var(--text-muted);display:inline-block}
-.pill.good i{background:var(--good)} .pill.warn i{background:var(--warning)} .pill.bad i{background:var(--critical)}
-.pill.busy i{background:var(--accent);animation:blink 1s infinite}
-@keyframes blink{50%{opacity:.25}}
+html,body{margin:0;height:100%;background:var(--surface-0);color:var(--text-primary);
+  font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
 button,input,select,textarea{font:inherit;color:inherit}
-button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:600}
-button.ghost{background:var(--surface-2);color:var(--text-primary);border:1px solid var(--line)}
-input,textarea,select{background:var(--surface-1);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:100%}
-textarea{min-height:64px;resize:vertical}
-.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
-.card{grid-column:span 12;background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);
-  box-shadow:var(--shadow);padding:16px 18px;min-width:0}
-.card h2{margin:0 0 10px;font-size:13px;font-weight:650;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
-@media (min-width:860px){
-  .c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c3{grid-column:span 3}
+code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--surface-2);padding:1px 6px;border-radius:6px;word-break:break-all}
+.muted{color:var(--text-muted)} .small{font-size:13px}
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:240px 1fr;height:100%}
+aside.side{background:var(--surface-1);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 14px;gap:14px;min-height:0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:16px;padding:2px 6px}
+.brand svg{flex:0 0 auto}
+.power{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);border-radius:12px;padding:10px 12px}
+.power .state{display:flex;flex-direction:column;line-height:1.25;min-width:0}
+.power .state b{font-size:14px} .power .state span{font-size:12px;color:var(--text-muted)}
+nav.menu{display:flex;flex-direction:column;gap:2px}
+nav.menu a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;color:var(--text-secondary);font-weight:500;text-decoration:none}
+nav.menu a:hover{background:var(--surface-2);color:var(--text-primary)}
+nav.menu a.on{background:var(--accent-soft);color:var(--text-primary)}
+nav.menu svg{width:18px;height:18px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-muted);padding:0 6px}
+.side-foot .r{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.icon-btn{background:none;border:1px solid var(--line);border-radius:8px;padding:3px 8px;cursor:pointer;color:var(--text-secondary)}
+main{overflow:auto;min-width:0;outline:none}
+.page{max-width:960px;margin:0 auto;padding:28px 28px 60px}
+.page.wide{max-width:none;height:100%;display:flex;flex-direction:column;padding-bottom:20px}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.head h1{font-size:26px;line-height:1.15;margin:0;font-weight:700;letter-spacing:-.3px}
+.head p{margin:4px 0 0;color:var(--text-secondary)}
+/* segmented control (sub-tabs) */
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px}
+.seg a{padding:5px 14px;border-radius:8px;color:var(--text-secondary);font-size:13.5px;font-weight:550;text-decoration:none}
+.seg a.on{background:var(--surface-1);color:var(--text-primary);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+/* cards, grouped lists */
+.card{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px}
+.card h2{font-size:13px;margin:0 0 12px;color:var(--text-secondary);font-weight:650;text-transform:uppercase;letter-spacing:.5px}
+.stack{display:flex;flex-direction:column;gap:16px}
+.cols{display:grid;grid-template-columns:3fr 2fr;gap:16px}
+.group{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.group-title{font-size:12.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:22px 4px 8px}
+.group-title:first-child{margin-top:0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;border-top:1px solid var(--line);min-height:52px}
+.row:first-child{border-top:0}
+.row .label{display:flex;flex-direction:column;min-width:0}
+.row .label b{font-weight:550} .row .label span{font-size:13px;color:var(--text-muted)}
+.row .ctl{display:flex;align-items:center;gap:8px;flex:0 1 auto;max-width:62%;justify-content:flex-end;flex-wrap:wrap}
+.group-note{font-size:13px;color:var(--text-muted);margin:8px 4px 0}
+/* controls */
+.btn{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:8px 16px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn.ghost{background:var(--surface-2);color:var(--text-primary)}
+.btn.danger{background:none;color:var(--bad);border:1px solid var(--line)}
+.btn.big{padding:11px 22px;font-size:15px;border-radius:12px}
+.btn:disabled{opacity:.55;cursor:default}
+input.field,select.field,textarea.field{background:var(--surface-1);border:1px solid var(--line-strong);border-radius:10px;padding:8px 11px;min-width:0;max-width:100%}
+textarea.field{width:100%;min-height:90px;resize:vertical}
+input.field:focus,select.field:focus,textarea.field:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.switch{width:46px;height:28px;border-radius:999px;border:0;background:var(--line-strong);position:relative;cursor:pointer;flex:0 0 auto;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.switch[aria-checked="true"]{background:var(--on)}
+.switch[aria-checked="true"]::after{transform:translateX(18px)}
+.switch:disabled{opacity:.5;cursor:default}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:550;padding:3px 10px;border-radius:999px;background:var(--surface-2);color:var(--text-secondary);white-space:nowrap}
+.badge i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.badge.on{color:var(--on)} .badge.warn{color:var(--warn)} .badge.bad{color:var(--bad)}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--text-muted)}
+.dot.on{background:var(--on);box-shadow:0 0 0 4px color-mix(in srgb,var(--on) 18%,transparent)}
+.dot.busy{background:var(--accent);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+/* home */
+.hero{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:24px}
+.hero h2{all:unset;display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700}
+.hero p{margin:6px 0 0;color:var(--text-secondary);max-width:540px}
+.steps{list-style:none;margin:12px 0 0;padding:0;font-size:13px;color:var(--text-secondary)}
+.steps li{padding:2px 0} .steps li.ok::before{content:"✓ ";color:var(--on)} .steps li.bad::before{content:"✗ ";color:var(--bad)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tile{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.tile .l{font-size:13px;color:var(--text-secondary)} .tile .v{font-size:28px;font-weight:700;letter-spacing:-.4px;margin-top:2px;font-variant-numeric:tabular-nums}
+.tile .d{font-size:12px;color:var(--text-muted)}
+.mem{padding:12px 0;border-top:1px solid var(--line)} .mem:first-child{border-top:0;padding-top:0}
+.mem .t{font-size:14.5px} .mem .m{font-size:12.5px;color:var(--text-muted);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.kind{font-size:11.5px;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-secondary)}
+.bars{display:flex;flex-direction:column;gap:10px}
+.bar{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:10px;font-size:13px}
+.bar .track{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.bar .fill{height:100%;border-radius:999px;background:var(--accent);transition:width .5s}
+.bar .n{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-secondary)}
+.grade{display:flex;align-items:baseline;gap:10px;margin-bottom:14px}
+.grade b{font-size:34px;line-height:1} .grade span{color:var(--text-muted);font-size:13px}
+.checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.checklist li{display:flex;gap:10px;align-items:flex-start}
+.checklist .c{width:20px;height:20px;border-radius:50%;border:2px solid var(--line-strong);flex:0 0 auto;display:grid;place-items:center;font-size:12px;color:#fff;margin-top:1px}
+.checklist .c.done{background:var(--on);border-color:var(--on)}
+/* memories */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.toolbar .field{flex:1 1 240px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line-strong);background:var(--surface-1);border-radius:999px;padding:4px 12px;font-size:13px;cursor:pointer;color:var(--text-secondary)}
+.chip.on{background:var(--text-primary);color:var(--surface-1);border-color:var(--text-primary)}
+.list .mem{display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+.list .mem .x{opacity:0;transition:opacity .15s}
+.list .mem:hover .x,.list .mem .x:focus{opacity:1}
+.answer{font-size:17px;line-height:1.55;margin:4px 0 14px}
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;font-weight:600;color:var(--text-secondary);font-size:12.5px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--line)} .tbl tr:last-child td{border-bottom:0}
+.tbl td.n,.tbl th.n{text-align:right;font-variant-numeric:tabular-nums}
+.graph-frame{flex:1;min-height:520px;width:100%;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-1)}
+.empty{padding:28px;text-align:center;color:var(--text-muted)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--text-primary);color:var(--surface-1);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:all .25s;pointer-events:none;z-index:9;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.spinner{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* small screens: the sidebar becomes a top bar */
+@media (max-width:820px){
+  .shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  aside.side{border-right:0;border-bottom:1px solid var(--line);flex-direction:row;flex-wrap:wrap;align-items:center;padding:10px 12px}
+  nav.menu{flex-direction:row;overflow:auto;order:3;width:100%}
+  .side-foot{display:none} .power{padding:6px 10px}
+  .cols,.tiles{grid-template-columns:1fr 1fr}
+  .page{padding:20px 16px 48px}
 }
-/* avatar + hero */
-.avatar-row{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
-.avatar{width:150px;height:150px;flex:0 0 auto}
-.hero{flex:1 1 220px;min-width:0}
-.hero .label{font-size:13px;color:var(--text-secondary)}
-.hero .value{font-size:52px;font-weight:650;line-height:1.05;letter-spacing:-.5px;margin:2px 0 6px}
-.hero .sub{color:var(--text-secondary);font-size:13px}
-.mood{margin-top:8px;font-size:13px;color:var(--text-secondary)}
-.mood b{color:var(--text-primary);font-weight:600}
-/* stat tiles */
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
-.tile{background:var(--surface-2);border-radius:12px;padding:10px 12px;border:1px solid var(--line)}
-.tile .l{font-size:12px;color:var(--text-secondary)}
-.tile .v{font-size:22px;font-weight:650;margin-top:2px}
-.tile .d{font-size:12px;color:var(--text-muted);margin-top:2px}
-/* pentagon */
-.penta{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.penta svg{width:340px;max-width:100%;height:auto;flex:0 0 auto}
-.penta table{border-collapse:collapse;font-size:13px;flex:1 1 180px}
-.penta td{padding:4px 8px;border-bottom:1px solid var(--line)}
-.penta td:last-child{text-align:right;font-variant-numeric:tabular-nums}
-.penta .letter{font-size:40px;font-weight:700;fill:var(--text-primary)}
-.penta .axis-label{font-size:11.5px;fill:var(--text-secondary)}
-.penta .axis-value{font-size:11px;fill:var(--text-primary);font-weight:600}
-.penta .ring{fill:none;stroke:var(--line);stroke-width:1}
-.penta .spoke{stroke:var(--line);stroke-width:1}
-.penta .poly{fill:var(--accent);fill-opacity:.18;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;transition:d .6s ease}
-.penta .dot{fill:var(--accent);stroke:var(--surface-1);stroke-width:2}
-.penta .hit{fill:transparent;cursor:default}
-.tip{position:fixed;pointer-events:none;background:var(--surface-1);border:1px solid var(--line);border-radius:8px;
-  padding:6px 9px;font-size:12.5px;box-shadow:var(--shadow);display:none;z-index:9;max-width:260px}
-/* feed */
-.feed{list-style:none;margin:0;padding:0;max-height:420px;overflow:auto}
-.feed li{padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}
-.feed .k{font-size:11px;padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--text-secondary);
-  border:1px solid var(--line);white-space:nowrap;margin-top:2px}
-.feed .t{font-size:14px}
-.feed .m{font-size:12px;color:var(--text-muted);margin-top:2px}
-.feed .m b{color:var(--text-secondary);font-weight:600}
-.feed li.new{animation:pop .7s ease}
-@keyframes pop{from{background:var(--accent-soft)}to{background:transparent}}
-.graph-frame{display:block;width:100%;height:600px;border:0;border-radius:10px;background:var(--surface-1)}
-@media (max-width:760px){.graph-frame{height:820px}}
-.ents{display:flex;flex-wrap:wrap;gap:6px}
-.ent{font-size:12.5px;padding:3px 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--text-primary)}
-.ent small{color:var(--text-muted);margin-left:4px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.row>*{flex:1 1 140px}
-.row>button{flex:0 0 auto}
-.muted{color:var(--text-muted);font-size:12.5px}
-.result{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
-.result .why{font-size:12px;color:var(--text-muted)}
-pre{white-space:pre-wrap;background:var(--surface-2);border-radius:10px;padding:10px;font-size:12.5px;margin:8px 0 0;border:1px solid var(--line)}
-.meter{height:8px;background:var(--accent-soft);border-radius:999px;overflow:hidden;margin-top:6px}
-.meter i{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .5s}
-.sr{position:absolute;left:-9999px}
-footer{margin-top:18px;color:var(--text-muted);font-size:12.5px;display:flex;gap:12px;flex-wrap:wrap}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>NeuralGraph Memory <span>· cross-chat memory worker</span></h1>
-    <div class="row" style="flex:0 0 auto">
-      <span id="worker-pill" class="pill"><i></i><span>connecting…</span></span>
-      <span id="llm-pill" class="pill"><i></i><span>model</span></span>
-      <button class="ghost" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+<div class="shell">
+  <aside class="side" aria-label="Navigation">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><g fill="none" stroke="var(--text-muted)" stroke-width="1.4"><path d="M6 7 13 4 20 8 19 17 12 21 6 16Z"/><path d="M13 4 12 21M6 7l13 10M20 8 6 16"/></g><g fill="var(--accent)"><circle cx="6" cy="7" r="2.6"/><circle cx="20" cy="8" r="2.6"/><circle cx="12" cy="21" r="2.6"/></g><circle cx="13" cy="4" r="2.2" fill="#1baf7a"/><circle cx="19" cy="17" r="2.2" fill="#eb6834"/><circle cx="6" cy="16" r="2.2" fill="var(--text-muted)"/></svg>
+      NeuralGraph
     </div>
-  </header>
-
-  <div class="grid">
-    <section class="card c5" aria-label="Avatar and tokens saved">
-      <div class="avatar-row">
-        <svg class="avatar" id="avatar" viewBox="0 0 150 150" role="img" aria-label="Memory avatar">
-          <defs>
-            <radialGradient id="g1" cx="50%" cy="40%" r="60%">
-              <stop offset="0%" stop-color="var(--accent-soft)"/>
-              <stop offset="100%" stop-color="var(--accent)"/>
-            </radialGradient>
-          </defs>
-          <circle id="halo" cx="75" cy="75" r="66" fill="var(--accent)" fill-opacity=".10"/>
-          <circle id="ring1" cx="75" cy="75" r="58" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="6 7"/>
-          <circle cx="75" cy="75" r="46" fill="url(#g1)"/>
-          <g id="face">
-            <ellipse class="eye" cx="61" cy="70" rx="5" ry="6.5" fill="#fff"/>
-            <ellipse class="eye" cx="89" cy="70" rx="5" ry="6.5" fill="#fff"/>
-            <circle cx="62" cy="71" r="2.4" fill="#0b0b0b"/>
-            <circle cx="90" cy="71" r="2.4" fill="#0b0b0b"/>
-            <path id="mouth" d="M62 88 Q75 96 88 88" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-          </g>
-          <g id="sparks" opacity="0">
-            <circle cx="118" cy="40" r="3" fill="var(--series-3)"/>
-            <circle cx="30" cy="48" r="2.2" fill="var(--series-2)"/>
-            <circle cx="120" cy="108" r="2.2" fill="var(--series-3)"/>
-          </g>
-        </svg>
-        <div class="hero">
-          <div class="label">Tokens saved by memory</div>
-          <div class="value" id="tokens-saved">—</div>
-          <div class="sub" id="tokens-sub">raw chat text digested vs. the memories that replace it</div>
-          <div class="meter" title="compression"><i id="compress-bar" style="width:0%"></i></div>
-          <div class="mood" id="mood">Waking up…</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card c7" aria-label="Pentagon grade">
-      <h2>Pentagon grade</h2>
-      <div class="penta">
-        <svg id="penta" viewBox="0 0 380 300" role="img" aria-labelledby="penta-title">
-          <title id="penta-title">Five-axis grade of the memory system</title>
-        </svg>
-        <table aria-label="Grade axes as a table">
-          <tbody id="penta-table"></tbody>
-        </table>
-      </div>
-      <div class="muted" id="grade-note"></div>
-    </section>
-
-    <section class="card c12" aria-label="Counters">
-      <div class="tiles" id="tiles"></div>
-    </section>
-
-    <section class="card c12" aria-label="Entity graph">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px">
-        <h2 style="margin:0;flex:0 0 auto">Entity graph</h2>
-        <span class="muted" style="flex:0 1 auto;text-align:right">Click an entity for its local graph · offline copy: <code>neuralgraph-memory graph --out graph.html</code></span>
-      </div>
-      <iframe id="graph-frame" class="graph-frame" src="/graph?embed=1" title="Entity graph explorer" loading="lazy"></iframe>
-    </section>
-
-    <section class="card c7" aria-label="Memory stream">
-      <h2>Live memory stream</h2>
-      <ul class="feed" id="feed"><li><span class="k">…</span><div class="t muted">waiting for the worker</div></li></ul>
-    </section>
-
-    <section class="card c5" aria-label="Entities">
-      <h2>Top entities</h2>
-      <div class="ents" id="ents"><span class="muted">no entities yet</span></div>
-      <h2 style="margin-top:16px">Recent events</h2>
-      <ul class="feed" id="events" style="max-height:200px"></ul>
-    </section>
-
-    <section class="card c6" aria-label="Ask memory">
-      <h2>Ask memory</h2>
-      <div class="row">
-        <input id="q" placeholder="e.g. where does Ali live? what are Mel's pets called?" aria-label="Query">
-        <button id="search">Search</button>
-        <button class="ghost" id="ctx">Context block</button>
-      </div>
-      <div id="results" style="margin-top:8px"></div>
-    </section>
-
-    <section class="card c6" aria-label="Feed a message">
-      <h2>Feed a chat turn (the worker learns automatically)</h2>
-      <div class="row">
-        <input id="chat" placeholder="chat id" value="demo-chat" aria-label="Chat id">
-        <input id="speaker" placeholder="speaker" value="user" aria-label="Speaker">
-      </div>
-      <textarea id="text" placeholder="I moved to Berlin in March and my cat Luna is 3 years old" aria-label="Message text" style="margin-top:8px"></textarea>
-      <div class="row" style="margin-top:8px">
-        <span class="muted">Posts to <code>/api/messages</code>; nothing blocks on the model.</span>
-        <button id="send">Send</button>
-      </div>
-      <div id="send-status" class="muted" style="margin-top:6px"></div>
-    </section>
-  </div>
-  <footer>
-    <span>API: <code>/api/status</code>, <code>/api/search?q=</code>, <code>/api/graph</code>, <code>POST /api/messages</code></span>
-    <span>MCP (Streamable HTTP): <code>/mcp</code> · stdio: <code>neuralgraph-memory mcp</code></span>
-    <span id="db"></span>
-  </footer>
+    <div class="power" title="Pause frees the RAM your local models use. Chats keep being saved and are learned when you turn it back on.">
+      <div class="state"><b id="pw-title">…</b><span id="pw-sub">checking</span></div>
+      <button class="switch" id="pw" role="switch" aria-checked="false" aria-label="NeuralGraph on or off"></button>
+    </div>
+    <nav class="menu" id="menu">
+      <a href="#/home" data-p="home"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+      <a href="#/memories" data-p="memories"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6c0 2.4 1.3 3.8 2.3 5 .7.8 1.2 1.6 1.2 2.5V18h5v-1.5c0-.9.5-1.7 1.2-2.5 1-1.2 2.3-2.6 2.3-5a6 6 0 0 0-6-6zM10 21h4"/></svg>Memories</a>
+      <a href="#/graph" data-p="graph"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="11" cy="18" r="2.5"/><path d="M8.3 6.6 15.6 7.6M7 8.2 10 15.7M16.8 10.1 12.6 16"/></svg>Graph</a>
+      <a href="#/activity" data-p="activity"><svg viewBox="0 0 24 24"><path d="M3 12h4l3 7 4-14 3 7h4"/></svg>Activity</a>
+      <a href="#/settings" data-p="settings"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</a>
+    </nav>
+    <div class="side-foot">
+      <div id="sf-model" title="Chat model in use"></div>
+      <div class="r"><span id="sf-queue"></span><button class="icon-btn" id="theme" title="Toggle light / dark" aria-label="Toggle theme">◐</button></div>
+    </div>
+  </aside>
+  <main id="main" tabindex="-1"></main>
 </div>
-<div class="tip" id="tip" role="tooltip"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (function(){
   const $ = s => document.querySelector(s);
-  // API token (for --api-token deployments): ?token=... once, then remembered per browser
+  const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = n => n==null ? '—' : n>=1e6 ? (n/1e6).toFixed(1)+'M' : n>=1e4 ? Math.round(n/1e3)+'K' : n>=1e3 ? (n/1e3).toFixed(1)+'K' : String(n);
+  const plural = (n, w) => `${n} ${w}${n===1?'':'s'}`;
+  const ago = iso => { if (!iso) return ''; const s = (Date.now() - new Date(iso)) / 1000; if (isNaN(s)) return String(iso).slice(0,10);
+    return s < 60 ? 'just now' : s < 3600 ? Math.floor(s/60)+' min ago' : s < 86400 ? Math.floor(s/3600)+' h ago' : s < 86400*30 ? Math.floor(s/86400)+' d ago' : String(iso).slice(0,10); };
+
+  // ---------- API (token: ?token=… once, then remembered) ----------
   let TOKEN = '';
   try { const u = new URL(location.href); if (u.searchParams.get('token')) { TOKEN = u.searchParams.get('token'); localStorage.setItem('ng-token', TOKEN); u.searchParams.delete('token'); history.replaceState(null, '', u.toString()); } else { TOKEN = localStorage.getItem('ng-token') || ''; } } catch(e){}
-  const api = (path, opts={}) => { const h = Object.assign({}, opts.headers||{}); if (TOKEN) h['Authorization'] = 'Bearer ' + TOKEN; return fetch(path, Object.assign({cache:'no-store'}, opts, {headers:h})); };
-  async function askToken(){ const t = prompt('This server requires an API token (--api-token). Enter it:'); if (t) { TOKEN = t.trim(); try { localStorage.setItem('ng-token', TOKEN); } catch(e){} } }
-  const fmt = n => n==null ? '—' : (n>=1e6? (n/1e6).toFixed(2)+'M' : n>=1e4 ? (n/1e3).toFixed(1)+'K' : n>=1e3 ? (n/1e3).toFixed(2)+'K' : String(n));
-  const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let asked = false;
+  async function api(path, body){
+    const h = {}; if (TOKEN) h.Authorization = 'Bearer ' + TOKEN;
+    const opts = {cache:'no-store', headers:h};
+    if (body !== undefined) { opts.method = 'POST'; h['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const r = await fetch(path, opts);
+    if (r.status === 401) {
+      if (!asked) { asked = true; const t = prompt('This server needs its API token (--api-token):'); if (t) { TOKEN = t.trim(); try { localStorage.setItem('ng-token', TOKEN); } catch(e){} } }
+      throw new Error('API token required');
+    }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    return d;
+  }
+  let toastT = 0;
+  const toast = msg => { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3500); };
 
-  // theme toggle (per-viewer convenience)
+  // ---------- theme (shared with the graph page) ----------
   const root = document.documentElement;
   try { const t = localStorage.getItem('ng-theme'); if (t) root.setAttribute('data-theme', t); } catch(e){}
-  $('#theme').onclick = () => {
-    const cur = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light');
-    const nxt = cur === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', nxt);
-    try { localStorage.setItem('ng-theme', nxt); } catch(e){}
+  function setTheme(t){ if (t === 'system') { root.removeAttribute('data-theme'); try { localStorage.removeItem('ng-theme'); } catch(e){} }
+    else { root.setAttribute('data-theme', t); try { localStorage.setItem('ng-theme', t); } catch(e){} } }
+  $('#theme').onclick = () => setTheme((root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark' ? 'light' : 'dark');
+
+  // ---------- shared state + the on/off switch ----------
+  let STATUS = null, CONTROL = {paused:false, models:{}}, busyToggle = false, LAST_STEPS = [];
+  async function refreshControl(){
+    try { CONTROL = await api('/api/control'); }
+    catch(e) { $('#pw-title').textContent = 'Offline'; $('#pw-sub').textContent = 'server unreachable'; return; }
+    paintSide();
+  }
+  async function refreshStatus(){ try { STATUS = await api('/api/status'); } catch(e) { STATUS = null; } paintSide(); }
+  const queued = () => STATUS ? (STATUS.jobs.queued||0) + (STATUS.jobs.leased||0) : 0;
+  function paintSide(){
+    const on = !CONTROL.paused, w = (STATUS && STATUS.worker) || {}, q = queued();
+    const sw = $('#pw'); sw.setAttribute('aria-checked', on); sw.disabled = busyToggle;
+    $('#pw-title').textContent = busyToggle ? (on ? 'Pausing…' : 'Starting…') : on ? 'On' : 'Paused';
+    $('#pw-sub').textContent = busyToggle ? 'one moment' : !on ? 'models unloaded' : w.busy_workers ? 'learning…' : q ? q + ' waiting' : 'learning from your chats';
+    $('#sf-model').textContent = (CONTROL.models || {}).chat || '';
+    $('#sf-queue').textContent = STATUS ? (q ? q + ' in queue' : 'queue empty') : '';
+  }
+  async function toggle(wantOn){
+    if (busyToggle) return;
+    busyToggle = true; paintSide(); render(true);
+    try {
+      const d = await api('/api/control', {action: wantOn ? 'resume' : 'pause'});
+      CONTROL.paused = d.paused; LAST_STEPS = d.steps || [];
+      const failed = LAST_STEPS.filter(s => !s.ok).length;
+      toast(wantOn ? (failed ? 'On, but a model did not load. See Home.' : 'NeuralGraph is on') : 'Paused · model RAM freed');
+    } catch(e) { toast('Could not ' + (wantOn ? 'turn on' : 'pause') + ': ' + e.message); }
+    busyToggle = false; await refreshStatus(); render(true);
+  }
+  $('#pw').onclick = () => toggle(CONTROL.paused);
+
+  // ---------- router: #/page/tab ----------
+  const PAGES = {
+    home: {title:'Home', render: renderHome},
+    memories: {title:'Memories', tabs:[['browse','Browse'],['ask','Ask'],['add','Add']], render: renderMemories},
+    graph: {title:'Graph', render: renderGraph},
+    activity: {title:'Activity', tabs:[['chats','Chats'],['queue','Queue'],['log','Log']], render: renderActivity},
+    settings: {title:'Settings', tabs:[['general','General'],['models','Models'],['connections','Connections'],['advanced','Advanced']], render: renderSettings},
   };
-
-  // ---------- pentagon (single series, fixed axis order, 0-100 scale) ----------
-  const AXES = [
-    ['coverage','Coverage','share of ingested messages the worker has digested'],
-    ['compression','Compression','log2(raw tokens / memory tokens) / 2 → 2× smaller = 50, 4× = 100'],
-    ['connectivity','Connectivity','relations + links per memory'],
-    ['freshness','Freshness','how far behind the newest message the worker is'],
-    ['reliability','Reliability','1 - failed batches, minus dead jobs'],
-  ];
-  const svg = $('#penta'), NS = 'http://www.w3.org/2000/svg';
-  const CX=190, CY=150, R=100;
-  const pt = (i, v) => { const a = -Math.PI/2 + i*2*Math.PI/5; const r = R*v/100; return [CX + r*Math.cos(a), CY + r*Math.sin(a)]; };
-  const el = (n, attrs, parent) => { const e = document.createElementNS(NS, n); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent||svg).appendChild(e); return e; };
-  // rings + spokes (recessive)
-  [20,40,60,80,100].forEach(v => el('polygon', {class:'ring', points: AXES.map((_,i)=>pt(i,v).join(',')).join(' ')}));
-  AXES.forEach((_,i)=>{ const [x,y]=pt(i,100); el('line',{class:'spoke',x1:CX,y1:CY,x2:x,y2:y}); });
-  const poly = el('polygon', {class:'poly', points: AXES.map((_,i)=>pt(i,0).join(',')).join(' ')});
-  const dots = AXES.map((_,i)=>el('circle',{class:'dot',r:4,cx:CX,cy:CY}));
-  const labels = AXES.map((a,i)=>{ const [x,y]=pt(i,122); const anchor = Math.abs(x-CX)<8 ? 'middle' : (x<CX?'end':'start');
-    const t = el('text',{class:'axis-label',x,y:y+(i===0?-2:4),'text-anchor':anchor}); t.textContent=a[1];
-    const v = el('text',{class:'axis-value',x,y:y+(i===0?-2:4)+14,'text-anchor':anchor}); v.textContent='—'; return [t,v]; });
-  const letter = el('text',{class:'letter',x:CX,y:CY+14,'text-anchor':'middle'}); letter.textContent='—';
-  const hits = AXES.map((a,i)=>{ const h = el('circle',{class:'hit',r:16,cx:CX,cy:CY}); h.dataset.i=i; return h; });
-  const tip = $('#tip');
-  hits.forEach(h=>{ h.addEventListener('mousemove', e=>{ const a=AXES[+h.dataset.i]; const v=h.dataset.v||'—';
-      tip.style.display='block'; tip.innerHTML=`<b>${a[1]}</b> ${v}<br><span class="muted">${a[2]}</span>`;
-      tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY+12)+'px'; });
-    h.addEventListener('mouseleave', ()=> tip.style.display='none'); });
-
-  function drawGrade(g){
-    const axes = g.axes || {};
-    poly.setAttribute('points', AXES.map((a,i)=>pt(i, axes[a[0]]||0).join(',')).join(' '));
-    AXES.forEach((a,i)=>{ const v = axes[a[0]]||0; const [x,y]=pt(i,v); dots[i].setAttribute('cx',x); dots[i].setAttribute('cy',y);
-      hits[i].setAttribute('cx',x); hits[i].setAttribute('cy',y); hits[i].dataset.v = v.toFixed(0)+' / 100'; labels[i][1].textContent = v.toFixed(0); });
-    letter.textContent = g.letter || '—';
-    $('#penta-table').innerHTML = AXES.map(a=>`<tr><td>${a[1]}</td><td>${(axes[a[0]]??0).toFixed(0)}</td></tr>`).join('') +
-      `<tr><td><b>Overall</b></td><td><b>${(g.overall??0).toFixed(0)} · ${esc(g.letter||'—')}</b></td></tr>`;
+  function route(){ const [p, t] = (location.hash.replace(/^#\/?/, '') || 'home').split('/'); const page = PAGES[p] ? p : 'home';
+    const tabs = PAGES[page].tabs; const tab = tabs ? (tabs.some(x => x[0] === t) ? t : tabs[0][0]) : null; return {page, tab}; }
+  let current = {};
+  function render(force){
+    const {page, tab} = route(); const changed = page !== current.page || tab !== current.tab; current = {page, tab};
+    document.querySelectorAll('#menu a').forEach(a => { const on = a.dataset.p === page; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    document.title = PAGES[page].title + ' · NeuralGraph';
+    PAGES[page].render(tab, changed, !!force);
   }
+  const header = (title, sub, page, tab) => {
+    const tabs = PAGES[page].tabs;
+    return `<div class="head"><div><h1>${esc(title)}</h1>${sub ? `<p>${sub}</p>` : ''}</div>${tabs ? `<nav class="seg" aria-label="${esc(title)} sections">${tabs.map(([k, l]) => `<a href="#/${page}/${k}" class="${k===tab?'on':''}" ${k===tab?'aria-current="page"':''}>${l}</a>`).join('')}</nav>` : ''}</div>`;
+  };
+  addEventListener('hashchange', () => { render(); $('#main').focus({preventScroll:true}); $('#main').scrollTop = 0; });
 
-  // ---------- avatar ----------
-  let blinkT = 0;
-  function setMood(st){
-    const w = st.worker||{}; const busy = (w.busy_workers||0)>0; const running = !!w.running;
-    const jobs = st.jobs||{}; const queued = (jobs.queued||0)+(jobs.leased||0);
-    const halo = $('#halo'), ring = $('#ring1'), sparks=$('#sparks'), mouth=$('#mouth');
-    halo.style.transition='fill-opacity .6s'; halo.setAttribute('fill-opacity', busy? .22 : .10);
-    ring.style.transformOrigin='75px 75px'; ring.style.animation = busy ? 'spin 6s linear infinite' : 'none';
-    sparks.setAttribute('opacity', busy ? 1 : 0);
-    mouth.setAttribute('d', w.last_error && !busy ? 'M62 92 Q75 86 88 92' : (busy ? 'M60 86 Q75 100 90 86' : 'M62 88 Q75 96 88 88'));
-    const mood = !running ? 'Worker is <b>stopped</b>' : busy ? `<b>Learning</b> — ${w.busy_workers} of ${w.concurrency} workers busy, ${queued} queued` :
-                 queued ? `<b>Waiting</b> — ${queued} queued (backing off or debouncing)` : '<b>Idle</b> — everything digested';
-    $('#mood').innerHTML = mood + (w.last_error ? `<br><span class="muted">last error: ${esc(String(w.last_error).slice(0,120))}</span>` : '');
-    const pill = $('#worker-pill'); pill.className = 'pill ' + (!running ? 'bad' : busy ? 'busy' : ((jobs.dead||0)>0 ? 'warn':'good'));
-    pill.lastElementChild.textContent = !running ? 'worker stopped' : busy ? 'worker busy' : 'worker idle';
+  // ---------- Home: one status sentence, the switch, four numbers, recent memories, health ----------
+  function renderHome(_, changed){
+    const m = $('#main');
+    if (changed || !$('#home-body')) m.innerHTML = `<div class="page">${header('Home', '', 'home')}<div class="stack" id="home-body"></div></div>`;
+    const body = $('#home-body'), st = STATUS, paused = CONTROL.paused;
+    if (!st) { body.innerHTML = '<div class="card empty"><span class="spinner"></span> Connecting to NeuralGraph…</div>'; return; }
+    const w = st.worker || {}, q = queued();
+    const mem = (st.memories.by_status||{}).active || 0;
+    const msgs = Object.values(st.messages||{}).reduce((a,b) => a+b, 0);
+    const model = esc((CONTROL.models||{}).chat || 'your model');
+    const [dot, title, line] = busyToggle ? ['busy', paused ? 'Starting…' : 'Pausing…', paused ? 'Loading your models.' : 'Unloading your models.']
+      : paused ? ['', 'Paused', `Your local models are unloaded, so their RAM is free. Chats are still saved${q ? ` (${q} waiting)` : ''} and will be learned when you turn NeuralGraph back on.`]
+      : w.busy_workers ? ['busy', 'Learning', `Turning ${plural(q, 'new message')} into memories with ${model}.`]
+      : q ? ['on', 'On', `${plural(q, 'message')} waiting to be learned.`]
+      : ['on', 'On', `Everything is learned. New chats are picked up automatically with ${model}.`];
+    const steps = LAST_STEPS.length ? `<ul class="steps">${LAST_STEPS.map(s => `<li class="${s.ok?'ok':'bad'}">${esc(s.text)}</li>`).join('')}</ul>` : '';
+    const g = st.grade || {}, ax = g.axes || {}, tk = st.tokens || {};
+    const AX = [['coverage','Coverage'],['compression','Compression'],['connectivity','Connectivity'],['freshness','Freshness'],['reliability','Reliability']];
+    const recent = (st.recent_memories||[]).slice(0, 6);
+    body.innerHTML = `
+      <div class="card hero">
+        <div><h2><span class="dot ${dot}"></span>${title}</h2><p>${line}</p>${steps}</div>
+        <button class="btn big ${paused ? '' : 'ghost'}" id="home-toggle" ${busyToggle?'disabled':''}>${busyToggle ? '<span class="spinner"></span>' : paused ? 'Turn on' : 'Pause'}</button>
+      </div>
+      ${mem === 0 ? onboarding() : ''}
+      <div class="tiles">
+        <div class="tile"><div class="l">Memories</div><div class="v">${fmt(mem)}</div><div class="d">${fmt((st.memories.by_status||{}).superseded||0)} updated over time</div></div>
+        <div class="tile"><div class="l">People &amp; things</div><div class="v">${fmt(st.entities)}</div><div class="d">${fmt((st.relations||{}).active||0)} connections</div></div>
+        <div class="tile"><div class="l">Chats</div><div class="v">${fmt(st.chats)}</div><div class="d">${fmt(msgs)} messages</div></div>
+        <div class="tile"><div class="l">Tokens saved</div><div class="v">${fmt(tk.tokens_saved||0)}</div><div class="d">${tk.compression_ratio ? tk.compression_ratio + '× smaller than the chats' : 'grows as it learns'}</div></div>
+      </div>
+      <div class="cols">
+        <div class="card"><h2>Recently learned</h2>${recent.length ? recent.map(memRow).join('') + '<div style="margin-top:12px"><a href="#/memories">See all memories →</a></div>' : '<div class="muted small">Nothing yet. Chat with Claude Code, or add a memory under Memories → Add.</div>'}</div>
+        <div class="card"><h2>Health</h2>
+          <div class="grade"><b>${esc(g.letter||'—')}</b><span>${(g.overall??0).toFixed(0)} / 100 overall</span></div>
+          <div class="bars">${AX.map(([k, l]) => `<div class="bar" title="${l}: ${(ax[k]??0).toFixed(0)} out of 100"><span>${l}</span><div class="track"><div class="fill" style="width:${Math.max(0, Math.min(100, ax[k]||0))}%"></div></div><span class="n">${(ax[k]??0).toFixed(0)}</span></div>`).join('')}</div>
+        </div>
+      </div>`;
+    $('#home-toggle').onclick = () => toggle(paused);
   }
-  const style = document.createElement('style'); style.textContent='@keyframes spin{to{transform:rotate(360deg)}}'; document.head.appendChild(style);
-  setInterval(()=>{ const eyes=document.querySelectorAll('.eye'); eyes.forEach(e=>e.setAttribute('ry', .8)); setTimeout(()=>eyes.forEach(e=>e.setAttribute('ry',6.5)),120); }, 4200);
+  function onboarding(){
+    if (!SETTINGS) { loadSettings().then(() => { if (current.page === 'home') renderHome(null, false); }); }
+    const S = SETTINGS || {}, linked = (S.clients||[]).some(c => c.connected), auto = !!S.auto_memory;
+    const item = (done, text) => `<li><span class="c ${done ? 'done' : ''}">${done ? '✓' : ''}</span><div>${text}</div></li>`;
+    return `<div class="card"><h2>Get started</h2><ul class="checklist">
+      ${item(linked, '<b>Connect an AI tool.</b> <span class="muted">Claude Code, Codex, Claude Desktop or Cursor.</span> <a href="#/settings/connections">Connections →</a>')}
+      ${item(auto, '<b>Turn on automatic memory.</b> <span class="muted">Every Claude Code reply is learned, no tool calls needed.</span> <a href="#/settings/connections">Turn on →</a>')}
+      ${item(false, '<b>Chat as usual.</b> <span class="muted">Memories show up here a minute or two after each reply.</span>')}
+    </ul></div>`;
+  }
+  const memRow = x => `<div class="mem"><div class="t">${esc(x.text)}</div><div class="m"><span class="kind">${esc(x.kind)}</span><span>${esc(x.subject_name)}</span><span>${esc(ago(x.observed_at || x.event_time))}</span></div></div>`;
 
-  // ---------- render ----------
-  let seen = new Set(), first = true, askedToken = false;
-  function render(st){
-    const tk = st.tokens||{};
-    $('#tokens-saved').textContent = fmt(tk.tokens_saved||0);
-    $('#tokens-sub').textContent = `${fmt(tk.raw_tokens_digested||0)} raw tokens → ${fmt(tk.memory_tokens||0)} memory tokens` + (tk.compression_ratio? ` · ${tk.compression_ratio}× smaller` : '') + (tk.context_queries? ` · ${tk.context_queries} context queries avoided ${fmt(tk.context_raw_tokens_avoided)} tokens`:'');
-    const ratio = tk.raw_tokens_digested ? Math.max(0, Math.min(100, 100*(1 - (tk.memory_tokens||0)/tk.raw_tokens_digested))) : 0;
-    $('#compress-bar').style.width = ratio.toFixed(0)+'%';
-    drawGrade(st.grade||{});
-    $('#grade-note').textContent = `Overall ${(st.grade?.overall??0).toFixed(1)} → grade ${st.grade?.letter||'—'}. Axes are 0–100; hover a corner for the definition.`;
-    setMood(st);
-    const m = st.messages||{}, mem = st.memories||{}, jobs = st.jobs||{}, w = st.worker||{};
-    const tiles = [
-      ['Chats', st.chats||0, ''],
-      ['Messages', Object.values(m).reduce((a,b)=>a+b,0), `${m.processed||0} processed · ${m.skipped||0} skipped · ${m.pending||0} pending`],
-      ['Active memories', (mem.by_status||{}).active||0, `${(mem.by_status||{}).superseded||0} superseded`],
-      ['Entities', st.entities||0, ''],
-      ['Relations', (st.relations||{}).active||0, `${st.links||0} memory links`],
-      ['Queue', (jobs.queued||0)+(jobs.leased||0), `${jobs.done||0} done · ${jobs.dead||0} dead`],
-      ['LLM calls', (st.llm||{}).generate_calls||0, `${(st.llm||{}).embed_calls||0} embeddings · ${(w.failures||0)} failed batches`],
-      ['Last batch', w.last_batch_seconds ? w.last_batch_seconds.toFixed(1)+'s' : '—', w.last_batch_at ? new Date(w.last_batch_at).toLocaleTimeString() : ''],
-    ];
-    $('#tiles').innerHTML = tiles.map(t=>`<div class="tile"><div class="l">${t[0]}</div><div class="v">${typeof t[1]==='number'?fmt(t[1]):esc(t[1])}</div><div class="d">${esc(t[2])}</div></div>`).join('');
-    const llm = st.llm||{}; $('#llm-pill').lastElementChild.textContent = `${llm.model||'?'} @ ${llm.base_url||''}`; $('#llm-pill').className='pill';
-    // feed
-    const feed = $('#feed'); const items = st.recent_memories||[];
-    if (items.length){
-      feed.innerHTML = items.map(x=>`<li class="${(!first && !seen.has(x.memory_id))?'new':''}"><span class="k">${esc(x.kind)}</span><div><div class="t">${esc(x.text)}</div><div class="m"><b>${esc(x.subject_name)}</b> · ${esc(x.chat_id)} · ${esc((x.event_time||x.observed_at||'').slice(0,10))} · imp ${x.importance} · v${x.version} ${x.metadata&&x.metadata.decision&&x.metadata.decision!=='ADD'?'· '+esc(x.metadata.decision):''}</div></div></li>`).join('');
-      items.forEach(x=>seen.add(x.memory_id));
+  // ---------- Memories: Browse · Ask · Add ----------
+  let MEMS = null, memKind = '', memQuery = '';
+  async function renderMemories(tab, changed){
+    if (!changed) return;
+    const subs = {browse:'Everything NeuralGraph has learned. Hover a memory to forget it.', ask:'Ask a question. The answer comes only from your memories.', add:'Tell NeuralGraph something to remember right away.'};
+    $('#main').innerHTML = `<div class="page">${header('Memories', subs[tab], 'memories', tab)}<div id="mem-body"></div></div>`;
+    const b = $('#mem-body');
+    if (tab === 'browse') {
+      b.innerHTML = `<div class="toolbar"><input class="field" id="mq" placeholder="Filter memories…" value="${esc(memQuery)}" aria-label="Filter memories"><div class="chips" id="kinds"></div></div><div class="card list" id="mlist"><div class="empty"><span class="spinner"></span></div></div>`;
+      $('#mq').oninput = e => { memQuery = e.target.value; paintMems(); };
+      try { MEMS = (await api('/api/memories?limit=500')).memories || []; } catch(e) { $('#mlist').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+      if (current.tab === 'browse') paintMems();
+    } else if (tab === 'ask') {
+      b.innerHTML = `<div class="toolbar"><input class="field" id="aq" placeholder="e.g. Where does Ali live? What did I decide about the release?" aria-label="Question"><button class="btn" id="ab">Ask</button></div><div id="ares"></div>`;
+      const go = async () => { const q = $('#aq').value.trim(); if (!q) return; const out = $('#ares');
+        out.innerHTML = '<div class="card empty"><span class="spinner"></span> Thinking…</div>';
+        const [ans, hits] = await Promise.allSettled([CONTROL.paused ? Promise.reject(new Error('paused')) : api('/api/answer', {question: q}), api('/api/search?k=8&q=' + encodeURIComponent(q))]);
+        const results = hits.status === 'fulfilled' ? hits.value.results || [] : [];
+        const a = ans.status === 'fulfilled' ? (ans.value.text || '') : '';
+        const why = ans.status === 'rejected' ? (CONTROL.paused ? 'NeuralGraph is paused, so it does not write an answer. Matching memories are below.' : 'Could not write an answer: ' + ans.reason.message) : '';
+        out.innerHTML = `<div class="card">${a ? `<div class="answer">${esc(a)}</div>` : why ? `<div class="muted" style="margin-bottom:12px">${esc(why)}</div>` : ''}
+          <h2>Based on</h2>${results.length ? results.map(r => memRow(r.memory || r)).join('') : '<div class="muted small">No matching memories.</div>'}</div>`; };
+      $('#ab').onclick = go; $('#aq').onkeydown = e => { if (e.key === 'Enter') go(); }; $('#aq').focus();
+    } else {
+      b.innerHTML = `<div class="card stack"><textarea class="field" id="rt" placeholder="e.g. I'm allergic to peanuts.&#10;My sister Lea lives in Lyon."></textarea>
+        <div class="toolbar" style="margin:0"><input class="field" id="rs" placeholder="About whom? (optional, default: you)" aria-label="Subject"><button class="btn" id="rb">Remember</button></div>
+        <div class="muted small">Saved instantly, even while paused. One fact per line works best.</div></div>`;
+      $('#rb').onclick = async () => { const lines = $('#rt').value.split('\n').map(s => s.trim()).filter(Boolean); if (!lines.length) return;
+        try { for (const text of lines) await api('/api/remember', {text, subject: $('#rs').value.trim() || undefined}); toast(`Remembered ${plural(lines.length, 'thing')}`); $('#rt').value = ''; MEMS = null; }
+        catch(e) { toast('Could not save: ' + e.message); } };
     }
-    const ents = st.top_entities||[];
-    $('#ents').innerHTML = ents.length ? ents.map(e=>`<span class="ent">${esc(e.name)}<small>${esc(e.type||'')} ${e.mention_count}</small></span>`).join('') : '<span class="muted">no entities yet</span>';
-    const ev = st.recent_events||[];
-    $('#events').innerHTML = ev.map(e=>`<li><span class="k">${esc(e.kind)}</span><div class="t muted">${esc(JSON.stringify(e.detail)).slice(0,140)}</div></li>`).join('') || '<li><span class="k">…</span><div class="t muted">no events yet</div></li>';
-    $('#db').textContent = `db: ${st.db_path||''}`;
-    first = false;
   }
-  async function poll(){
-    try { const r = await api('/api/status'); if (r.status === 401) { const p=$('#worker-pill'); p.className='pill warn'; p.lastElementChild.textContent='token required'; if (!askedToken) { askedToken = true; await askToken(); } }
-          else if (r.ok) render(await r.json()); else throw new Error(r.status); }
-    catch(e){ const p=$('#worker-pill'); p.className='pill bad'; p.lastElementChild.textContent='server unreachable'; }
-    finally { setTimeout(poll, 2000); }
+  function paintMems(){
+    const kinds = [...new Set(MEMS.map(m => m.kind))].sort();
+    $('#kinds').innerHTML = ['', ...kinds].map(k => `<button class="chip ${k===memKind?'on':''}" data-k="${esc(k)}" aria-pressed="${k===memKind}">${k ? esc(k) : 'All'}</button>`).join('');
+    $('#kinds').querySelectorAll('.chip').forEach(c => c.onclick = () => { memKind = c.dataset.k; paintMems(); });
+    const q = memQuery.toLowerCase();
+    const rows = MEMS.filter(m => (!memKind || m.kind === memKind) && (!q || (m.text + ' ' + m.subject_name).toLowerCase().includes(q)));
+    $('#mlist').innerHTML = rows.length ? rows.slice(0, 300).map(x => `<div class="mem"><div><div class="t">${esc(x.text)}</div><div class="m"><span class="kind">${esc(x.kind)}</span><span>${esc(x.subject_name)}</span><span>${esc(ago(x.observed_at))}</span><span>${esc(x.chat_id)}</span></div></div><button class="btn danger x" data-id="${esc(x.memory_id)}" title="Forget this memory">Forget</button></div>`).join('')
+      + (rows.length > 300 ? `<div class="muted small" style="padding-top:10px">Showing 300 of ${rows.length}. Filter to narrow it down.</div>` : '')
+      : `<div class="empty">${MEMS.length ? 'No memories match.' : 'No memories yet.'}</div>`;
+    $('#mlist').querySelectorAll('.x').forEach(bt => bt.onclick = async () => {
+      if (!confirm('Forget this memory? It will no longer be recalled.')) return;
+      try { await api('/api/forget', {memory_id: bt.dataset.id, reason: 'forgotten in the web UI'}); MEMS = MEMS.filter(m => m.memory_id !== bt.dataset.id); paintMems(); toast('Forgotten'); }
+      catch(e) { toast('Could not forget: ' + e.message); } });
   }
-  poll();
 
-  // ---------- ask ----------
-  async function search(){
-    const q = $('#q').value.trim(); if(!q) return;
-    $('#results').innerHTML = '<span class="muted">searching…</span>';
-    const r = await api('/api/search?q='+encodeURIComponent(q)+'&k=8'); const d = await r.json();
-    $('#results').innerHTML = (d.results||[]).map(x=>`<div class="result">${esc(x.memory.text)}<div class="why">${esc(x.memory.subject_name)} · ${esc(x.memory.kind)} · ${esc(x.memory.chat_id)} · score ${x.score.toFixed(3)} · ${esc(x.explanation)}</div></div>`).join('') || '<span class="muted">nothing relevant stored yet</span>';
+  // ---------- Graph ----------
+  function renderGraph(_, changed){
+    if (!changed) return;
+    $('#main').innerHTML = `<div class="page wide">${header('Graph', 'The people, places and things NeuralGraph knows, and how they connect. Click one to explore it.', 'graph')}<iframe class="graph-frame" src="/graph?embed=1" title="Entity graph"></iframe></div>`;
   }
-  $('#search').onclick = search; $('#q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
-  $('#ctx').onclick = async ()=>{ const q=$('#q').value.trim(); if(!q) return; const r=await api('/api/context?q='+encodeURIComponent(q)); const d=await r.json();
-    $('#results').innerHTML = `<pre>${esc(d.context||'(empty: nothing relevant)')}</pre>`; };
-  $('#send').onclick = async ()=>{
-    const body = {chat_id: $('#chat').value.trim()||'demo-chat', speaker: $('#speaker').value.trim()||'user', text: $('#text').value};
-    if(!body.text.trim()) return;
-    const r = await api('/api/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d = await r.json(); $('#send-status').textContent = r.ok ? `queued as ${d.message.message_id} (seq ${d.message.seq})` : ('error: '+(d.error||r.status));
-    if (r.ok) $('#text').value='';
-  };
+
+  // ---------- Activity: Chats · Queue · Log ----------
+  async function renderActivity(tab, changed){
+    const subs = {chats:'Every conversation NeuralGraph has read.', queue:'Messages waiting to be turned into memories.', log:'The latest things NeuralGraph did.'};
+    if (changed) $('#main').innerHTML = `<div class="page">${header('Activity', subs[tab], 'activity', tab)}<div id="act-body"><div class="card empty"><span class="spinner"></span></div></div></div>`;
+    const b = $('#act-body'); if (!b) return;
+    if (tab === 'chats') {
+      if (!changed) return;
+      try { const chats = (await api('/api/chats')).chats || [];
+        b.innerHTML = chats.length ? `<div class="card" style="padding:6px 8px"><table class="tbl"><thead><tr><th>Chat</th><th class="n">Messages</th><th class="n">Last active</th></tr></thead><tbody>${chats.map(c => `<tr><td>${esc(c.title || c.chat_id)}<div class="muted small">${esc(c.chat_id)}</div></td><td class="n">${c.message_count ?? ''}</td><td class="n">${esc(ago(c.updated_at))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="card empty">No chats yet.</div>';
+      } catch(e) { b.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
+      return;
+    }
+    const st = STATUS; if (!st) return;
+    const r = (k, v, sub) => `<div class="row"><div class="label"><b>${k}</b>${sub ? `<span>${sub}</span>` : ''}</div><div class="ctl">${v}</div></div>`;
+    if (tab === 'queue') {
+      const j = st.jobs || {}, w = st.worker || {}, msg = st.messages || {}, llm = st.llm || {};
+      b.innerHTML = `<div class="group-title">Queue</div><div class="group">
+          ${r('Waiting', fmt(queued()), CONTROL.paused ? 'Paused: learned when you turn NeuralGraph on' : 'Messages not learned yet')}
+          ${r('Done', fmt(j.done||0))}
+          ${r('Failed', (j.dead||0) ? `<span class="badge bad"><i></i>${j.dead}</span>` : '0', 'Gave up after several tries')}
+        </div>
+        <div class="group-title">Worker</div><div class="group">
+          ${r('State', CONTROL.paused ? '<span class="badge"><i></i>Paused</span>' : w.busy_workers ? '<span class="badge on"><i></i>Learning</span>' : w.running ? '<span class="badge on"><i></i>Idle</span>' : '<span class="badge warn"><i></i>Stopped</span>')}
+          ${r('Messages', `${fmt(msg.processed||0)} learned · ${fmt(msg.skipped||0)} skipped · ${fmt(msg.pending||0)} pending`)}
+          ${r('Model calls', `${fmt(llm.generate_calls||0)} chat · ${fmt(llm.embed_calls||0)} embedding`)}
+          ${r('Last batch', w.last_batch_seconds ? w.last_batch_seconds.toFixed(1) + ' s, ' + esc(ago(w.last_batch_at)) : '—')}
+          ${w.last_error ? r('Last error', `<span class="small muted">${esc(String(w.last_error).slice(0, 140))}</span>`) : ''}
+        </div>`;
+    } else {
+      const ev = st.recent_events || [];
+      b.innerHTML = `<div class="card list">${ev.length ? ev.map(e => `<div class="mem"><div><div class="t"><span class="kind">${esc(e.kind)}</span> ${esc(describe(e))}</div><div class="m">${esc(ago(e.at))}</div></div></div>`).join('') : '<div class="empty">Nothing yet.</div>'}</div>`;
+    }
+  }
+  function describe(e){ const d = e.detail || {};
+    if (d.text) return d.text;
+    if (d.messages) return `read ${plural(d.messages.length, 'message')}` + (d.raw_candidates != null ? `, found ${plural(d.raw_candidates, 'fact')}` : '');
+    const s = JSON.stringify(d); return s.length > 160 ? s.slice(0, 160) + '…' : s; }
+
+  // ---------- Settings: General · Models · Connections · Advanced ----------
+  let SETTINGS = null;
+  async function loadSettings(){ try { SETTINGS = await api('/api/settings'); } catch(e) { SETTINGS = {error: e.message}; } return SETTINGS; }
+  async function renderSettings(tab, changed, force){
+    if (!changed && !force) return;
+    if (!changed && force && tab !== 'general') return;
+    const subs = {general:'You, the on/off switch and how NeuralGraph looks.', models:'The local models NeuralGraph learns and recalls with.', connections:'The AI tools that share this memory.', advanced:'Files, endpoints and command-line equivalents.'};
+    if (changed) $('#main').innerHTML = `<div class="page">${header('Settings', subs[tab], 'settings', tab)}<div id="set-body"><div class="card empty"><span class="spinner"></span> Loading…</div></div></div>`;
+    if (!SETTINGS || SETTINGS.error || (changed && (tab === 'connections' || tab === 'models'))) await loadSettings();
+    if (current.page !== 'settings' || current.tab !== tab) return;
+    const S = SETTINGS, b = $('#set-body');
+    if (S.error) { b.innerHTML = `<div class="card empty">${esc(S.error)}</div>`; return; }
+    const r = (k, sub, ctl) => `<div class="row"><div class="label"><b>${k}</b>${sub ? `<span>${sub}</span>` : ''}</div><div class="ctl">${ctl}</div></div>`;
+    if (tab === 'general') {
+      b.innerHTML = `<div class="group-title">NeuralGraph</div><div class="group">
+          ${r('On', 'Off unloads your local models so their RAM is free. Chats keep being saved and are learned when you turn it back on.', `<button class="switch" id="pw2" role="switch" aria-checked="${!CONTROL.paused}" ${busyToggle?'disabled':''} aria-label="NeuralGraph on or off"></button>`)}
+        </div>
+        <div class="group-title">You</div><div class="group">
+          ${r('Your name', 'How memories refer to you', `<input class="field" id="un" value="${esc(S.user_name || '')}" placeholder="e.g. Ada" aria-label="Your name"><button class="btn ghost" id="unb">Save</button>`)}
+        </div>
+        <div class="group-title">Appearance</div><div class="group">
+          ${r('Theme', '', `<select class="field" id="th" aria-label="Theme"><option value="system">Match system</option><option value="light">Light</option><option value="dark">Dark</option></select>`)}
+        </div>`;
+      $('#th').value = root.getAttribute('data-theme') || 'system'; $('#th').onchange = e => setTheme(e.target.value);
+      $('#pw2').onclick = () => toggle(CONTROL.paused);
+      $('#unb').onclick = async () => { try { const d = await api('/api/settings', {user_name: $('#un').value}); SETTINGS.user_name = $('#un').value; toast(d.note || 'Saved'); } catch(e) { toast('Could not save: ' + e.message); } };
+    } else if (tab === 'models') {
+      const srv = S.servers || [], cur = S.models || {};
+      const opt = (list, sel, rec) => list.map(x => `<option value="${esc(x)}" ${x===sel?'selected':''}>${esc(x)}${x===rec||x.startsWith(rec+':')?'  (recommended)':''}</option>`).join('');
+      b.innerHTML = `${srv.length ? '' : `<div class="card" style="margin-bottom:16px"><b>No model server is answering.</b><div class="muted small">Start LM Studio (Developer → Start Server) or Ollama, then open this tab again. Or run <code>neuralgraph-memory setup</code> and choose “Install Ollama for me”.</div></div>`}
+        <div class="group-title">Model server</div><div class="group">
+          ${r('Server', 'Where your local models run', `<select class="field" id="srv" aria-label="Model server">${srv.map(s => `<option value="${esc(s.url)}" ${s.url===cur.base_url?'selected':''}>${esc(s.label)}</option>`).join('')}${srv.some(s => s.url === cur.base_url) ? '' : `<option value="${esc(cur.base_url)}" selected>${esc(cur.base_url)} (not answering)</option>`}</select>`)}
+        </div>
+        <div class="group-title">Models</div><div class="group">
+          ${r('Chat model', 'Reads your chats and writes memories', `<select class="field" id="cm" aria-label="Chat model"></select>`)}
+          ${r('Embedding model', 'Finds related memories', `<select class="field" id="em" aria-label="Embedding model"></select>`)}
+        </div>
+        <div class="toolbar" style="margin-top:16px"><button class="btn" id="msave">Save and use</button><button class="btn ghost" id="mtest">Test</button><span class="muted small" id="mres"></span></div>
+        <div class="group-note">Changes apply right away, no restart. Recommended: Gemma 4 E4B (LM Studio) or Qwen 2.5 7B (Ollama), with nomic-embed-text.</div>`;
+      const paint = () => { const s = srv.find(x => x.url === $('#srv').value);
+        const chats = s ? s.models.chat : [], embs = s ? s.models.embedding : [];
+        const keep = (list, v, rec) => list.includes(v) ? v : (list.find(x => x === rec || x.startsWith(rec + ':')) || list[0] || v);
+        $('#cm').innerHTML = chats.length ? opt(chats, keep(chats, cur.chat, s.recommended.chat), s.recommended.chat) : `<option>${esc(cur.chat)}</option>`;
+        $('#em').innerHTML = embs.length ? opt(embs, keep(embs, cur.embed, s.recommended.embedding), s.recommended.embedding) : `<option>${esc(cur.embed)}</option>`; };
+      paint(); $('#srv').onchange = paint;
+      const vals = () => ({llm_base_url: $('#srv').value, llm_model: $('#cm').value, embed_model: $('#em').value});
+      $('#mtest').onclick = async () => { $('#mres').innerHTML = '<span class="spinner"></span> testing (the first call loads the model)…';
+        try { const d = await api('/api/settings/test', vals()); $('#mres').textContent = `${d.chat.ok?'✓':'✗'} chat: ${d.chat.text} · ${d.embed.ok?'✓':'✗'} embedding: ${d.embed.text}`; } catch(e) { $('#mres').textContent = e.message; } };
+      $('#msave').onclick = async () => { try { const d = await api('/api/settings', vals()); CONTROL.models = d.models; SETTINGS.models = d.models; paintSide(); toast('Saved · now using ' + d.models.chat); } catch(e) { toast('Could not save: ' + e.message); } };
+    } else if (tab === 'connections') {
+      const cl = S.clients || [], claude = cl.find(c => c.name === 'Claude Code');
+      const status = c => !c.found ? '<span class="badge"><i></i>Not installed</span>' : c.connected ? '<span class="badge on"><i></i>Connected</span>' : '<span class="badge warn"><i></i>Not connected</span>';
+      b.innerHTML = `${S.exe_in_build_dir ? `<div class="card" style="margin-bottom:16px"><b>Heads up:</b> this NeuralGraph runs from a build folder. Install it with the one-line installer first so the connections keep working.</div>` : ''}
+        <div class="group-title">AI tools</div><div class="group">
+          ${cl.map(c => r(esc(c.name), esc(c.where), `${status(c)}${c.found ? `<button class="btn ${c.connected ? 'ghost' : ''}" data-c="${esc(c.name)}">${c.connected ? 'Reconnect' : 'Connect'}</button>` : ''}`)).join('')}
+        </div>
+        <div class="group-note">After connecting, restart the tool, then ask it: “what do you remember about me?”</div>
+        <div class="group-title">Automatic memory</div><div class="group">
+          ${r('Learn from every Claude Code chat', 'Saves each reply, and adds relevant memories to each new prompt. Without it, Claude only saves when it decides to.', `<button class="switch" id="am" role="switch" aria-checked="${!!S.auto_memory}" ${claude && claude.found ? '' : 'disabled'} aria-label="Automatic memory in Claude Code"></button>`)}
+        </div>`;
+      b.querySelectorAll('[data-c]').forEach(bt => bt.onclick = async () => { const name = bt.dataset.c; bt.disabled = true; bt.innerHTML = '<span class="spinner"></span>';
+        try { const d = await api('/api/connect', {client: name}); toast(d.ok ? name + ' connected. Restart it to finish.' : d.message); } catch(e) { toast(e.message); }
+        await loadSettings(); current = {}; render(); });
+      $('#am').onclick = async () => { const on = $('#am').getAttribute('aria-checked') !== 'true';
+        try { const d = await api('/api/auto-memory', {on}); if (d.ok) { $('#am').setAttribute('aria-checked', on); SETTINGS.auto_memory = on; toast(on ? 'Automatic memory on. Restart Claude Code to start it.' : 'Automatic memory off'); } else toast(d.message); } catch(e) { toast(e.message); } };
+    } else {
+      const base = location.origin;
+      b.innerHTML = `<div class="group-title">Files</div><div class="group">
+          ${r('Memory database', 'Delete this file to erase all memory', `<code>${esc(S.db_path)}</code>`)}
+          ${r('Settings file', '', `<code>${esc(S.config_path)}</code>`)}
+          ${r('Program', '', `<code>${esc(S.exe)}</code>`)}
+        </div>
+        <div class="group-title">Endpoints</div><div class="group">
+          ${r('MCP over HTTP', 'For tools that connect over the network', `<code>${esc(base)}/mcp</code>`)}
+          ${r('REST API', 'Status, search, memories, graph, settings', `<code>${esc(base)}/api/…</code>`)}
+          ${r('Graph page', 'Full screen', `<a href="/graph" target="_blank" rel="noopener">${esc(base)}/graph ↗</a>`)}
+        </div>
+        <div class="group-title">Command line</div><div class="group">
+          ${r('Pause and resume', '', '<code>neuralgraph-memory pause</code>')}
+          ${r('Graph in the terminal', '', '<code>neuralgraph-memory graph</code>')}
+          ${r('Offline graph file', '', '<code>neuralgraph-memory graph --out graph.html</code>')}
+          ${r('Setup wizard', '', '<code>neuralgraph-memory setup</code>')}
+        </div>`;
+    }
+  }
+
+  // ---------- polling (only what the open page shows) ----------
+  async function tick(){
+    await Promise.all([refreshControl(), refreshStatus()]);
+    const {page, tab} = route();
+    if (page === 'home' || (page === 'activity' && tab !== 'chats')) render();
+  }
+  render();
+  tick();
+  setInterval(() => { if (!document.hidden) tick(); }, 3000);
 })();
 </script>
 </body>

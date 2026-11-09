@@ -211,6 +211,8 @@ pub struct ChatMemory {
     pub config: ChatMemoryConfig,
     pub store: Arc<ChatMemoryStore>,
     llm: RwLock<Arc<dyn LlmClient>>,
+    /// the pause switch and live model changes; every component's model calls go through it
+    pub control: Arc<crate::control::ControlledLlm>,
     pub extractor: Arc<MemoryExtractor>,
     pub worker: Arc<MemoryWorker>,
     pub retriever: Arc<MemoryRetriever>,
@@ -234,7 +236,7 @@ impl ChatMemory {
     pub fn open(db_path: &str, llm: Option<Arc<dyn LlmClient>>, mut config: ChatMemoryConfig) -> Result<Self> {
         config.apply_env_overrides();
         let store = Arc::new(ChatMemoryStore::open(db_path)?);
-        let llm: Arc<dyn LlmClient> = match llm {
+        let backend: Arc<dyn LlmClient> = match llm {
             Some(l) => l,
             None => Arc::new(BackendLlmClient::new(
                 config.llm_base_url.clone(),
@@ -243,6 +245,8 @@ impl ChatMemory {
                 config.llm_max_parallel,
             )),
         };
+        let control = Arc::new(crate::control::ControlledLlm::new(backend, store.clone()));
+        let llm: Arc<dyn LlmClient> = control.clone();
         let extractor = Arc::new(MemoryExtractor::new(store.clone(), llm.clone(), config.extraction.clone()));
         let worker = Arc::new(MemoryWorker::new(store.clone(), llm.clone(), extractor.clone(), config.worker.clone()));
         let retriever = Arc::new(MemoryRetriever::new(store.clone(), llm.clone(), config.retrieval.clone()));
@@ -250,6 +254,7 @@ impl ChatMemory {
             config,
             store,
             llm: RwLock::new(llm),
+            control,
             extractor,
             worker,
             retriever,
@@ -265,6 +270,28 @@ impl ChatMemory {
     pub fn set_llm(&self, llm: Arc<dyn LlmClient>) {
         *self.llm.write().unwrap_or_else(|e| e.into_inner()) = llm.clone();
         self.worker.set_llm(llm);
+    }
+
+    /// Point every component at a different model server and/or models, effective for the next call.
+    pub fn switch_models(&self, base_url: Option<String>, model: Option<String>, embed_model: Option<String>) {
+        let cur = self.control.current();
+        let pick = |new: Option<String>, old: String| new.filter(|s| !s.is_empty()).or(Some(old));
+        self.control.switch(Arc::new(BackendLlmClient::new(
+            pick(base_url, cur.base_url()),
+            pick(model, cur.model()),
+            pick(embed_model, cur.embed_model()),
+            self.config.llm_max_parallel,
+        )));
+    }
+
+    /// Stop all model use and unload the models (see [`crate::control::pause`]).
+    pub async fn pause(&self) -> Result<Vec<crate::control::Step>> {
+        crate::control::pause(&self.store, self.control.as_ref()).await
+    }
+
+    /// Turn model use back on and load the models (see [`crate::control::resume`]).
+    pub async fn resume(&self) -> Result<Vec<crate::control::Step>> {
+        crate::control::resume(&self.store, self.control.as_ref()).await
     }
 
     // ------------------------------------------------------------------ lifecycle

@@ -53,6 +53,7 @@ const ABOUT: &str = "Command line for the cross-chat memory system.
     neuralgraph-memory profile Ali
     neuralgraph-memory graph [ENTITY] [--depth 2] [--out graph.html]
     neuralgraph-memory stats
+    neuralgraph-memory pause     # free the models' RAM; `resume` turns them back on
     neuralgraph-memory forget mem_...
 
 Common options: --db, --model, --base-url, --embed-model, --parallel, --user-name, --fake-llm (tests/demos).
@@ -258,6 +259,16 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// stop all model use and unload the models to free RAM (chats keep queueing)
+    Pause {
+        #[command(flatten)]
+        common: Common,
+    },
+    /// turn model use back on and load the models
+    Resume {
+        #[command(flatten)]
+        common: Common,
+    },
     /// counts, queue, tokens saved, grade
     Stats {
         #[command(flatten)]
@@ -305,6 +316,8 @@ impl Command {
             | Command::Profile { common, .. }
             | Command::Graph { common, .. }
             | Command::Hook { common, .. }
+            | Command::Pause { common }
+            | Command::Resume { common }
             | Command::Stats { common }
             | Command::Forget { common, .. }
             | Command::Remember { common, .. }
@@ -789,6 +802,17 @@ pub async fn run(cli: Cli) -> Result<i32> {
         Command::Profile { common, subject, json } => cmd_profile(&common, &subject, json).await,
         Command::Graph { common, entity, depth, hubs, limit, chat_id, out, json } => {
             cmd_graph(&common, entity.as_deref(), depth, hubs, limit, chat_id, out.as_deref(), json).await
+        }
+        cmd @ (Command::Pause { .. } | Command::Resume { .. }) => {
+            let pausing = matches!(cmd, Command::Pause { .. });
+            let common = cmd.common().expect("pause/resume take the common options");
+            let cm = build(common)?;
+            let steps = if pausing { cm.pause().await? } else { cm.resume().await? };
+            for st in &steps {
+                println_flush(&format!("{} {}", if st.ok { "✓" } else { "✗" }, st.text));
+            }
+            cm.close().await;
+            Ok(if steps.iter().all(|st| st.ok) { 0 } else { 1 })
         }
         Command::Stats { common } => cmd_stats(&common).await,
         Command::Forget { common, memory_id, reason } => cmd_forget(&common, &memory_id, &reason).await,
