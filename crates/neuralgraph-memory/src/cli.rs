@@ -147,6 +147,15 @@ pub enum Command {
     },
     /// run worker + dashboard + API + MCP (HTTP)
     Serve(ServeArgs),
+    /// called by Claude Code hooks (installed by `setup`): save each turn, recall memories for each prompt
+    #[command(hide = true)]
+    Hook {
+        #[command(flatten)]
+        common: Common,
+        /// the tool calling the hook (only "claude-code" so far)
+        #[arg(value_parser = ["claude-code"])]
+        client: String,
+    },
     /// run worker + MCP server over stdio
     Mcp {
         #[command(flatten)]
@@ -295,6 +304,7 @@ impl Command {
             | Command::Answer { common, .. }
             | Command::Profile { common, .. }
             | Command::Graph { common, .. }
+            | Command::Hook { common, .. }
             | Command::Stats { common }
             | Command::Forget { common, .. }
             | Command::Remember { common, .. }
@@ -757,6 +767,12 @@ async fn cmd_maintain(common: &Common) -> Result<i32> {
 pub async fn run(cli: Cli) -> Result<i32> {
     match cli.cmd {
         Command::Setup { yes } => cmd_setup(yes).await,
+        Command::Hook { common, .. } => {
+            let cm = build(&common)?;
+            let code = crate::hook::run_claude_code_hook(&cm).await;
+            cm.close().await;
+            Ok(code)
+        }
         Command::Serve(args) => cmd_serve(&args).await,
         Command::Mcp { common } => cmd_mcp(&common).await,
         Command::Ingest { common, file, chat_id, locomo, only, process } => {

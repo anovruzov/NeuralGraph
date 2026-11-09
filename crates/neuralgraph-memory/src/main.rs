@@ -36,8 +36,8 @@ fn main() {
     let cli = Cli::parse();
     let verbose = cli.cmd.common().is_some_and(|c| c.verbose);
     let level = if verbose { tracing::Level::DEBUG } else { tracing::Level::INFO };
-    // stdout is the protocol channel in `mcp` mode, so logs go to stderr there
-    let to_stderr = matches!(cli.cmd, Command::Mcp { .. });
+    // stdout is the protocol channel in `mcp` mode and the prompt context in `hook` mode
+    let to_stderr = matches!(cli.cmd, Command::Mcp { .. } | Command::Hook { .. });
     let builder = tracing_subscriber::fmt().with_max_level(level).with_ansi(false).event_format(PythonLogFormat);
     if to_stderr {
         builder.with_writer(std::io::stderr).init();

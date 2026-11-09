@@ -18,6 +18,7 @@ pub mod difflib;
 pub mod error;
 pub mod extraction;
 pub mod graph;
+pub mod hook;
 pub mod jsonutil;
 pub mod llm;
 pub mod mcp;

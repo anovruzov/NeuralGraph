@@ -1121,7 +1121,7 @@ dependencies = [
 
 [[package]]
 name = "neuralgraph-memory"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "async-trait",
  "axum",
