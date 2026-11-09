@@ -158,6 +158,28 @@ elif ! fetch_prebuilt; then
     build_from_source
 fi
 
+# ------------------------------------------------------------------ an earlier copy that is still running
+# Replacing the file does not touch a program that is already running: it keeps the old code until it exits.
+# Stop earlier dashboards (`serve`, or a `setup` that went on to serve) so the new version takes over. MCP servers
+# that Claude Code and friends started are left alone; they switch over when those tools restart.
+RESTARTED=""
+if have pgrep; then
+    old="$(pgrep -f "$BIN (serve|setup)" 2>/dev/null || true)"
+    if [ -n "$old" ]; then
+        step "Stopping the NeuralGraph that is still running the old version"
+        # shellcheck disable=SC2086 # one pid per word
+        kill -TERM $old 2>/dev/null || true
+        i=0
+        while [ $i -lt 30 ] && pgrep -f "$BIN (serve|setup)" >/dev/null 2>&1; do sleep 0.5; i=$((i + 1)); done
+        if pgrep -f "$BIN (serve|setup)" >/dev/null 2>&1; then
+            warn "it did not stop in 15 s (pid $(echo $old | tr '\n' ' ')); stop it yourself before starting the new one"
+        else
+            ok "stopped (pid $(echo $old | tr '\n' ' '))"
+            RESTARTED=1
+        fi
+    fi
+fi
+
 # ------------------------------------------------------------------ 3. PATH
 case ":$PATH:" in
     *":$INSTALL_DIR:"*) ;;
@@ -182,6 +204,7 @@ esac
 
 # ------------------------------------------------------------------ 4. setup wizard
 if [ "${NEURALGRAPH_NO_SETUP:-}" = 1 ]; then
+    [ -n "$RESTARTED" ] && say "  Start the dashboard again with: $BIN serve --open"
     say ""; ok "done. Next: $BIN setup"
     exit 0
 fi
