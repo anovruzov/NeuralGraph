@@ -852,8 +852,15 @@ impl MemoryExtractor {
             let extra = format!("\n{}", cfg.memory_prompt_extra.trim());
             mem_prompt = insert_at_marker(mem_prompt, "\n\nCHAT PARTICIPANTS:", &extra, false);
         }
-        if chat_id.starts_with(crate::store::CODING_CHAT_PREFIX) {
-            let rules = format!("\n{}", prompts::CODING_SESSION_RULES.replace("{{", "{").replace("}}", "}"));
+        let rules = if chat_id.starts_with(crate::store::CODING_CHAT_PREFIX) {
+            Some(prompts::CODING_SESSION_RULES)
+        } else if chat_id.starts_with(crate::import::IMPORT_CHAT_PREFIX) {
+            Some(prompts::IMPORT_RULES)
+        } else {
+            None
+        };
+        if let Some(rules) = rules {
+            let rules = format!("\n{}", rules.replace("{{", "{").replace("}}", "}"));
             mem_prompt = insert_at_marker(mem_prompt, "\n\nCHAT PARTICIPANTS:", &rules, false);
         }
         mem_prompt += &repair;

@@ -756,6 +756,24 @@ impl ChatMemoryStore {
         self.set_meta("paused", if paused { "1" } else { "0" })
     }
 
+    /// Keep the worker from leasing for `seconds` (0 releases), e.g. while the chat model is swapped out for the
+    /// vision model. A deadline rather than a flag, so a process that dies mid-swap cannot stall the queue for good.
+    pub fn hold_queue(&self, seconds: i64) -> Result<()> {
+        let until = if seconds > 0 { crate::models::utcnow().timestamp() + seconds } else { 0 };
+        self.set_meta("queue_held_until", &until.to_string())
+    }
+
+    /// Paused by the user, or held for a model swap.
+    pub fn is_held(&self) -> bool {
+        self.is_paused()
+            || self
+                .get_meta("queue_held_until")
+                .ok()
+                .flatten()
+                .and_then(|v| v.parse::<i64>().ok())
+                .is_some_and(|until| until > crate::models::utcnow().timestamp())
+    }
+
     // ------------------------------------------------------------------ cleanup
     /// Archive active memories rated below `min_importance` that were never recalled and are older than
     /// `older_than_days` (0 = any age). Archived memories leave search and the graph but can be restored.
@@ -1303,7 +1321,10 @@ impl ChatMemoryStore {
             // a job that already failed is retried with a smaller batch (halved per attempt) so one bad message
             // cannot poison its neighbours and the retried prompt differs from the failed one
             let shift = |v: i64| if head.attempts >= 63 || head.attempts < 0 { 0 } else { v >> head.attempts };
-            let coding = head.chat_id.as_deref().is_some_and(|c| c.starts_with(CODING_CHAT_PREFIX));
+            // coding sessions and imported history are read in big batches
+            let coding = head.chat_id.as_deref().is_some_and(|c| {
+                c.starts_with(CODING_CHAT_PREFIX) || c.starts_with(crate::import::IMPORT_CHAT_PREFIX)
+            });
             let eff_batch = shift(if coding { CODING_BATCH } else { batch_size }).max(1);
             let eff_words = if coding { 0 } else { shift(batch_words).max(0) };
             if head.kind == "extract" && eff_words > 0 && head.chat_id.is_some() {
