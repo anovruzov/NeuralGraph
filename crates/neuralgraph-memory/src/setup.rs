@@ -1168,3 +1168,77 @@ pub async fn test_models(url: &str, chat: &str, embed: &str) -> Value {
     };
     json!({"chat": chat_r, "embed": embed_r})
 }
+
+// ------------------------------------------------------------------------------------------------ the dashboard port
+
+/// Whether `port` on loopback can be bound right now.
+fn port_free(port: u16) -> bool {
+    std::net::TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+/// Processes listening on `port` (via `lsof`; empty when it is unavailable).
+fn listeners(port: u16) -> Vec<String> {
+    // lsof lives in /usr/sbin on macOS, which a trimmed PATH may leave out
+    let lsof = which("lsof").or_else(|| Some(PathBuf::from("/usr/sbin/lsof")).filter(|p| p.is_file()));
+    let Some(lsof) = lsof else { return Vec::new() };
+    Command::new(lsof)
+        .args(["-t", "-nP", &format!("-iTCP:{port}"), "-sTCP:LISTEN"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).split_whitespace().map(str::to_string).collect())
+        .unwrap_or_default()
+}
+
+/// Make the dashboard port usable before `setup` starts `serve`. A program keeps running its old code after its file
+/// is replaced, so an earlier NeuralGraph may still hold the port after an update: offer to restart it with this
+/// version. Returns false when the port stays taken (a message says why).
+pub async fn free_dashboard_port(port: u16) -> bool {
+    if port_free(port) {
+        return true;
+    }
+    let ui = Ui::new(std::io::stdin().is_terminal());
+    let url = format!("http://127.0.0.1:{port}/");
+    let health: Option<Value> =
+        match reqwest::Client::new().get(format!("{url}healthz")).timeout(Duration::from_secs(2)).send().await {
+            Ok(r) => r.json().await.ok(),
+            Err(_) => None,
+        };
+    let is_ours = health.as_ref().is_some_and(|h| h.get("worker_running").is_some());
+    if !is_ours {
+        ui.warn("Port busy", &format!("another program uses port {port}"));
+        ui.note(&format!("Start NeuralGraph on another port: neuralgraph-memory serve --port {} --open", port + 1));
+        return false;
+    }
+    let pids = listeners(port);
+    let who = if pids.is_empty() { String::new() } else { format!(" (pid {})", pids.join(", ")) };
+    ui.warn("Already on", &format!("a NeuralGraph started earlier is running at {url}{who}"));
+    ui.note("It keeps running the version it started with until it is restarted.");
+    if pids.is_empty() || !cfg!(unix) {
+        ui.note("Stop it (Ctrl+C in its terminal), then run: neuralgraph-memory serve --open");
+        return false;
+    }
+    if !ui.confirm(&format!("Restart it with this version (v{})?", env!("CARGO_PKG_VERSION")), true) {
+        ui.note(&format!("Keeping it. Its dashboard is at {url}"));
+        return false;
+    }
+    let _ = Command::new("kill").arg("-TERM").args(&pids).status();
+    let freed = ui
+        .spin("Stopping the earlier NeuralGraph…", async {
+            for _ in 0..60 {
+                if port_free(port) {
+                    return true;
+                }
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+            false
+        })
+        .await;
+    if freed {
+        ui.ok("Stopped", &format!("the earlier NeuralGraph{who}"));
+    } else {
+        ui.fail(
+            "Still running",
+            "it did not stop within 15 s; stop it yourself, then run: neuralgraph-memory serve --open",
+        );
+    }
+    freed
+}

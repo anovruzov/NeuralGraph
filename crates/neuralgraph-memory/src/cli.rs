@@ -116,7 +116,8 @@ pub struct ServeArgs {
     pub common: Common,
     #[arg(long, default_value = "127.0.0.1")]
     pub host: String,
-    #[arg(long, default_value_t = 8765)]
+    /// env NEURALGRAPH_PORT
+    #[arg(long, env = "NEURALGRAPH_PORT", default_value_t = 8765)]
     pub port: u16,
     /// bearer token required on /mcp (env NEURALGRAPH_MCP_TOKEN)
     #[arg(long = "mcp-token")]
@@ -418,15 +419,32 @@ async fn cmd_setup(yes: bool) -> Result<i32> {
     if !out.start_server {
         return Ok(out.exit_code);
     }
-    println_flush("");
     let Cli { cmd: Command::Serve(args) } = Cli::parse_from(["neuralgraph-memory", "serve", "--open"]) else {
         unreachable!("serve parses to Command::Serve")
     };
+    if !crate::setup::free_dashboard_port(args.port).await {
+        return Ok(out.exit_code);
+    }
+    println_flush("");
     cmd_serve(&args).await
 }
 
 async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
     let (host, port) = (args.host.as_str(), args.port);
+    // say it plainly before starting a worker, instead of failing later with the OS's "Address already in use"
+    let bind_host = host.trim_start_matches('[').trim_end_matches(']');
+    if let Err(e) = std::net::TcpListener::bind((bind_host, port)) {
+        if e.kind() == std::io::ErrorKind::AddrInUse {
+            eprintln!(
+                "Port {port} is already in use.\n  \
+                 If NeuralGraph is already running there, open http://{bind_host}:{port}/ \
+                 (stop it first to run this version: `neuralgraph-memory setup` offers to restart it).\n  \
+                 Otherwise pick another port: neuralgraph-memory serve --port {}",
+                port.wrapping_add(1)
+            );
+            return Ok(1);
+        }
+    }
     let cm = build(&args.common)?;
     cm.start().await?;
     let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
