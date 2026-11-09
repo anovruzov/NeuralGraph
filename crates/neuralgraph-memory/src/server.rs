@@ -28,6 +28,10 @@
 //! POST /api/chats/relearn     {chat_id}: archive the chat's memories and learn it again with the current rules
 //! POST /api/cleanup           {all_minor?}: merge near-duplicates, archive minor memories nobody recalled
 //! POST /api/memories/restore  {memory_id}: bring an archived memory back
+//! POST /api/import/upload     files (application/x-neuralgraph-files): exports, notes, PDFs, images -> preview
+//! POST /api/import/claude-code  Claude Code sessions on this machine -> preview
+//! POST /api/import/text       {title?, text}: pasted text -> preview
+//! POST /api/import/commit     {token, ids?}: queue the chosen conversations of a preview
 //! *    /mcp                   MCP Streamable HTTP transport (see [`crate::mcp`])
 //!
 //! The API is what a chat application calls after every turn ("all automatic"): POST the message, forget about
@@ -97,6 +101,8 @@ struct AppState {
     api_token: Option<String>,
     cors: Vec<String>,
     hosts: Option<Vec<String>>,
+    /// parsed imports waiting for the user to confirm: token -> (created, plan)
+    imports: Mutex<IndexMap<String, (std::time::Instant, crate::import::ImportPlan)>>,
 }
 
 /// Constant-time comparison (`hmac.compare_digest`).
@@ -241,6 +247,7 @@ pub fn create_app(cm: Arc<ChatMemory>, opts: ServerOptions) -> Router {
             sessions: Mutex::new(IndexMap::new()),
         },
         cm,
+        imports: Mutex::new(IndexMap::new()),
         api_token: opts.api_token.filter(|t| !t.is_empty()),
         cors: opts.cors_origins.unwrap_or_default().iter().map(|o| o.to_lowercase()).collect(),
         hosts: opts.allowed_hosts.filter(|h| !h.is_empty()).map(|h| h.iter().map(|x| x.to_lowercase()).collect()),
@@ -272,7 +279,9 @@ async fn dispatch(State(st): State<Arc<AppState>>, req: Request) -> Response {
     let method = parts.method.clone();
     let path = percent_decode(parts.uri.path());
     let query = query_params(&parts.uri);
-    let body = match axum::body::to_bytes(body, MAX_BODY).await {
+    // the import upload carries whole chat exports (hundreds of MB); everything else stays small
+    let upload = path == "/api/import/upload";
+    let body = match axum::body::to_bytes(body, if upload { crate::import::MAX_UPLOAD } else { MAX_BODY }).await {
         Ok(b) => b,
         Err(_) => return text_error(413, "413: Request Entity Too Large"),
     };
@@ -294,7 +303,10 @@ async fn dispatch(State(st): State<Arc<AppState>>, req: Request) -> Response {
         if !st.origin_allowed(&headers) {
             return bad("origin not allowed", 403);
         }
-        if has_body(&headers, &body) && !media_type(&headers).starts_with("application/json") {
+        // the upload's own type cannot be sent cross-site without a CORS preflight either
+        let ok_type = media_type(&headers).starts_with("application/json")
+            || (upload && media_type(&headers).starts_with(crate::import::UPLOAD_MEDIA_TYPE));
+        if has_body(&headers, &body) && !ok_type {
             return bad("Content-Type must be application/json", 415);
         }
     }
@@ -348,8 +360,17 @@ async fn route(
         | "/api/chats"
         | "/api/cleanup"
         | "/api/chats/relearn"
-        | "/api/memories/restore" => {
+        | "/api/memories/restore"
+        | "/api/import/claude-code"
+        | "/api/import/text"
+        | "/api/import/commit" => {
             return control_route(st, method, path, headers, &body).await;
+        }
+        "/api/import/upload" => {
+            if *method != Method::POST {
+                return not_allowed("POST");
+            }
+            return import_upload(st, headers, &body).await;
         }
         "/api/messages" | "/api/messages/batch" | "/api/remember" | "/api/forget" | "/api/maintain" | "/api/answer" => {
             if *method != Method::POST {
@@ -697,6 +718,10 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
                     "servers": servers,
                     "clients": clients,
                     "auto_memory": setup::claude_hooks_installed(),
+                    "vision": {
+                        "chat_sees": crate::vision::can_see(&llm.base_url(), &llm.model()).await,
+                        "model": crate::vision::configured_vision_model(),
+                    },
                     "exe": exe,
                     "exe_in_build_dir": exe.contains("/target/debug/") || exe.contains("/target/release/"),
                     "paused": cm.store.is_paused(),
@@ -722,6 +747,13 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
             ] {
                 if v.is_some() {
                     *field = v;
+                }
+            }
+            if b.contains_key("vision_model") {
+                // "" clears it: images then need a chat model that can see
+                cfg.vision_model = s("vision_model");
+                if cfg.vision_model.is_none() {
+                    std::env::remove_var("NEURALGRAPH_VISION_MODEL");
                 }
             }
             if let Err(e) = setup::save(&path, &cfg) {
@@ -775,6 +807,39 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
                 Err(e) => internal(e),
             }
         }
+        ("/api/import/claude-code", _) => {
+            let plan = tokio::task::spawn_blocking(crate::import::scan_claude_code).await.unwrap_or_default();
+            json_resp(&stash_import(st, plan), 200)
+        }
+        ("/api/import/text", _) => {
+            let Some(text) = s("text") else { return bad("'text' is required", 400) };
+            let title = s("title").unwrap_or_else(|| "Pasted text".into());
+            let conv = crate::import::document(&title, &text, text.as_bytes());
+            let plan = crate::import::ImportPlan {
+                source: "text".into(),
+                label: "Pasted text".into(),
+                conversations: conv.into_iter().collect(),
+                ..Default::default()
+            };
+            json_resp(&stash_import(st, plan), 200)
+        }
+        ("/api/import/commit", _) => {
+            let Some(token) = s("token") else { return bad("'token' is required", 400) };
+            let ids: Vec<String> = b
+                .get("ids")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect())
+                .unwrap_or_default();
+            let plan = st.imports.lock().unwrap_or_else(|e| e.into_inner()).get(&token).map(|(_, p)| p.clone());
+            let Some(plan) = plan else { return bad("this preview expired; choose the files again", 410) };
+            match crate::import::commit(cm, &plan, &ids) {
+                Ok((chats, added, skipped)) => {
+                    st.imports.lock().unwrap_or_else(|e| e.into_inner()).shift_remove(&token);
+                    json_resp(&json!({"chats": chats, "queued": added, "already": skipped}), 200)
+                }
+                Err(e) => internal(e),
+            }
+        }
         ("/api/auto-memory", _) => {
             let Some(on) = b.get("on").and_then(Value::as_bool) else { return bad("'on' must be true or false", 400) };
             let exe = setup::current_exe();
@@ -785,6 +850,88 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
         }
         _ => text_error(404, "404: Not Found"),
     }
+}
+
+/// Keep a parsed import for the commit step (an hour, at most 8 at a time) and describe it for the preview.
+fn stash_import(st: &Arc<AppState>, plan: crate::import::ImportPlan) -> Value {
+    let token = uuid::Uuid::new_v4().to_string();
+    let preview = crate::import::preview(&st.cm, &plan, &token);
+    let mut imports = st.imports.lock().unwrap_or_else(|e| e.into_inner());
+    imports.retain(|_, (at, _)| at.elapsed().as_secs() < 3600);
+    while imports.len() >= 8 {
+        imports.shift_remove_index(0);
+    }
+    imports.insert(token, (std::time::Instant::now(), plan));
+    preview
+}
+
+/// `POST /api/import/upload`: one or more files in the `application/x-neuralgraph-files` framing. Images are read
+/// together in one model session; every file becomes conversations of one combined preview.
+async fn import_upload(st: &Arc<AppState>, headers: &HeaderMap, body: &[u8]) -> Response {
+    if let Some(o) = headers.get("origin").and_then(|v| v.to_str().ok()) {
+        let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
+        if o != format!("http://{host}") && o != format!("https://{host}") {
+            return bad("upload from the dashboard's own origin", 403);
+        }
+    }
+    let files = match crate::import::unframe(body) {
+        Ok(f) if !f.is_empty() => f,
+        Ok(_) => return bad("no files in the upload", 400),
+        Err(e) => return bad(&e, 400),
+    };
+    let mut plan = crate::import::ImportPlan::default();
+    let mut sources = Vec::new();
+    let (images, others): (Vec<_>, Vec<_>) = files.into_iter().partition(|(n, _)| crate::import::is_image(n));
+    for (name, bytes) in others {
+        let parsed = tokio::task::spawn_blocking(move || {
+            let r = crate::import::parse_upload(&name, &bytes);
+            (name, r)
+        })
+        .await;
+        match parsed {
+            Ok((_, Ok(p))) => {
+                sources.push(p.label.clone());
+                plan.conversations.extend(p.conversations);
+                plan.warnings.extend(p.warnings);
+                if plan.source.is_empty() {
+                    plan.source = p.source;
+                }
+            }
+            Ok((name, Err(e))) => plan.warnings.push(format!("{name}: {e}")),
+            Err(e) => plan.warnings.push(e.to_string()),
+        }
+    }
+    if !images.is_empty() {
+        match crate::vision::read_images(&st.cm, &images).await {
+            Ok((texts, steps)) => {
+                plan.warnings.extend(steps.into_iter().filter(|s| !s.ok).map(|s| s.text));
+                for (name, r) in texts {
+                    match r {
+                        Ok(text) => {
+                            let key = format!("{name}:{text}");
+                            plan.conversations.extend(crate::import::document(&name, &text, key.as_bytes()));
+                        }
+                        Err(e) => plan.warnings.push(format!("{name}: {}", e.message())),
+                    }
+                }
+                sources.push(format!("{} image{}", images.len(), if images.len() == 1 { "" } else { "s" }));
+                if plan.source.is_empty() {
+                    plan.source = "image".into();
+                }
+            }
+            Err(e) => plan.warnings.push(e.message()),
+        }
+    }
+    if plan.conversations.is_empty() {
+        let why = if plan.warnings.is_empty() {
+            "nothing to import in these files".to_string()
+        } else {
+            plan.warnings.join("; ")
+        };
+        return bad(&why, 422);
+    }
+    plan.label = sources.join(" + ");
+    json_resp(&stash_import(st, plan), 200)
 }
 
 fn internal(e: crate::error::MemoryError) -> Response {

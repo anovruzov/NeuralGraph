@@ -103,6 +103,20 @@ One command does the rest:
 5. Saves your answers to `~/.neuralgraph/config.json`, then offers to start the server and
    open the dashboard.
 
+Before anything is downloaded, `setup` shows what it will fetch and how big it is. Ollama
+sizes come straight from Ollama's registry. It also shows your free disk space and how much
+RAM the models need, and only downloads after you confirm:
+
+```text
+  ⬇ Ready to download
+    Chat model  qwen2.5:7b-instruct      4.7 GB
+    Embeddings  nomic-embed-text         0.3 GB
+    Images      qwen2.5vl:3b             3.2 GB
+                total                    8.2 GB
+    ✓ disk     101 GB free
+    ✓ memory   about 6 GB of your 48 GB while learning
+```
+
 Re-run `setup` any time to change an answer. `setup --yes` accepts every default without
 asking and connects no tools. Settings resolve as flags > environment variables >
 `config.json` > built-in defaults.
@@ -371,6 +385,31 @@ share nothing.
 <div align="center">
   <img src="docs/images/dashboard.png" alt="The NeuralGraph web app: sidebar with an on/off switch and five sections; the Home page shows status, counts, recent memories and health" width="820">
 </div>
+
+**Import.** The *Import* section brings in what other tools already know about you:
+
+| Source | How |
+|---|---|
+| Claude.ai | Settings → Privacy → *Export data*, then drop the `.zip` |
+| ChatGPT | Settings → Data controls → *Export data*, then drop the `.zip` |
+| Claude Code | *Find sessions* reads every past session in `~/.claude/projects` |
+| Notes and PDFs | `.md`, `.txt`, `.pdf`, or a `.zip` of a notes folder such as an Obsidian vault |
+| Screenshots | `.png`, `.jpg` and friends, read by a vision model first |
+| Paste | Any text |
+
+Every import shows a preview first: the conversations it found, a checkbox for each, and an
+estimate of the model calls and time. Imported history is learned like coding sessions, 20
+messages at a time with "durable facts only" rules, and re-importing the same file stores
+nothing twice. Uploads stay on your machine. The endpoint takes files up to 512 MB and refuses
+requests from other websites.
+
+**Screenshots without overloading your machine.** When the chat model can see (LM Studio's
+recommended Gemma 4 E4B can), it reads screenshots itself and nothing else is loaded. When it
+cannot (Ollama's Qwen 2.5 7B), a small vision model reads them, and the two are swapped
+instead of loaded together. Learning is held, the chat model is unloaded, the vision model
+reads every image of the import, then it is unloaded and the chat model returns. The chat
+model is reloaded only if it was loaded before. Choose the image model under
+*Settings → Models*.
 
 **Fewer, better memories.** Chats recorded by the Claude Code hooks are coding sessions, so they
 are learned differently from ordinary chats. Each turn waits ten minutes, and every new turn

@@ -108,6 +108,9 @@ pub struct SavedConfig {
     pub db: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_name: Option<String>,
+    /// a separate model that reads screenshots for Import, when the chat model cannot
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vision_model: Option<String>,
     /// "ollama" or "openai"; only saved when the port alone would guess wrong (Ollama off :11434)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm_backend: Option<String>,
@@ -123,6 +126,7 @@ impl SavedConfig {
             ("NEURALGRAPH_MEMORY_DB", &self.db),
             ("NEURALGRAPH_USER_NAME", &self.user_name),
             ("LLM_BACKEND", &self.llm_backend),
+            ("NEURALGRAPH_VISION_MODEL", &self.vision_model),
         ]
         .into_iter()
         .filter_map(|(k, v)| v.as_ref().filter(|v| !v.is_empty()).map(|v| (k, v.clone())))
@@ -459,22 +463,137 @@ impl Found {
             _ => ("google/gemma-4-e4b", "text-embedding-nomic-embed-text-v1.5"),
         }
     }
-    /// The download command for a model: `ollama pull …` or LM Studio's `lms get …`.
-    fn downloader(&self, embedding: bool) -> Option<(PathBuf, Vec<&'static str>)> {
-        match self.kind {
-            Kind::Ollama => {
-                Some((ollama_bin()?, vec!["pull", if embedding { "nomic-embed-text" } else { "qwen2.5:7b-instruct" }]))
+    /// What to download for `role` on this server, if it can download at all.
+    fn download(&self, role: Role) -> Option<Download> {
+        let (name, model, bin) = match (self.kind, role) {
+            (Kind::Ollama, Role::Chat) => ("qwen2.5:7b-instruct", "qwen2.5:7b-instruct", ollama_bin()?),
+            (Kind::Ollama, Role::Embedding) => ("nomic-embed-text", "nomic-embed-text", ollama_bin()?),
+            (Kind::Ollama, Role::Vision) => {
+                (crate::vision::OLLAMA_VISION.0, crate::vision::OLLAMA_VISION.1, ollama_bin()?)
             }
-            Kind::LmStudio => {
+            (Kind::LmStudio, r) => {
                 let lms = which("lms").or_else(|| Some(home().join(".lmstudio/bin/lms")).filter(|p| p.is_file()))?;
-                Some((
-                    lms,
-                    vec!["get", if embedding { "nomic-embed-text-v1.5" } else { "google/gemma-4-e4b" }, "--yes"],
-                ))
+                match r {
+                    Role::Chat => ("google/gemma-4-e4b", "google/gemma-4-e4b", lms),
+                    Role::Embedding => ("nomic-embed-text-v1.5", "text-embedding-nomic-embed-text-v1.5", lms),
+                    Role::Vision => (crate::vision::LMSTUDIO_VISION.0, crate::vision::LMSTUDIO_VISION.1, lms),
+                }
             }
-            Kind::Custom => None,
+            (Kind::Custom, _) => return None,
+        };
+        let args = if self.kind == Kind::Ollama {
+            vec!["pull".to_string(), name.to_string()]
+        } else {
+            vec!["get".to_string(), name.to_string(), "--yes".to_string()]
+        };
+        Some(Download { role, name: name.into(), model: model.into(), bin, args })
+    }
+
+    /// Whether the recommended chat model for this server reads images (LM Studio's Gemma 4 E4B does).
+    fn recommended_chat_sees(&self) -> bool {
+        self.kind == Kind::LmStudio
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    Chat,
+    Embedding,
+    Vision,
+}
+
+impl Role {
+    fn name(self) -> &'static str {
+        match self {
+            Role::Chat => "chat",
+            Role::Embedding => "embedding",
+            Role::Vision => "image",
         }
     }
+    fn label(self) -> &'static str {
+        match self {
+            Role::Chat => "Chat model",
+            Role::Embedding => "Embeddings",
+            Role::Vision => "Images",
+        }
+    }
+}
+
+/// A model `setup` will download once the user confirms.
+#[derive(Clone, Debug)]
+struct Download {
+    role: Role,
+    /// what the download command is given
+    name: String,
+    /// the id the server lists once it is downloaded
+    model: String,
+    bin: PathBuf,
+    args: Vec<String>,
+}
+
+/// Download size in GB: exact from Ollama's registry; measured values for LM Studio's recommended models.
+async fn download_size(srv: &Found, d: &Download) -> Option<f64> {
+    if srv.kind == Kind::Ollama {
+        let (repo, tag) = d.name.split_once(':').unwrap_or((d.name.as_str(), "latest"));
+        let repo = if repo.contains('/') { repo.to_string() } else { format!("library/{repo}") };
+        let v: Value = reqwest::Client::new()
+            .get(format!("https://registry.ollama.ai/v2/{repo}/manifests/{tag}"))
+            .header("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .ok()?
+            .json()
+            .await
+            .ok()?;
+        let bytes: f64 = v.get("layers")?.as_array()?.iter().filter_map(|l| l.get("size")?.as_f64()).sum();
+        return (bytes > 0.0).then_some(bytes / 1e9);
+    }
+    match d.name.as_str() {
+        "google/gemma-4-e4b" => Some(6.9),
+        "nomic-embed-text-v1.5" => Some(0.08),
+        n if n == crate::vision::LMSTUDIO_VISION.0 => Some(crate::vision::LMSTUDIO_VISION.2),
+        _ => None,
+    }
+}
+
+fn gb(v: Option<f64>) -> String {
+    match v {
+        Some(g) if g < 0.1 => format!("{:.0} MB", g * 1000.0),
+        Some(g) => format!("{g:.1} GB"),
+        None => "size unknown".into(),
+    }
+}
+
+/// Free space in the home folder's file system, in GB.
+fn disk_free_gb() -> Option<f64> {
+    let o = Command::new("df").args(["-k"]).arg(home()).output().ok()?;
+    let line = String::from_utf8_lossy(&o.stdout).lines().nth(1)?.to_string();
+    let avail_kb: f64 = line.split_whitespace().nth(3)?.parse().ok()?;
+    Some(avail_kb / 1_048_576.0)
+}
+
+/// Installed memory in GB.
+fn ram_gb() -> Option<f64> {
+    if cfg!(target_os = "macos") {
+        let o = Command::new("sysctl").args(["-n", "hw.memsize"]).output().ok()?;
+        let b: f64 = String::from_utf8_lossy(&o.stdout).trim().parse().ok()?;
+        return Some(b / 1_073_741_824.0);
+    }
+    let meminfo = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let kb: f64 = meminfo.lines().find(|l| l.starts_with("MemTotal:"))?.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kb / 1_048_576.0)
+}
+
+/// Models on the server that read images.
+async fn vision_models(srv: &Found) -> Vec<String> {
+    let mut out = Vec::new();
+    for m in srv.models.iter().filter(|m| !is_embedding_model(m)) {
+        if crate::vision::can_see(&srv.url, m).await == Some(true) {
+            out.push(m.clone());
+        }
+    }
+    out
 }
 
 /// Model ids a server reports (LM Studio/OpenAI `/v1/models`, Ollama `/api/tags`); `None` when nothing answers.
@@ -748,7 +867,7 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
         let can_install = cfg!(unix) && which("curl").is_some() && ollama_bin().is_none();
         let mut opts = Vec::new();
         if can_install {
-            opts.push("Install Ollama for me (free, open source · ~1 min, models download next)".to_string());
+            opts.push("Install Ollama for me (free, open source · 0.23 GB; you confirm the models next)".to_string());
         }
         opts.extend([
             "I'll start LM Studio or Ollama myself, then check again".to_string(),
@@ -802,108 +921,227 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
         std::env::set_var("LLM_BACKEND", b); // the smoke test below goes through the same backend switch
     }
 
-    // 2. models
+    // 2. models: choose everything first, show what it costs, then download
     ui.step(2, total, "Models");
     let (mut chat_model, mut embed_model) = (
         saved.llm_model.clone().or(env("LLM_MODEL")).unwrap_or_else(crate::backend::default_model),
         saved.embed_model.clone().or(env("EMBED_MODEL")).unwrap_or_else(crate::backend::default_embed_model),
     );
+    let mut vision_model: Option<String> = saved.vision_model.clone().or(env("NEURALGRAPH_VISION_MODEL"));
     let mut tested = (None, None);
     if let Some(mut srv) = server.clone() {
         let (rec_chat, rec_embed) = srv.recommended();
-        for role in ["chat", "embedding"] {
-            loop {
-                let pool: Vec<String> =
-                    srv.models.iter().filter(|m| is_embedding_model(m) == (role == "embedding")).cloned().collect();
-                let (current, rec) = if role == "chat" { (&chat_model, rec_chat) } else { (&embed_model, rec_embed) };
-                if !pool.is_empty() {
-                    let def = pick_default(&pool, &[current, rec]).unwrap_or(0);
-                    let pick = if pool.len() == 1 {
-                        0
+        let mut downloads: Vec<Download> = Vec::new();
+        let mut declined = false;
+        for role in [Role::Chat, Role::Embedding] {
+            let pool: Vec<String> =
+                srv.models.iter().filter(|m| is_embedding_model(m) == (role == Role::Embedding)).cloned().collect();
+            let (current, rec) = if role == Role::Chat { (&chat_model, rec_chat) } else { (&embed_model, rec_embed) };
+            let has_rec = pick_default(&pool, &[rec]).is_some();
+            let mut labels: Vec<String> = pool
+                .iter()
+                .map(|m| {
+                    if m == rec || m.starts_with(&format!("{rec}:")) {
+                        format!("{m}  (recommended)")
                     } else {
-                        let labels: Vec<String> = pool
-                            .iter()
-                            .map(|m| {
-                                if m == rec || m.starts_with(&format!("{rec}:")) {
-                                    format!("{m}  (recommended)")
-                                } else {
-                                    m.clone()
-                                }
-                            })
-                            .collect();
-                        ui.choose(&format!("Which {role} model?"), &labels, def)
-                    };
-                    let m = pool[pick].clone();
-                    ui.ok(if role == "chat" { "Chat model" } else { "Embeddings" }, &m);
-                    if role == "chat" {
-                        chat_model = m;
-                    } else {
-                        embed_model = m;
+                        m.clone()
                     }
-                    break;
+                })
+                .collect();
+            let dl = srv.download(role);
+            if !has_rec {
+                if let Some(d) = &dl {
+                    labels.push(format!("Download {} · {}  (recommended)", d.name, gb(download_size(&srv, d).await)));
                 }
-                ui.warn("Missing", &format!("no {role} model on {}", srv.label()));
-                let dl = srv.downloader(role == "embedding");
-                if let Some((bin, args)) =
-                    dl.filter(|_| ui.confirm(&format!("Download the recommended {role} model ({rec}) now?"), true))
-                {
-                    if !run_visible(&ui, &bin.to_string_lossy(), &args) {
-                        ui.fail("Download", "did not finish; you can retry or pick another model in the app");
-                    }
+            }
+            let def =
+                pick_default(&pool, &[current, rec]).unwrap_or(if has_rec || dl.is_none() { 0 } else { pool.len() });
+            if labels.is_empty() {
+                ui.warn(
+                    "Missing",
+                    &format!("no {} model on {} and no way to download one here", role.name(), srv.label()),
+                );
+                continue;
+            }
+            let pick =
+                if labels.len() == 1 { 0 } else { ui.choose(&format!("Which {} model?", role.name()), &labels, def) };
+            if pick < pool.len() {
+                let m = pool[pick].clone();
+                ui.ok(role.label(), &m);
+                if role == Role::Chat {
+                    chat_model = m
                 } else {
-                    ui.note(&format!(
-                        "Download `{rec}` in {}, then press Enter.",
-                        if srv.kind == Kind::Ollama { "Ollama (`ollama pull`)" } else { "LM Studio (search tab)" }
+                    embed_model = m
+                }
+            } else if let Some(d) = dl {
+                ui.ok(role.label(), &format!("{} (to download)", d.model));
+                if role == Role::Chat {
+                    chat_model = d.model.clone()
+                } else {
+                    embed_model = d.model.clone()
+                }
+                downloads.push(d);
+            }
+        }
+        // screenshots: the chat model reads them when it can; otherwise a small vision model, swapped in on demand
+        let chat_sees = if downloads.iter().any(|d| d.role == Role::Chat) {
+            Some(srv.recommended_chat_sees())
+        } else {
+            crate::vision::can_see(&srv.url, &chat_model).await
+        };
+        if chat_sees == Some(true) {
+            ui.ok("Images", &format!("{chat_model} reads screenshots too · nothing extra to download"));
+            vision_model = None;
+        } else {
+            let seeing = vision_models(&srv).await;
+            let dl = srv.download(Role::Vision);
+            let mut labels: Vec<String> = seeing.clone();
+            if let Some(d) = &dl {
+                if !seeing.iter().any(|m| m == &d.model) {
+                    labels.push(format!(
+                        "Download {} · {}  (recommended, small)",
+                        d.name,
+                        gb(download_size(&srv, d).await)
                     ));
-                    if !interactive || !ui.confirm("Check again?", true) {
-                        break;
+                }
+            }
+            labels.push("Skip: no screenshot import for now".into());
+            ui.note(&format!("{chat_model} cannot read images. A small vision model reads screenshots for Import;"));
+            ui.note("it is swapped in only while importing, so both are never in memory at once.");
+            let def = vision_model.as_ref().and_then(|v| seeing.iter().position(|m| m == v)).unwrap_or(0);
+            let pick = ui.choose("Which model should read screenshots?", &labels, def);
+            if pick < seeing.len() {
+                vision_model = Some(seeing[pick].clone());
+                ui.ok("Images", &seeing[pick]);
+            } else if pick + 1 < labels.len() {
+                let d = dl.expect("download option shown");
+                vision_model = Some(d.model.clone());
+                ui.ok("Images", &format!("{} (to download)", d.model));
+                downloads.push(d);
+            } else {
+                vision_model = None;
+                ui.skip("Images", "skipped; choose one later under Settings → Models");
+            }
+        }
+        // what it costs, before anything is downloaded
+        if !downloads.is_empty() {
+            let mut sizes = Vec::new();
+            for d in &downloads {
+                sizes.push(download_size(&srv, d).await);
+            }
+            let total_gb: f64 = sizes.iter().flatten().sum();
+            let mut lines = vec![format!("{} {}", ui.accent("⬇"), ui.bold("Ready to download"))];
+            lines.push(String::new());
+            for (d, sz) in downloads.iter().zip(&sizes) {
+                lines.push(format!("  {:<11} {:<34} {:>8}", d.role.label(), d.name, gb(*sz)));
+            }
+            lines.push(format!("  {:<11} {:<34} {}", "", "total", ui.bold(&format!("{:>8}", gb(Some(total_gb))))));
+            lines.push(String::new());
+            if let Some(free) = disk_free_gb() {
+                let ok = free > total_gb + 2.0;
+                lines.push(format!(
+                    "  {} disk     {:.0} GB free{}",
+                    if ok { ui.sgr("32", "✓") } else { ui.sgr("31", "✗") },
+                    free,
+                    if ok { "" } else { " — not enough room" }
+                ));
+            }
+            let chat_gb = downloads.iter().zip(&sizes).find(|(d, _)| d.role == Role::Chat).and_then(|(_, s)| *s);
+            if let (Some(ram), Some(c)) = (ram_gb(), chat_gb) {
+                lines.push(format!(
+                    "  {} memory   about {:.0} GB of your {:.0} GB while learning",
+                    if c * 1.3 < ram * 0.6 { ui.sgr("32", "✓") } else { ui.sgr("33", "!") },
+                    c * 1.3,
+                    ram
+                ));
+            }
+            if downloads.iter().any(|d| d.role == Role::Vision) {
+                lines.push(format!("  {}", ui.dim("the image model is loaded only while importing screenshots")));
+            }
+            println!();
+            boxed(&ui, &lines);
+            if ui.confirm(&format!("Download {} now?", gb(Some(total_gb))), true) {
+                for d in &downloads {
+                    ui.note(&format!("{} · {}", d.role.label(), d.name));
+                    if !run_visible(
+                        &ui,
+                        &d.bin.to_string_lossy(),
+                        &d.args.iter().map(String::as_str).collect::<Vec<_>>(),
+                    ) {
+                        ui.fail(
+                            "Download",
+                            &format!("{} did not finish; retry with `neuralgraph-memory setup`", d.name),
+                        );
                     }
                 }
                 if let Some(models) = list_models(&http, &srv.url, srv.kind == Kind::Ollama).await {
                     srv.models = models;
                 }
+                // LM Studio lists a download under its own id (e.g. text-embedding-…): pick the matching one
+                for (role, slot) in [(Role::Chat, &mut chat_model), (Role::Embedding, &mut embed_model)] {
+                    if !srv.models.contains(slot) {
+                        let pool: Vec<String> = srv
+                            .models
+                            .iter()
+                            .filter(|m| is_embedding_model(m) == (role == Role::Embedding))
+                            .cloned()
+                            .collect();
+                        if let Some(i) = pick_default(&pool, &[slot.as_str()]).or_else(|| {
+                            pool.iter().position(|m| m.contains(slot.rsplit('/').next().unwrap_or(slot.as_str())))
+                        }) {
+                            *slot = pool[i].clone();
+                        }
+                    }
+                }
+            } else {
+                ui.note("Nothing downloaded. Run `neuralgraph-memory setup` again when you are ready.");
+                declined = true;
             }
         }
-        // smoke test: one tiny generation and one embedding
+        // smoke test: one tiny generation and one embedding (pointless when the models were not downloaded)
         let t0 = Instant::now();
-        let gen = ui
-            .spin(
-                &format!("Saying hello to {chat_model}…"),
-                llm_generate(&http, "Reply with one word: ready", &chat_model, &srv.url, 0.0, 16, 180.0),
-            )
-            .await;
-        match gen {
-            Ok(_) => {
-                ui.ok("Chat test", &format!("replied in {:.1}s", t0.elapsed().as_secs_f64()));
-                tested.0 = Some(true);
+        if declined {
+            tested = (None, None);
+        } else {
+            let gen = ui
+                .spin(
+                    &format!("Saying hello to {chat_model} (the first call loads it, up to a minute)…"),
+                    llm_generate(&http, "Reply with one word: ready", &chat_model, &srv.url, 0.0, 16, 180.0),
+                )
+                .await;
+            match gen {
+                Ok(_) => {
+                    ui.ok("Chat test", &format!("replied in {:.1}s", t0.elapsed().as_secs_f64()));
+                    tested.0 = Some(true);
+                }
+                Err(e) => {
+                    ui.fail("Chat test", &short(&e));
+                    tested.0 = Some(false);
+                }
             }
-            Err(e) => {
-                ui.fail("Chat test", &short(&e));
-                tested.0 = Some(false);
+            let emb = ui
+                .spin(
+                    &format!("Embedding a test sentence with {embed_model}…"),
+                    llm_embed(&http, "hello memory", &embed_model, &srv.url, 120.0),
+                )
+                .await;
+            match emb {
+                Ok(v) if !v.is_empty() => {
+                    ui.ok("Embed test", &format!("{} dimensions", v.len()));
+                    tested.1 = Some(true);
+                }
+                Ok(_) => {
+                    ui.fail("Embed test", "empty vector (is this an embedding model?)");
+                    tested.1 = Some(false);
+                }
+                Err(e) => {
+                    ui.fail("Embed test", &short(&e));
+                    tested.1 = Some(false);
+                }
             }
-        }
-        let emb = ui
-            .spin(
-                &format!("Embedding a test sentence with {embed_model}…"),
-                llm_embed(&http, "hello memory", &embed_model, &srv.url, 120.0),
-            )
-            .await;
-        match emb {
-            Ok(v) if !v.is_empty() => {
-                ui.ok("Embed test", &format!("{} dimensions", v.len()));
-                tested.1 = Some(true);
+            if tested != (Some(true), Some(true)) {
+                ui.note("Memory needs both. If the model is still loading, re-run setup in a minute.");
             }
-            Ok(_) => {
-                ui.fail("Embed test", "empty vector (is this an embedding model?)");
-                tested.1 = Some(false);
-            }
-            Err(e) => {
-                ui.fail("Embed test", &short(&e));
-                tested.1 = Some(false);
-            }
-        }
-        if tested != (Some(true), Some(true)) {
-            ui.note("Memory needs both. If the model is still loading, re-run setup in a minute.");
         }
     } else {
         ui.skip("Models", "skipped (no server yet); using the defaults below");
@@ -924,6 +1162,7 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
         embed_model: Some(embed_model.clone()),
         db: Some(db.clone()),
         user_name: Some(user_name.clone()),
+        vision_model: vision_model.clone(),
         llm_backend,
     };
     save(&path, &cfg).map_err(MemoryError::from)?;
@@ -1098,21 +1337,21 @@ pub fn current_exe() -> String {
 /// Model servers that answer right now: `[{kind, label, url, models: {chat: [...], embedding: [...]}, recommended}]`.
 pub async fn discover_servers(custom: Option<String>) -> Vec<Value> {
     let http = reqwest::Client::new();
-    probe_all(&http, custom)
-        .await
-        .into_iter()
-        .map(|f| {
-            let (chat, embed): (Vec<String>, Vec<String>) = f.models.iter().cloned().partition(|m| !is_embedding_model(m));
-            let (rc, re) = f.recommended();
-            json!({
-                "kind": match f.kind { Kind::LmStudio => "lmstudio", Kind::Ollama => "ollama", Kind::Custom => "openai" },
-                "label": f.label(),
-                "url": f.url,
-                "models": {"chat": chat, "embedding": embed},
-                "recommended": {"chat": rc, "embedding": re},
-            })
-        })
-        .collect()
+    let mut out = Vec::new();
+    for f in probe_all(&http, custom).await {
+        let (chat, embed): (Vec<String>, Vec<String>) = f.models.iter().cloned().partition(|m| !is_embedding_model(m));
+        let (rc, re) = f.recommended();
+        let vision_rec =
+            if f.kind == Kind::Ollama { crate::vision::OLLAMA_VISION.0 } else { crate::vision::LMSTUDIO_VISION.0 };
+        out.push(json!({
+            "kind": match f.kind { Kind::LmStudio => "lmstudio", Kind::Ollama => "ollama", Kind::Custom => "openai" },
+            "label": f.label(),
+            "url": f.url,
+            "models": {"chat": chat, "embedding": embed, "vision": vision_models(&f).await},
+            "recommended": {"chat": rc, "embedding": re, "vision": vision_rec},
+        }));
+    }
+    out
 }
 
 /// Whether our hooks are in Claude Code's settings.

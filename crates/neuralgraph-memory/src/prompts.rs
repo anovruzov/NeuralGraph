@@ -47,6 +47,14 @@ pub const CODING_SESSION_RULES: &str = r##"THIS IS A CODING SESSION between the 
 - their machine, accounts and setup
 NEVER store: progress or status updates, what the agent did or will do next, test results, file edits, command output, errors, commit/PR/version/release status, or anything that is only true during this session. Merge related details into one memory instead of several. Most batches contain nothing durable: then return {{"memories": []}}. Rate importance 0.9 for a lasting preference or identity fact, 0.7 for a project goal or decision, 0.5 for useful background; leave out anything below 0.5."##;
 
+/// Added to the memory prompt for imported history (old AI chats, notes, documents): only what describes the user.
+pub const IMPORT_RULES: &str = r##"THIS IS IMPORTED HISTORY: an old conversation with an AI assistant, or the user's own notes and documents. Keep ONLY durable facts about the user and their world:
+- who they are, where they live, their work, studies and projects
+- preferences, habits, opinions and how they like things done
+- people, pets and organisations in their life, and how they relate
+- goals and plans (with dates when given), health, possessions, important events
+NEVER store general knowledge the assistant explained, suggestions the user did not take up, small talk, or anything that was only true at that moment. Merge related details into one memory instead of several. When the batch holds nothing personal and durable, return {{"memories": []}}. Rate importance 0.9 for identity or a lasting preference, 0.7 for plans, relationships and projects, 0.5 for useful background; leave out anything below 0.5."##;
+
 pub const ASSISTANT_RULE_ON: &str = r##"Messages marked (assistant) ARE valid sources for what the assistant told the user: recommendations, names, numbers, ratios, instructions, places, titles. Phrase them from the user's side with the user as subject ("The user was recommended Miss Bee Providore in Bandung", "The user was told to dilute tea tree oil 1:10 with a carrier oil"). Never make the assistant itself the subject."##;
 
 pub const ASSISTANT_SKIP_OFF: &str = r##"generic advice or explanations from the assistant"##;

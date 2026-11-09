@@ -347,8 +347,8 @@ impl MemoryWorker {
     }
 
     fn lease(&self) -> Result<Vec<Job>> {
-        if self.store.is_paused() {
-            return Ok(Vec::new()); // jobs wait in the queue until the user resumes
+        if self.store.is_held() {
+            return Ok(Vec::new()); // jobs wait in the queue until the user resumes (or a model swap ends)
         }
         let cfg = &self.config;
         self.store.lease_job(

@@ -111,7 +111,7 @@ fn is_ollama(base_url: &str) -> bool {
 }
 
 /// Free the RAM the chat and embedding models hold on the model server.
-async fn unload(base_url: &str, models: &[String]) -> Vec<Step> {
+pub async fn unload_models(base_url: &str, models: &[String]) -> Vec<Step> {
     let base = base_url.trim_end_matches('/');
     if is_ollama(base) {
         let http = reqwest::Client::new();
@@ -162,7 +162,7 @@ pub async fn pause(store: &ChatMemoryStore, llm: &dyn LlmClient) -> Result<Vec<S
     if llm.base_url().is_empty() {
         return Ok(steps); // a test double: nothing to unload
     }
-    steps.extend(unload(&llm.base_url(), &models).await);
+    steps.extend(unload_models(&llm.base_url(), &models).await);
     Ok(steps)
 }
 
@@ -224,4 +224,12 @@ pub async fn resume(store: &ChatMemoryStore, llm: &dyn LlmClient) -> Result<Vec<
         Err(e) => Step::fail(format!("could not load {}: {}", llm.embed_model(), e.qualified())),
     });
     Ok(steps)
+}
+
+/// Load models so they are ready: `lms load` on LM Studio; Ollama loads a model on its first request by itself.
+pub async fn load_models(base_url: &str, models: &[String]) -> Vec<Step> {
+    if is_ollama(base_url) {
+        return models.iter().map(|m| Step::ok(format!("{m} loads on first use"))).collect();
+    }
+    lms_load(models).await
 }

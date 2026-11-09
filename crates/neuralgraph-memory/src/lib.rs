@@ -20,6 +20,7 @@ pub mod error;
 pub mod extraction;
 pub mod graph;
 pub mod hook;
+pub mod import;
 pub mod jsonutil;
 pub mod llm;
 pub mod mcp;
@@ -34,6 +35,7 @@ pub mod store;
 pub mod temporal;
 pub mod testing;
 pub mod textutil;
+pub mod vision;
 pub mod worker;
 
 pub use answer::{Answer, AnswerOptions, AnswerRoute};
