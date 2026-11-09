@@ -183,8 +183,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
       <a href="#/settings" data-p="settings"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</a>
     </nav>
     <div class="side-foot">
+      <a id="sf-update" href="#/settings/general" style="display:none">Update available</a>
       <div id="sf-model" title="Chat model in use"></div>
-      <div class="r"><span id="sf-queue"></span><button class="icon-btn" id="theme" title="Toggle light / dark" aria-label="Toggle theme">◐</button></div>
+      <div class="r"><span><span id="sf-ver"></span><span id="sf-queue"></span></span><button class="icon-btn" id="theme" title="Toggle light / dark" aria-label="Toggle theme">◐</button></div>
     </div>
   </aside>
   <main id="main" tabindex="-1"></main>
@@ -243,6 +244,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     $('#pw-sub').textContent = busyToggle ? 'one moment' : !on ? 'models unloaded' : w.busy_workers ? 'learning…' : q ? q + ' waiting' : 'learning from your chats';
     $('#sf-model').textContent = (CONTROL.models || {}).chat || '';
     $('#sf-queue').textContent = STATUS ? (q ? q + ' in queue' : 'queue empty') : '';
+    $('#sf-ver').textContent = UPDATE.current ? 'v' + UPDATE.current + ' · ' : '';
+    const up = $('#sf-update'); up.style.display = UPDATE.available ? '' : 'none'; up.textContent = UPDATE.available ? `Update to ${UPDATE.latest} →` : '';
   }
   async function toggle(wantOn){
     if (busyToggle) return;
@@ -256,6 +259,23 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     busyToggle = false; await refreshStatus(); render(true);
   }
   $('#pw').onclick = () => toggle(CONTROL.paused);
+
+  // ---------- updates ----------
+  let UPDATE = {};
+  async function checkUpdate(force){ try { UPDATE = await api('/api/update' + (force ? '?force=1' : '')); } catch(e) { UPDATE = {error: e.message}; } paintSide(); return UPDATE; }
+  async function runUpdate(btn){
+    if (!confirm(`Update NeuralGraph to ${UPDATE.latest}? It downloads about 7 MB, restarts this dashboard (a few seconds) and keeps your memories and settings.`)) return;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Updating…'; }
+    const before = UPDATE.current;
+    try { const d = await api('/api/update', {}); if (!d.ok) { toast(d.message || 'Update failed'); if (btn) { btn.disabled = false; btn.textContent = 'Update now'; } return; } }
+    catch(e) { toast('Update failed: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Update now'; } return; }
+    toast('Installed. Restarting…');
+    // the server restarts in place: wait until it answers with the new version, then reload
+    for (let i = 0; i < 60; i++) { await new Promise(r => setTimeout(r, 1000));
+      try { const u = await (await fetch('/api/update', {cache:'no-store', headers: TOKEN ? {Authorization:'Bearer '+TOKEN} : {}})).json(); if (u.current && u.current !== before) { location.reload(); return; } } catch(e){} }
+    toast('The dashboard did not come back. Start it with: neuralgraph-memory serve');
+  }
+  const updateBanner = () => UPDATE.available && !UPDATE.blocked ? `<div class="card hero" style="padding:16px 24px"><div><b>NeuralGraph ${esc(UPDATE.latest)} is available</b><div class="muted small">You have v${esc(UPDATE.current)}. Updating keeps your memories and settings.</div></div><button class="btn" id="up-now">Update now</button></div>` : '';
 
   // ---------- router: #/page/tab ----------
   const PAGES = {
@@ -298,13 +318,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
       : ['on', 'On', `Everything is learned. New chats are picked up automatically with ${model}.`];
     const steps = LAST_STEPS.length ? `<ul class="steps">${LAST_STEPS.map(s => `<li class="${s.ok?'ok':'bad'}">${esc(s.text)}</li>`).join('')}</ul>` : '';
     const g = st.grade || {}, ax = g.axes || {}, tk = st.tokens || {};
-    const AX = [['coverage','Coverage'],['compression','Compression'],['connectivity','Connectivity'],['freshness','Freshness'],['reliability','Reliability']];
+    const AX = [['coverage','Coverage','Share of your chats that has been learned'],['compression','Compression','How much shorter the memories are than the chats they came from'],['connectivity','Connectivity','How well memories are linked to people, things and each other'],['freshness','Freshness','How little is still waiting to be learned'],['reliability','Reliability','How rarely learning a batch fails']];
     const recent = (st.recent_memories||[]).filter(m => (m.importance ?? 1) >= MINOR).slice(0, 6);
     body.innerHTML = `
       <div class="card hero">
         <div><h2><span class="dot ${dot}"></span>${title}</h2><p>${line}</p>${steps}</div>
         <button class="btn big ${paused ? '' : 'ghost'}" id="home-toggle" ${busyToggle?'disabled':''}>${busyToggle ? '<span class="spinner"></span>' : paused ? 'Turn on' : 'Pause'}</button>
       </div>
+      ${updateBanner()}
       ${mem === 0 ? onboarding() : ''}
       <div class="tiles">
         <div class="tile"><div class="l">Memories</div><div class="v">${fmt(mem)}</div><div class="d">${fmt((st.memories.by_status||{}).superseded||0)} updated over time</div></div>
@@ -316,10 +337,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         <div class="card"><h2>Recently learned</h2>${recent.length ? recent.map(memRow).join('') + '<div style="margin-top:12px"><a href="#/memories">See all memories →</a></div>' : '<div class="muted small">Nothing yet. Chat with Claude Code, or add a memory under Memories → Add.</div>'}</div>
         <div class="card"><h2>Health</h2>
           <div class="grade"><b>${esc(g.letter||'—')}</b><span>${(g.overall??0).toFixed(0)} / 100 overall</span></div>
-          <div class="bars">${AX.map(([k, l]) => `<div class="bar" title="${l}: ${(ax[k]??0).toFixed(0)} out of 100"><span>${l}</span><div class="track"><div class="fill" style="width:${Math.max(0, Math.min(100, ax[k]||0))}%"></div></div><span class="n">${(ax[k]??0).toFixed(0)}</span></div>`).join('')}</div>
+          <div class="bars">${AX.map(([k, l, why]) => `<div class="bar" title="${why} (${(ax[k]??0).toFixed(0)} out of 100)"><span>${l}</span><div class="track"><div class="fill" style="width:${Math.max(0, Math.min(100, ax[k]||0))}%"></div></div><span class="n">${(ax[k]??0).toFixed(0)}</span></div>`).join('')}</div>
+          <div class="muted small" style="margin-top:12px">Hover a bar to see what it measures. A low Compression score is normal right after importing documents.</div>
         </div>
       </div>`;
     $('#home-toggle').onclick = () => toggle(paused);
+    if ($('#up-now')) $('#up-now').onclick = () => runUpdate($('#up-now'));
   }
   function onboarding(){
     if (!SETTINGS) { loadSettings().then(() => { if (current.page === 'home') renderHome(null, false); }); }
@@ -454,22 +477,25 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     try { const r = await fetch('/api/import/upload', {method:'POST', headers:h, body: new Blob(parts)}); const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status)); showPreview(d); } catch(e) { failed(e); }
   }
-  const SECONDS_PER_CALL = 15;  // one 20-message pass with a 4B-class model on a laptop
+  // measured with Gemma 4 E4B on an M-series laptop: a 20-message pass of a chat, one section of a document
+  const SECONDS_PER_CHAT_CALL = 20, SECONDS_PER_SECTION = 18;
   function showPreview(d){
     IMPORT = d; const convs = d.conversations || [];
     if (!convs.length) { $('#imp').innerHTML = `<div class="card"><b>${esc(d.label || 'Nothing found')}</b><div class="muted small">No conversations to import.</div>${(d.warnings||[]).map(w => `<div class="muted small">${esc(w)}</div>`).join('')}</div>`; return; }
     const fresh = convs.filter(c => !c.imported);
     $('#imp').innerHTML = `<div class="card">
         <h2>${esc(d.label)}</h2>
-        <div class="toolbar"><input class="field" id="cf" placeholder="Filter ${convs.length} conversations…" aria-label="Filter conversations"><button class="btn ghost" id="all">Select all</button><button class="btn ghost" id="none">None</button></div>
-        <div class="convs" id="cl">${convs.map((c, i) => `<div class="conv" data-t="${esc((c.title||'').toLowerCase())}"><input type="checkbox" id="c${i}" data-id="${esc(c.id)}" data-n="${c.messages}" ${c.imported ? '' : 'checked'}><label for="c${i}"><b>${esc(c.title)}</b><span>${plural(c.messages, 'message')}${c.created_at ? ' · ' + esc(String(c.created_at).slice(0,10)) : ''}${c.imported ? ' · already in memory (only new messages are added)' : ''}</span></label></div>`).join('')}</div>
+        <div class="toolbar"><input class="field" id="cf" placeholder="Filter ${convs.length} item${convs.length === 1 ? '' : 's'}…" aria-label="Filter"><button class="btn ghost" id="all">Select all</button><button class="btn ghost" id="none">None</button></div>
+        <div class="convs" id="cl">${convs.map((c, i) => `<div class="conv" data-t="${esc((c.title||'').toLowerCase())}"><input type="checkbox" id="c${i}" data-id="${esc(c.id)}" data-n="${c.messages}" data-calls="${c.calls}" data-doc="${c.document ? 1 : 0}" ${c.imported ? '' : 'checked'}><label for="c${i}"><b>${esc(c.title)}</b><span>${c.document ? `${c.chars >= 2000 ? Math.round(c.chars / 1000) + ' KB' : c.chars + ' characters'} of text · read in ${plural(c.messages, 'section')}` : plural(c.messages, 'message')}${c.created_at ? ' · ' + esc(String(c.created_at).slice(0,10)) : ''}${c.imported ? ' · already imported (importing again adds nothing)' : ''}</span></label></div>`).join('')}</div>
         ${(d.warnings||[]).length ? `<details style="margin-top:10px"><summary class="muted small">${plural(d.warnings.length, 'note')}</summary>${d.warnings.map(w => `<div class="muted small">${esc(w)}</div>`).join('')}</details>` : ''}
         <div class="toolbar" style="margin:14px 0 0;justify-content:space-between"><span class="muted small" id="est"></span><button class="btn" id="go">Import</button></div>
       </div>`;
     const boxes = () => [...document.querySelectorAll('#cl input[type=checkbox]')];
-    const est = () => { const sel = boxes().filter(b => b.checked); const msgs = sel.reduce((a, b) => a + (+b.dataset.n), 0);
-      const calls = sel.reduce((a, b) => a + Math.ceil((+b.dataset.n) / 20), 0); const mins = Math.max(1, Math.round(calls * SECONDS_PER_CALL / 60));
-      $('#est').textContent = `${plural(sel.length, 'conversation')} · ${plural(msgs, 'message')} · ~${plural(calls, 'model call')} · about ${mins < 90 ? mins + ' min' : Math.round(mins / 60) + ' h'} of learning in the background`;
+    const est = () => { const sel = boxes().filter(b => b.checked);
+      const secs = sel.reduce((a, b) => a + (+b.dataset.calls) * (b.dataset.doc === '1' ? SECONDS_PER_SECTION : SECONDS_PER_CHAT_CALL), 0);
+      const mins = Math.max(1, Math.round(secs / 60)), docs = sel.filter(b => b.dataset.doc === '1').length, chats = sel.length - docs;
+      const what = [docs ? plural(docs, 'document') : '', chats ? plural(chats, 'conversation') : ''].filter(Boolean).join(' and ');
+      $('#est').textContent = sel.length ? `${what} · about ${mins < 90 ? mins + ' min' : Math.round(mins / 60) + ' h'} of learning in the background (you can keep working)` : 'Nothing selected';
       $('#go').disabled = !sel.length; };
     boxes().forEach(b => b.onchange = est); est();
     $('#all').onclick = () => { boxes().forEach(b => { if (b.closest('.conv').style.display !== 'none') b.checked = true; }); est(); };
@@ -477,7 +503,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     $('#cf').oninput = e => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#cl .conv').forEach(c => c.style.display = !q || c.dataset.t.includes(q) ? '' : 'none'); };
     $('#go').onclick = async () => { const ids = boxes().filter(b => b.checked).map(b => b.dataset.id); $('#go').disabled = true; $('#go').innerHTML = '<span class="spinner"></span>';
       try { const r = await api('/api/import/commit', {token: IMPORT.token, ids});
-        $('#imp').innerHTML = `<div class="card hero"><div><h2><span class="dot on"></span>Imported</h2><p>${plural(r.queued, 'new message')} from ${plural(r.chats, 'conversation')} ${r.already ? `(${r.already} were already in memory) ` : ''}are being learned in the background. ${CONTROL.paused ? 'NeuralGraph is paused: turn it on to start.' : ''}</p></div><a class="btn ghost" href="#/activity/queue">Watch progress</a></div>`;
+        $('#imp').innerHTML = `<div class="card hero"><div><h2><span class="dot on"></span>Imported</h2><p>${r.queued ? `${plural(r.queued, 'part')} from ${plural(r.chats, 'item')} ${r.queued === 1 ? 'is' : 'are'} being learned in the background.` : 'Everything in this import was already in memory, so nothing was added.'} ${CONTROL.paused ? 'NeuralGraph is paused: turn it on to start.' : ''}</p></div><a class="btn ghost" href="#/activity/queue">Watch progress</a></div>`;
         refreshStatus(); }
       catch(e) { failed(e); } };
   }
@@ -553,15 +579,37 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         <div class="group-title">You</div><div class="group">
           ${r('Your name', 'How memories refer to you', `<input class="field" id="un" value="${esc(S.user_name || '')}" placeholder="e.g. Ada" aria-label="Your name"><button class="btn ghost" id="unb">Save</button>`)}
         </div>
+        <div class="group-title">Memory</div><div class="group">
+          ${r('Memory file', S.db_from_flag ? 'Set by the --db flag this server was started with' : 'Where memories are stored. Changing it restarts NeuralGraph; the old file is kept.', S.db_from_flag ? `<code>${esc(S.db_path)}</code>` : `<input class="field" id="dbp" value="${esc(S.db_setting || S.db_path)}" style="width:300px" aria-label="Memory file"><button class="btn ghost" id="dbb">Save</button>`)}
+        </div>
+        <div class="group-title">Version</div><div class="group" id="ver-group">
+          ${r('NeuralGraph v' + esc(S.version || ''), '<span id="ver-state">Checking for updates…</span>', `<button class="btn ghost" id="ver-check">Check for updates</button><button class="btn" id="ver-up" style="display:none">Update now</button>`)}
+        </div>
+        <div class="group-note" id="ver-note"></div>
         <div class="group-title">Appearance</div><div class="group">
           ${r('Theme', '', `<select class="field" id="th" aria-label="Theme"><option value="system">Match system</option><option value="light">Light</option><option value="dark">Dark</option></select>`)}
         </div>`;
       $('#th').value = root.getAttribute('data-theme') || 'system'; $('#th').onchange = e => setTheme(e.target.value);
       $('#pw2').onclick = () => toggle(CONTROL.paused);
+      const paintVer = () => { const u = UPDATE, st = $('#ver-state'); if (!st) return;
+        st.textContent = u.error ? 'Could not check: ' + u.error : u.available ? `${u.latest} is available` : u.latest ? 'You have the latest version' : 'Checking for updates…';
+        $('#ver-up').style.display = u.available && !u.blocked ? '' : 'none';
+        $('#ver-note').textContent = u.available && u.blocked ? 'This copy cannot update itself: ' + u.blocked
+          : u.old_copies ? `${plural(u.old_copies, 'copy').replace('copys','copies')} started by your AI tools ${u.old_copies === 1 ? 'is' : 'are'} running. After an update, restart Claude Code and Claude Desktop so they use the new version.`
+          : 'Terminal equivalent: neuralgraph-memory update'; };
+      paintVer(); checkUpdate(false).then(paintVer);
+      $('#ver-check').onclick = async () => { $('#ver-state').innerHTML = '<span class="spinner"></span> Checking…'; await checkUpdate(true); paintVer(); };
+      $('#ver-up').onclick = () => runUpdate($('#ver-up'));
+      if ($('#dbb')) $('#dbb').onclick = async () => { const v = $('#dbp').value.trim(); if (!v || v === (S.db_setting || S.db_path)) return;
+        if (!confirm(`Use ${v} as the memory file? NeuralGraph restarts. The current file stays where it is; nothing is copied.`)) return;
+        try { await api('/api/settings', {db: v}); toast('Saved. Restarting…'); setTimeout(() => location.reload(), 4000); } catch(e) { toast('Could not save: ' + e.message); } };
       $('#unb').onclick = async () => { try { const d = await api('/api/settings', {user_name: $('#un').value}); SETTINGS.user_name = $('#un').value; toast(d.note || 'Saved'); } catch(e) { toast('Could not save: ' + e.message); } };
     } else if (tab === 'models') {
       const srv = S.servers || [], cur = S.models || {};
-      const opt = (list, sel, rec) => list.map(x => `<option value="${esc(x)}" ${x===sel?'selected':''}>${esc(x)}${x===rec||x.startsWith(rec+':')?'  (recommended)':''}</option>`).join('');
+      const sizeOf = m => { const s = srv.find(x => x.url === $('#srv').value) || srv[0]; const g = s && s.sizes ? s.sizes[m] : null; return g == null ? null : g; };
+      const gbs = g => g == null ? '' : g < 0.1 ? Math.round(g * 1000) + ' MB' : g.toFixed(1) + ' GB';
+      const opt = (list, sel, rec) => list.map(x => { const s = srv.find(y => y.sizes && y.sizes[x] != null); const g = s ? gbs(s.sizes[x]) : '';
+        return `<option value="${esc(x)}" ${x===sel?'selected':''}>${esc(x)}${g ? ' · ' + g : ''}${x===rec||x.startsWith(rec+':')?'  (recommended)':''}</option>`; }).join('');
       b.innerHTML = `${srv.length ? '' : `<div class="card" style="margin-bottom:16px"><b>No model server is answering.</b><div class="muted small">Start LM Studio (Developer → Start Server) or Ollama, then open this tab again. Or run <code>neuralgraph-memory setup</code> and choose “Install Ollama for me”.</div></div>`}
         <div class="group-title">Model server</div><div class="group">
           ${r('Server', 'Where your local models run', `<select class="field" id="srv" aria-label="Model server">${srv.map(s => `<option value="${esc(s.url)}" ${s.url===cur.base_url?'selected':''}>${esc(s.label)}</option>`).join('')}${srv.some(s => s.url === cur.base_url) ? '' : `<option value="${esc(cur.base_url)}" selected>${esc(cur.base_url)} (not answering)</option>`}</select>`)}
@@ -572,7 +620,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
           ${r('Image model', 'Reads screenshots for Import. Swapped in only while importing.', `<select class="field" id="vm" aria-label="Image model"></select>`)}
         </div>
         <div class="toolbar" style="margin-top:16px"><button class="btn" id="msave">Save and use</button><button class="btn ghost" id="mtest">Test</button><span class="muted small" id="mres"></span></div>
-        <div class="group-note">Changes apply right away, no restart. Recommended: Gemma 4 E4B (LM Studio) or Qwen 2.5 7B (Ollama), with nomic-embed-text.</div>`;
+        <div class="group-note">Changes apply right away, no restart. Recommended: Gemma 4 E4B (LM Studio) or Qwen 2.5 7B (Ollama), with nomic-embed-text.</div>
+        <div class="group-title">Disk and memory</div><div class="group" id="dm"></div>
+        <div class="group-note">To download more models, use LM Studio's search or <code>ollama pull</code>; <code>neuralgraph-memory setup</code> downloads the recommended ones and shows their size first.</div>`;
       const paint = () => { const s = srv.find(x => x.url === $('#srv').value);
         const chats = s ? s.models.chat : [], embs = s ? s.models.embedding : [];
         const keep = (list, v, rec) => list.includes(v) ? v : (list.find(x => x === rec || x.startsWith(rec + ':')) || list[0] || v);
@@ -581,8 +631,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         const vis = s ? s.models.vision || [] : [], v = S.vision || {}, chatSel = $('#cm').value;
         $('#vm').innerHTML = (vis.includes(chatSel) ? `<option value="">Same as the chat model (it can see)</option>` : `<option value="">None (no screenshot import)</option>`)
           + vis.filter(m => m !== chatSel).map(m => `<option value="${esc(m)}" ${m===v.model?'selected':''}>${esc(m)}</option>`).join('')
-          + (vis.length ? '' : `<option value="" disabled>No vision model on this server: e.g. ${esc((s && s.recommended.vision) || 'qwen2.5vl:3b')}</option>`); };
-      paint(); $('#srv').onchange = paint; $('#cm').onchange = paint;
+          + (vis.length ? '' : `<option value="" disabled>No vision model on this server: e.g. ${esc((s && s.recommended.vision) || 'qwen2.5vl:3b')}</option>`);
+        const sys = S.system || {}, c = sizeOf($('#cm').value), e = sizeOf($('#em').value), vg = $('#vm').value ? sizeOf($('#vm').value) : null;
+        const disk = [c, e, vg].filter(x => x != null).reduce((a, x) => a + x, 0);
+        $('#dm').innerHTML = r('On disk', 'The models selected above', disk ? gbs(disk) : '—')
+          + r('Memory while learning', 'The chat model is in memory only around learning and Ask; Pause frees it at once', c != null ? `about ${Math.round(c * 1.3)} GB${sys.ram_gb ? ' of your ' + Math.round(sys.ram_gb) + ' GB' : ''}` : '—')
+          + r('Free disk space', '', sys.disk_free_gb != null ? Math.round(sys.disk_free_gb) + ' GB' : '—'); };
+      paint(); $('#srv').onchange = paint; $('#cm').onchange = paint; $('#em').onchange = paint; $('#vm').onchange = () => { const v = $('#vm').value; paint(); $('#vm').value = v; };
       const vals = () => ({llm_base_url: $('#srv').value, llm_model: $('#cm').value, embed_model: $('#em').value, vision_model: $('#vm').value});
       $('#mtest').onclick = async () => { $('#mres').innerHTML = '<span class="spinner"></span> testing (the first call loads the model)…';
         try { const d = await api('/api/settings/test', vals()); $('#mres').textContent = `${d.chat.ok?'✓':'✗'} chat: ${d.chat.text} · ${d.embed.ok?'✓':'✗'} embedding: ${d.embed.text}`; } catch(e) { $('#mres').textContent = e.message; } };
@@ -632,6 +687,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   }
   render();
   tick();
+  checkUpdate(false).then(() => { if (current.page === 'home') render(true); });
   setInterval(() => { if (!document.hidden) tick(); }, 3000);
 })();
 </script>

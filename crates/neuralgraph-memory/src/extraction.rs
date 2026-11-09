@@ -854,6 +854,8 @@ impl MemoryExtractor {
         }
         let rules = if chat_id.starts_with(crate::store::CODING_CHAT_PREFIX) {
             Some(prompts::CODING_SESSION_RULES)
+        } else if chat_id.starts_with(crate::import::DOC_CHAT_PREFIX) {
+            Some(prompts::DOCUMENT_RULES)
         } else if chat_id.starts_with(crate::import::IMPORT_CHAT_PREFIX) {
             Some(prompts::IMPORT_RULES)
         } else {
@@ -887,6 +889,14 @@ impl MemoryExtractor {
             (mem_call.await?, String::new())
         };
 
+        // cut off at the token limit while listing memories: keep the complete ones instead of retrying everything
+        let mem_out = match parse_json_object(&mem_out) {
+            Some(_) => mem_out,
+            None => match crate::jsonutil::salvage_array(&mem_out, "memories") {
+                Some(v) => v.to_string(),
+                None => mem_out,
+            },
+        };
         if parse_json_object(&mem_out).is_none() {
             // no JSON at all (prose, refusal, empty): let the queue retry with variation instead of losing the facts
             return Err(MemoryError::UnparseableOutput(format!(

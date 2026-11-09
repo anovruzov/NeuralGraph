@@ -10,6 +10,9 @@
 # 3. Puts the binary in ~/.local/bin (adds it to PATH in your shell profile if needed).
 # 4. Runs `neuralgraph-memory setup`, which finds or installs a local model server and connects your AI tools.
 #
+# You only need this script once: afterwards `neuralgraph-memory update` (or the Update button in the web app)
+# fetches new versions.
+#
 # Environment:
 #   NEURALGRAPH_INSTALL_DIR   where the binary goes (default ~/.local/bin)
 #   NEURALGRAPH_VERSION       release tag to install, e.g. v1.1.0 (default: latest)
@@ -95,13 +98,15 @@ fetch_prebuilt() {
     want="$(cut -d' ' -f1 <"$TMP/$asset.sha256")"
     got="$(sha256 "$TMP/$asset")"
     [ "$want" = "$got" ] || die "checksum mismatch for $asset (expected $want, got $got)"
-    ok "checksum verified"
+    mb="$(( $(wc -c <"$TMP/$asset") / 1048576 ))"
+    ok "downloaded ${mb} MB, checksum verified"
     tar -xzf "$TMP/$asset" -C "$TMP"
     [ -f "$TMP/$BIN" ] || die "$asset does not contain $BIN"
     mkdir -p "$INSTALL_DIR"
     mv "$TMP/$BIN" "$INSTALL_DIR/$BIN"
     chmod +x "$INSTALL_DIR/$BIN"
-    ok "installed $INSTALL_DIR/$BIN"
+    touch "$INSTALL_DIR/$BIN" # tar kept the build date; the install date is the useful one
+    ok "installed $("$INSTALL_DIR/$BIN" --version 2>/dev/null || echo "$BIN") to $INSTALL_DIR/$BIN"
 }
 
 # ------------------------------------------------------------------ 2. from source
@@ -160,21 +165,23 @@ fi
 
 # ------------------------------------------------------------------ an earlier copy that is still running
 # Replacing the file does not touch a program that is already running: it keeps the old code until it exits.
-# Stop earlier dashboards (`serve`, or a `setup` that went on to serve) so the new version takes over. MCP servers
-# that Claude Code and friends started are left alone; they switch over when those tools restart.
+# Stop earlier copies so the new version takes over: dashboards (`serve`, or a `setup` that went on to serve) and the
+# MCP servers that Claude Code and friends started. An old MCP server would keep learning chats with the old
+# version's rules; the tools start a fresh one when they are restarted.
 RESTARTED=""
 if have pgrep; then
-    old="$(pgrep -f "$BIN (serve|setup)" 2>/dev/null || true)"
+    old="$(pgrep -f "$BIN (serve|setup|mcp)" 2>/dev/null || true)"
     if [ -n "$old" ]; then
         step "Stopping the NeuralGraph that is still running the old version"
         # shellcheck disable=SC2086 # one pid per word
         kill -TERM $old 2>/dev/null || true
         i=0
-        while [ $i -lt 30 ] && pgrep -f "$BIN (serve|setup)" >/dev/null 2>&1; do sleep 0.5; i=$((i + 1)); done
-        if pgrep -f "$BIN (serve|setup)" >/dev/null 2>&1; then
+        while [ $i -lt 30 ] && pgrep -f "$BIN (serve|setup|mcp)" >/dev/null 2>&1; do sleep 0.5; i=$((i + 1)); done
+        if pgrep -f "$BIN (serve|setup|mcp)" >/dev/null 2>&1; then
             warn "it did not stop in 15 s (pid $(echo $old | tr '\n' ' ')); stop it yourself before starting the new one"
         else
             ok "stopped (pid $(echo $old | tr '\n' ' '))"
+            say "  ${D}Restart Claude Code and Claude Desktop so they reconnect to the new version.${N}"
             RESTARTED=1
         fi
     fi

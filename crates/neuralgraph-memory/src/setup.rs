@@ -1023,43 +1023,59 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
                 ui.skip("Images", "skipped; choose one later under Settings → Models");
             }
         }
-        // what it costs, before anything is downloaded
+        // what it takes: every model with its size, what is already here, what would be downloaded
+        let installed = installed_sizes(&srv).await;
+        let mut dl_sizes = Vec::new();
+        for d in &downloads {
+            dl_sizes.push(download_size(&srv, d).await);
+        }
+        let total_gb: f64 = dl_sizes.iter().flatten().sum();
+        let mut rows: Vec<(Role, String)> =
+            vec![(Role::Chat, chat_model.clone()), (Role::Embedding, embed_model.clone())];
+        if let Some(v) = &vision_model {
+            rows.push((Role::Vision, v.clone()));
+        }
+        let mut lines = vec![format!("{} {}", ui.accent("◉"), ui.bold("Disk and memory"))];
+        lines.push(String::new());
+        let mut chat_gb = None;
+        for (role, model) in &rows {
+            let pending = downloads.iter().position(|d| d.role == *role);
+            let size = match pending {
+                Some(i) => dl_sizes[i],
+                None => installed.get(model).copied(),
+            };
+            if *role == Role::Chat {
+                chat_gb = size;
+            }
+            let state = if pending.is_some() { ui.sgr("33", "to download") } else { ui.dim("installed") };
+            lines.push(format!("  {:<11} {:<38} {:>8}  {state}", role.label(), model, gb(size)));
+        }
+        let to_get = if downloads.is_empty() { "nothing".to_string() } else { gb(Some(total_gb)) };
+        lines.push(format!("  {:<11} {:<38} {}", "", "to download", ui.bold(&format!("{to_get:>8}"))));
+        lines.push(String::new());
+        if let Some(free) = disk_free_gb() {
+            let ok = free > total_gb + 2.0;
+            lines.push(format!(
+                "  {} disk     {:.0} GB free{}",
+                if ok { ui.sgr("32", "✓") } else { ui.sgr("31", "✗") },
+                free,
+                if ok { "" } else { " — not enough room" }
+            ));
+        }
+        if let (Some(ram), Some(c)) = (ram_gb(), chat_gb) {
+            lines.push(format!(
+                "  {} memory   about {:.0} GB of your {:.0} GB RAM while learning, 0 when paused",
+                if c * 1.3 < ram * 0.6 { ui.sgr("32", "✓") } else { ui.sgr("33", "!") },
+                c * 1.3,
+                ram
+            ));
+        }
+        if rows.iter().any(|(r, _)| *r == Role::Vision) {
+            lines.push(format!("  {}", ui.dim("the image model is loaded only while importing screenshots")));
+        }
+        println!();
+        boxed(&ui, &lines);
         if !downloads.is_empty() {
-            let mut sizes = Vec::new();
-            for d in &downloads {
-                sizes.push(download_size(&srv, d).await);
-            }
-            let total_gb: f64 = sizes.iter().flatten().sum();
-            let mut lines = vec![format!("{} {}", ui.accent("⬇"), ui.bold("Ready to download"))];
-            lines.push(String::new());
-            for (d, sz) in downloads.iter().zip(&sizes) {
-                lines.push(format!("  {:<11} {:<34} {:>8}", d.role.label(), d.name, gb(*sz)));
-            }
-            lines.push(format!("  {:<11} {:<34} {}", "", "total", ui.bold(&format!("{:>8}", gb(Some(total_gb))))));
-            lines.push(String::new());
-            if let Some(free) = disk_free_gb() {
-                let ok = free > total_gb + 2.0;
-                lines.push(format!(
-                    "  {} disk     {:.0} GB free{}",
-                    if ok { ui.sgr("32", "✓") } else { ui.sgr("31", "✗") },
-                    free,
-                    if ok { "" } else { " — not enough room" }
-                ));
-            }
-            let chat_gb = downloads.iter().zip(&sizes).find(|(d, _)| d.role == Role::Chat).and_then(|(_, s)| *s);
-            if let (Some(ram), Some(c)) = (ram_gb(), chat_gb) {
-                lines.push(format!(
-                    "  {} memory   about {:.0} GB of your {:.0} GB while learning",
-                    if c * 1.3 < ram * 0.6 { ui.sgr("32", "✓") } else { ui.sgr("33", "!") },
-                    c * 1.3,
-                    ram
-                ));
-            }
-            if downloads.iter().any(|d| d.role == Role::Vision) {
-                lines.push(format!("  {}", ui.dim("the image model is loaded only while importing screenshots")));
-            }
-            println!();
-            boxed(&ui, &lines);
             if ui.confirm(&format!("Download {} now?", gb(Some(total_gb))), true) {
                 for d in &downloads {
                     ui.note(&format!("{} · {}", d.role.label(), d.name));
@@ -1348,6 +1364,7 @@ pub async fn discover_servers(custom: Option<String>) -> Vec<Value> {
             "label": f.label(),
             "url": f.url,
             "models": {"chat": chat, "embedding": embed, "vision": vision_models(&f).await},
+            "sizes": installed_sizes(&f).await,
             "recommended": {"chat": rc, "embedding": re, "vision": vision_rec},
         }));
     }
@@ -1480,4 +1497,77 @@ pub async fn free_dashboard_port(port: u16) -> bool {
         );
     }
     freed
+}
+
+/// Stop the dashboard listening on `port` and start this binary's `serve` detached, logging to
+/// `~/.neuralgraph/serve.log`. Used when the running dashboard is too old to restart itself.
+pub async fn replace_dashboard(port: u16) -> bool {
+    let pids = listeners(port);
+    if pids.is_empty() {
+        return false;
+    }
+    let _ = Command::new("kill").arg("-TERM").args(&pids).status();
+    for _ in 0..60 {
+        if port_free(port) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    if !port_free(port) {
+        return false;
+    }
+    let log_path = config_path().parent().map(|d| d.join("serve.log")).unwrap_or_else(|| PathBuf::from("serve.log"));
+    let Ok(log) = std::fs::File::create(&log_path) else { return false };
+    let Ok(err) = log.try_clone() else { return false };
+    let mut cmd = Command::new(crate::update::exe_path());
+    cmd.arg("serve").stdin(std::process::Stdio::null()).stdout(log).stderr(err);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0); // not in the terminal's group: closing the terminal does not stop it
+    }
+    cmd.spawn().is_ok()
+}
+
+/// Size on disk (GB) of every model the server has, by the id it lists them under.
+async fn installed_sizes(srv: &Found) -> std::collections::HashMap<String, f64> {
+    let mut out = std::collections::HashMap::new();
+    if srv.kind == Kind::Ollama {
+        let v: Option<Value> = async {
+            reqwest::Client::new()
+                .get(format!("{}/api/tags", srv.url))
+                .timeout(Duration::from_secs(5))
+                .send()
+                .await
+                .ok()?
+                .json()
+                .await
+                .ok()
+        }
+        .await;
+        for m in v.as_ref().and_then(|v| v.get("models")).and_then(Value::as_array).into_iter().flatten() {
+            if let (Some(n), Some(sz)) = (m.get("name").and_then(Value::as_str), m.get("size").and_then(Value::as_f64))
+            {
+                out.insert(n.to_string(), sz / 1e9);
+            }
+        }
+        return out;
+    }
+    let lms = which("lms").or_else(|| Some(home().join(".lmstudio/bin/lms")).filter(|p| p.is_file()));
+    let Some(lms) = lms else { return out };
+    let Ok(o) = tokio::process::Command::new(lms).args(["ls", "--json"]).output().await else { return out };
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap_or(Value::Null);
+    for m in v.as_array().into_iter().flatten() {
+        if let (Some(k), Some(sz)) =
+            (m.get("modelKey").and_then(Value::as_str), m.get("sizeBytes").and_then(Value::as_f64))
+        {
+            out.insert(k.to_string(), sz / 1e9);
+        }
+    }
+    out
+}
+
+/// `{ram_gb, disk_free_gb}` of this machine, for the settings page.
+pub fn system_info() -> Value {
+    json!({"ram_gb": ram_gb(), "disk_free_gb": disk_free_gb()})
 }

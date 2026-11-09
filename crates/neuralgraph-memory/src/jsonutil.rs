@@ -197,6 +197,54 @@ pub fn as_list(v: Option<&Value>) -> Vec<Value> {
     }
 }
 
+/// The complete objects of the array under `key` in JSON that was cut off mid-way (a model that hit its token limit
+/// while listing memories). `None` when not even one object is complete.
+pub fn salvage_array(text: &str, key: &str) -> Option<Value> {
+    let at = text.find(&format!("\"{key}\""))?;
+    let open = at + text[at..].find('[')?;
+    let bytes = text.as_bytes();
+    let (mut depth, mut in_str, mut esc, mut start) = (0usize, false, false, None::<usize>);
+    let mut items: Vec<Value> = Vec::new();
+    for (i, &b) in bytes.iter().enumerate().skip(open + 1) {
+        if in_str {
+            match (esc, b) {
+                (true, _) => esc = false,
+                (false, b'\\') => esc = true,
+                (false, b'"') => in_str = false,
+                _ => {}
+            }
+            continue;
+        }
+        match b {
+            b'"' => in_str = true,
+            b'{' => {
+                if depth == 0 {
+                    start = Some(i);
+                }
+                depth += 1;
+            }
+            b'}' if depth > 0 => {
+                depth -= 1;
+                if depth == 0 {
+                    if let Some(s) = start.take() {
+                        if let Ok(v) = serde_json::from_str::<Value>(&text[s..=i]) {
+                            items.push(v);
+                        }
+                    }
+                }
+            }
+            b']' if depth == 0 => break,
+            _ => {}
+        }
+    }
+    if items.is_empty() {
+        return None;
+    }
+    let mut out = Map::new();
+    out.insert(key.to_string(), Value::Array(items));
+    Some(Value::Object(out))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

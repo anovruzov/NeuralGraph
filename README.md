@@ -66,6 +66,22 @@ Options are environment variables, for example
 `curl -fsSL …/install.sh | NEURALGRAPH_NO_SETUP=1 sh` installs without starting the wizard.
 The script's header lists all of them.
 
+### Updating
+
+You run the install command once. After that:
+
+```bash
+neuralgraph-memory update          # or: Settings → General → Update now in the web app
+neuralgraph-memory update --check  # only say whether a newer version exists
+```
+
+`update` downloads the latest release for your machine, checks its SHA-256, replaces the
+program, and restarts the dashboard in place with your settings. It also stops copies that
+Claude Code or Claude Desktop started before the update, so they cannot keep learning with the
+old version's rules; restart those apps to reconnect them. The web app shows *Update available*
+when a newer release exists. That check asks GitHub for the latest version number and happens
+only while the web app is open or when you run `update`.
+
 ### Prerequisites for building yourself
 
 - **[Rust](https://rustup.rs) 1.89+** and a C compiler (SQLite is compiled into the binary) — or use the
@@ -103,7 +119,8 @@ One command does the rest:
 5. Saves your answers to `~/.neuralgraph/config.json`, then offers to start the server and
    open the dashboard.
 
-Before anything is downloaded, `setup` shows what it will fetch and how big it is. Ollama
+`setup` always shows a *Disk and memory* summary: every model it will use, its size, and
+whether it is installed or still to download. Before anything is downloaded, it shows what it will fetch and how big it is. Ollama
 sizes come straight from Ollama's registry. It also shows your free disk space and how much
 RAM the models need, and only downloads after you confirm:
 
@@ -204,7 +221,7 @@ and a `.bak` copy of the old file is saved.
 | Hook | What it does |
 |---|---|
 | `Stop` | After every reply, queues your prompt and Claude's final answer from the session transcript. Any running `mcp` or `serve` process turns them into memories in the background. Tool calls, tool output, thinking, system reminders and subagents are skipped. Re-reading a transcript never stores anything twice. |
-| `UserPromptSubmit` | Before Claude sees a prompt, adds the most relevant memories (up to 6) to it, so Claude can use them without being asked. |
+| `UserPromptSubmit` | Before Claude sees a prompt, adds the memories that are semantically close to it (at most 5, similarity 0.57 or higher with nomic-embed-text; `NEURALGRAPH_RECALL_MIN_SIM` changes the bar). Prompts with nothing relevant get nothing added. |
 
 Both hooks run `neuralgraph-memory hook claude-code`, take milliseconds, and never block
 Claude Code: if something fails, the hook logs it and steps aside. To turn them off, re-run
@@ -340,6 +357,7 @@ Everything the server does, available from a terminal. All commands are
 
 | Command | What it does |
 |---|---|
+| `update` | Download the latest version, replace the program, restart the dashboard (`--check`, `--version TAG`) |
 | `setup` | First-run wizard: model server, model tests, your name, connect Claude Code / Codex / Claude Desktop / Cursor (`--yes` for defaults) |
 | `serve` | Worker + dashboard + REST API + MCP over HTTP |
 | `mcp` | Worker + MCP over stdio |
@@ -397,10 +415,17 @@ share nothing.
 | Screenshots | `.png`, `.jpg` and friends, read by a vision model first |
 | Paste | Any text |
 
-Every import shows a preview first: the conversations it found, a checkbox for each, and an
-estimate of the model calls and time. Imported history is learned like coding sessions, 20
-messages at a time with "durable facts only" rules, and re-importing the same file stores
-nothing twice. Uploads stay on your machine. The endpoint takes files up to 512 MB and refuses
+Every import shows a preview first: what it found, a checkbox for each item, and an estimate
+of the time. Re-importing the same file stores nothing twice. The two kinds of import are
+learned differently:
+
+- **Chats** (Claude.ai, ChatGPT, Claude Code) are read 20 messages at a time, and only what
+  *you* said becomes a memory. The assistant's turns are context: its long answers are
+  explanations and status reports, not facts about you.
+- **Documents** (notes, PDFs, screenshots, pasted text) are split into sections of about 900
+  characters at their headings. Each section is read on its own with "record every fact"
+  rules, several sections in parallel. A 13 KB profile becomes about 90 memories in roughly
+  7 minutes with Gemma 4 E4B on an Apple-silicon laptop. Uploads stay on your machine. The endpoint takes files up to 512 MB and refuses
 requests from other websites.
 
 **Screenshots without overloading your machine.** When the chat model can see (LM Studio's

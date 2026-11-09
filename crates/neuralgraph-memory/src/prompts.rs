@@ -55,6 +55,10 @@ pub const IMPORT_RULES: &str = r##"THIS IS IMPORTED HISTORY: an old conversation
 - goals and plans (with dates when given), health, possessions, important events
 NEVER store general knowledge the assistant explained, suggestions the user did not take up, small talk, or anything that was only true at that moment. Merge related details into one memory instead of several. When the batch holds nothing personal and durable, return {{"memories": []}}. Rate importance 0.9 for identity or a lasting preference, 0.7 for plans, relationships and projects, 0.5 for useful background; leave out anything below 0.5."##;
 
+/// Added to the memory prompt for imported documents (notes, a profile, a PDF, a transcribed screenshot).
+pub const DOCUMENT_RULES: &str = r##"THIS IS ONE SECTION OF A DOCUMENT the user imported on purpose: their notes, a profile of them, or a page they saved. Its first line, in [brackets], is the document title and section headings: use it to understand what the section is about, and never store it as a memory. "You", "your" and "I" in the text mean the user.
+Record EVERY distinct fact in this section as its own memory, in order: do not summarise the section, do not skip a line because it looks minor, and do not stop early. Keep the specifics exactly: names, model numbers, counts, dates, places, URLs, versions. A list of items becomes one memory per item, or one memory naming every item. Importance: 0.9 identity and standing preferences or rules, 0.7 projects, plans, people and possessions, 0.5 other details."##;
+
 pub const ASSISTANT_RULE_ON: &str = r##"Messages marked (assistant) ARE valid sources for what the assistant told the user: recommendations, names, numbers, ratios, instructions, places, titles. Phrase them from the user's side with the user as subject ("The user was recommended Miss Bee Providore in Bandung", "The user was told to dilute tea tree oil 1:10 with a carrier oil"). Never make the assistant itself the subject."##;
 
 pub const ASSISTANT_SKIP_OFF: &str = r##"generic advice or explanations from the assistant"##;
