@@ -852,6 +852,10 @@ impl MemoryExtractor {
             let extra = format!("\n{}", cfg.memory_prompt_extra.trim());
             mem_prompt = insert_at_marker(mem_prompt, "\n\nCHAT PARTICIPANTS:", &extra, false);
         }
+        if chat_id.starts_with(crate::store::CODING_CHAT_PREFIX) {
+            let rules = format!("\n{}", prompts::CODING_SESSION_RULES.replace("{{", "{").replace("}}", "}"));
+            mem_prompt = insert_at_marker(mem_prompt, "\n\nCHAT PARTICIPANTS:", &rules, false);
+        }
         mem_prompt += &repair;
         let mem_call = self.llm.generate(&mem_prompt, max_tokens, 0.0, cfg.llm_timeout);
         let (mem_out, rel_out) = if cfg.extract_relations {

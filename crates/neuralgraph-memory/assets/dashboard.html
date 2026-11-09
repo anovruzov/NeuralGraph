@@ -286,7 +286,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     const steps = LAST_STEPS.length ? `<ul class="steps">${LAST_STEPS.map(s => `<li class="${s.ok?'ok':'bad'}">${esc(s.text)}</li>`).join('')}</ul>` : '';
     const g = st.grade || {}, ax = g.axes || {}, tk = st.tokens || {};
     const AX = [['coverage','Coverage'],['compression','Compression'],['connectivity','Connectivity'],['freshness','Freshness'],['reliability','Reliability']];
-    const recent = (st.recent_memories||[]).slice(0, 6);
+    const recent = (st.recent_memories||[]).filter(m => (m.importance ?? 1) >= MINOR).slice(0, 6);
     body.innerHTML = `
       <div class="card hero">
         <div><h2><span class="dot ${dot}"></span>${title}</h2><p>${line}</p>${steps}</div>
@@ -321,16 +321,29 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   const memRow = x => `<div class="mem"><div class="t">${esc(x.text)}</div><div class="m"><span class="kind">${esc(x.kind)}</span><span>${esc(x.subject_name)}</span><span>${esc(ago(x.observed_at || x.event_time))}</span></div></div>`;
 
   // ---------- Memories: Browse · Ask · Add ----------
-  let MEMS = null, memKind = '', memQuery = '';
+  // memories rated below this are minor: hidden by default, archived by the cleanup when nobody recalls them
+  const MINOR = 0.6;
+  let MEMS = null, memKind = '', memQuery = '', showMinor = false, memView = 'active';
   async function renderMemories(tab, changed){
     if (!changed) return;
-    const subs = {browse:'Everything NeuralGraph has learned. Hover a memory to forget it.', ask:'Ask a question. The answer comes only from your memories.', add:'Tell NeuralGraph something to remember right away.'};
+    const subs = {browse:'What NeuralGraph has learned. Minor details are hidden; hover a memory to forget it.', ask:'Ask a question. The answer comes only from your memories.', add:'Tell NeuralGraph something to remember right away.'};
     $('#main').innerHTML = `<div class="page">${header('Memories', subs[tab], 'memories', tab)}<div id="mem-body"></div></div>`;
     const b = $('#mem-body');
     if (tab === 'browse') {
-      b.innerHTML = `<div class="toolbar"><input class="field" id="mq" placeholder="Filter memories…" value="${esc(memQuery)}" aria-label="Filter memories"><div class="chips" id="kinds"></div></div><div class="card list" id="mlist"><div class="empty"><span class="spinner"></span></div></div>`;
+      b.innerHTML = `<div class="toolbar"><input class="field" id="mq" placeholder="Filter memories…" value="${esc(memQuery)}" aria-label="Filter memories">
+          <nav class="seg" aria-label="Which memories"><a href="#" data-v="active" class="${memView==='active'?'on':''}">Current</a><a href="#" data-v="archived" class="${memView==='archived'?'on':''}">Archived</a></nav>
+          <button class="btn ghost" id="clean" title="Merge near-duplicates and archive minor memories nobody has recalled">Clean up now</button></div>
+        <div class="toolbar"><div class="chips" id="kinds"></div></div><div class="card list" id="mlist"><div class="empty"><span class="spinner"></span></div></div>
+        <div class="group-note">Cleanup also runs by itself once a day: minor memories nobody recalled for two weeks are archived. Archived memories can be restored.</div>`;
       $('#mq').oninput = e => { memQuery = e.target.value; paintMems(); };
-      try { MEMS = (await api('/api/memories?limit=500')).memories || []; } catch(e) { $('#mlist').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+      b.querySelectorAll('[data-v]').forEach(a => a.onclick = ev => { ev.preventDefault(); memView = a.dataset.v; current = {}; render(); });
+      $('#clean').onclick = async () => {
+        if (!confirm('Clean up now? Near-duplicates are merged and minor memories nobody has recalled are archived. You can restore archived memories.')) return;
+        $('#clean').disabled = true; $('#clean').innerHTML = '<span class="spinner"></span>';
+        try { const d = await api('/api/cleanup', {all_minor: true}); toast(`Merged ${plural(d.merged || 0, 'duplicate')} · archived ${d.archived || 0} minor ${d.archived === 1 ? 'memory' : 'memories'}`); }
+        catch(e) { toast('Could not clean up: ' + e.message); }
+        current = {}; render(); };
+      try { MEMS = (await api('/api/memories?limit=500&status=' + memView)).memories || []; } catch(e) { $('#mlist').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
       if (current.tab === 'browse') paintMems();
     } else if (tab === 'ask') {
       b.innerHTML = `<div class="toolbar"><input class="field" id="aq" placeholder="e.g. Where does Ali live? What did I decide about the release?" aria-label="Question"><button class="btn" id="ab">Ask</button></div><div id="ares"></div>`;
@@ -356,12 +369,22 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     const kinds = [...new Set(MEMS.map(m => m.kind))].sort();
     $('#kinds').innerHTML = ['', ...kinds].map(k => `<button class="chip ${k===memKind?'on':''}" data-k="${esc(k)}" aria-pressed="${k===memKind}">${k ? esc(k) : 'All'}</button>`).join('');
     $('#kinds').querySelectorAll('.chip').forEach(c => c.onclick = () => { memKind = c.dataset.k; paintMems(); });
+    const archived = memView === 'archived';
+    const minorCount = archived ? 0 : MEMS.filter(m => m.importance < MINOR).length;
+    if (minorCount) { $('#kinds').insertAdjacentHTML('beforeend', `<button class="chip ${showMinor?'on':''}" id="minor" aria-pressed="${showMinor}">${showMinor ? 'Hide' : 'Show'} ${minorCount} minor</button>`);
+      $('#minor').onclick = () => { showMinor = !showMinor; paintMems(); }; }
     const q = memQuery.toLowerCase();
-    const rows = MEMS.filter(m => (!memKind || m.kind === memKind) && (!q || (m.text + ' ' + m.subject_name).toLowerCase().includes(q)));
-    $('#mlist').innerHTML = rows.length ? rows.slice(0, 300).map(x => `<div class="mem"><div><div class="t">${esc(x.text)}</div><div class="m"><span class="kind">${esc(x.kind)}</span><span>${esc(x.subject_name)}</span><span>${esc(ago(x.observed_at))}</span><span>${esc(x.chat_id)}</span></div></div><button class="btn danger x" data-id="${esc(x.memory_id)}" title="Forget this memory">Forget</button></div>`).join('')
+    const rows = MEMS.filter(m => (archived || showMinor || m.importance >= MINOR) && (!memKind || m.kind === memKind) && (!q || (m.text + ' ' + m.subject_name).toLowerCase().includes(q)));
+    const action = x => archived
+      ? `<button class="btn ghost x" data-r="${esc(x.memory_id)}" title="Bring this memory back">Restore</button>`
+      : `<button class="btn danger x" data-id="${esc(x.memory_id)}" title="Forget this memory">Forget</button>`;
+    $('#mlist').innerHTML = rows.length ? rows.slice(0, 300).map(x => `<div class="mem"><div><div class="t">${esc(x.text)}</div><div class="m"><span class="kind">${esc(x.kind)}</span>${x.importance < MINOR ? '<span class="kind">minor</span>' : ''}<span>${esc(x.subject_name)}</span><span>${esc(ago(x.observed_at))}</span><span>${esc(x.chat_id)}</span></div></div>${action(x)}</div>`).join('')
       + (rows.length > 300 ? `<div class="muted small" style="padding-top:10px">Showing 300 of ${rows.length}. Filter to narrow it down.</div>` : '')
-      : `<div class="empty">${MEMS.length ? 'No memories match.' : 'No memories yet.'}</div>`;
-    $('#mlist').querySelectorAll('.x').forEach(bt => bt.onclick = async () => {
+      : `<div class="empty">${archived ? 'Nothing archived.' : MEMS.length ? (minorCount && !showMinor ? 'Only minor memories match. Use “Show minor”.' : 'No memories match.') : 'No memories yet.'}</div>`;
+    $('#mlist').querySelectorAll('[data-r]').forEach(bt => bt.onclick = async () => {
+      try { await api('/api/memories/restore', {memory_id: bt.dataset.r}); MEMS = MEMS.filter(m => m.memory_id !== bt.dataset.r); paintMems(); toast('Restored'); }
+      catch(e) { toast('Could not restore: ' + e.message); } });
+    $('#mlist').querySelectorAll('[data-id]').forEach(bt => bt.onclick = async () => {
       if (!confirm('Forget this memory? It will no longer be recalled.')) return;
       try { await api('/api/forget', {memory_id: bt.dataset.id, reason: 'forgotten in the web UI'}); MEMS = MEMS.filter(m => m.memory_id !== bt.dataset.id); paintMems(); toast('Forgotten'); }
       catch(e) { toast('Could not forget: ' + e.message); } });
@@ -381,7 +404,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     if (tab === 'chats') {
       if (!changed) return;
       try { const chats = (await api('/api/chats')).chats || [];
-        b.innerHTML = chats.length ? `<div class="card" style="padding:6px 8px"><table class="tbl"><thead><tr><th>Chat</th><th class="n">Messages</th><th class="n">Last active</th></tr></thead><tbody>${chats.map(c => `<tr><td>${esc(c.title || c.chat_id)}<div class="muted small">${esc(c.chat_id)}</div></td><td class="n">${c.message_count ?? ''}</td><td class="n">${esc(ago(c.updated_at))}</td></tr>`).join('')}</tbody></table></div>` : '<div class="card empty">No chats yet.</div>';
+        b.innerHTML = chats.length ? `<div class="card" style="padding:6px 8px"><table class="tbl"><thead><tr><th>Chat</th><th class="n">Messages</th><th class="n">Last active</th><th></th></tr></thead><tbody>${chats.map(c => `<tr><td>${esc(c.title || c.chat_id)}<div class="muted small">${esc(c.chat_id)}${c.chat_id.startsWith('claude-code-') ? ' · coding session: only lasting facts are kept' : ''}</div></td><td class="n">${c.message_count ?? ''}</td><td class="n">${esc(ago(c.updated_at))}</td><td class="n"><button class="btn ghost" data-relearn="${esc(c.chat_id)}" title="Archive this chat's memories and learn it again with the current rules">Re-learn</button></td></tr>`).join('')}</tbody></table></div>
+          <div class="group-note">Re-learn reads a chat again with today's rules. Its current memories are archived first, so you can restore any you miss.</div>` : '<div class="card empty">No chats yet.</div>';
+        b.querySelectorAll('[data-relearn]').forEach(bt => bt.onclick = async () => {
+          if (!confirm('Re-learn this chat? Its memories are archived and it is read again with the current rules.')) return;
+          bt.disabled = true; bt.innerHTML = '<span class="spinner"></span>';
+          try { const d = await api('/api/chats/relearn', {chat_id: bt.dataset.relearn}); toast(`Archived ${d.archived}, re-reading ${plural(d.queued, 'message')}`); }
+          catch(e) { toast('Could not re-learn: ' + e.message); }
+          bt.disabled = false; bt.textContent = 'Re-learn'; });
       } catch(e) { b.innerHTML = `<div class="card empty">${esc(e.message)}</div>`; }
       return;
     }

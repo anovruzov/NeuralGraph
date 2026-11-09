@@ -372,6 +372,19 @@ share nothing.
   <img src="docs/images/dashboard.png" alt="The NeuralGraph web app: sidebar with an on/off switch and five sections; the Home page shows status, counts, recent memories and health" width="820">
 </div>
 
+**Fewer, better memories.** Chats recorded by the Claude Code hooks are coding sessions, so they
+are learned differently from ordinary chats. Each turn waits ten minutes, and every new turn
+pushes the earlier ones back, so a stretch of work is read in one go, 20 messages at a time,
+instead of two at a time. The model is told to keep only lasting facts: your preferences,
+decisions, projects, people and setup. It drops progress updates, test results and release
+status. On a real 30-message session this cut 38 memories to 10, and 15 model calls to 2.
+*Activity → Chats → Re-learn* re-reads an older chat with today's rules.
+
+Memories rated below 0.6 are **minor**. *Memories → Browse* hides them unless you ask to see
+them. Once a day, minor memories nobody has recalled for two weeks are archived. *Clean up
+now* merges near-duplicates and archives every minor memory nobody has recalled, at any age.
+Archived memories leave search and the graph, and *Archived → Restore* brings any of them back.
+
 **On/off switch.** The switch at the top of the sidebar pauses NeuralGraph and unloads its
 chat and embedding models from LM Studio or Ollama, so their RAM is free for something else.
 Other models you have loaded are left alone. While paused, no NeuralGraph process calls a
