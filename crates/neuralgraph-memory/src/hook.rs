@@ -33,6 +33,11 @@ pub struct Turn {
     pub timestamp: Option<String>,
 }
 
+/// How long a Claude Code turn waits before it is learned. Every new turn of the chat pushes the earlier ones back
+/// (the queue's pull-forward debounce), so a working session is read in one go, ten minutes after it goes quiet,
+/// in batches of up to [`crate::store::CODING_BATCH`] messages, instead of two messages at a time.
+pub const CODING_DEBOUNCE_SECONDS: f64 = 600.0;
+
 /// Longest text kept per message; the rest is cut (code and logs rarely hold memories).
 const MAX_CHARS: usize = 2500;
 

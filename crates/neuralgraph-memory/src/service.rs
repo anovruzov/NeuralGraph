@@ -512,6 +512,25 @@ impl ChatMemory {
         self.worker.maintain().await
     }
 
+    /// "Clean up now": merge near-duplicates (the maintenance pass) and archive minor memories nobody recalled,
+    /// of any age (`all_minor`) or only those older than two weeks, as the daily pass does.
+    pub async fn cleanup(&self, all_minor: bool) -> Result<Value> {
+        let maint = self.maintain().await?;
+        let days = if all_minor { 0.0 } else { crate::store::ARCHIVE_MINOR_AFTER_DAYS };
+        let archived = self.store.archive_minor(crate::store::MINOR_IMPORTANCE, days)?;
+        self.store.set_meta("last_cleanup_at", &crate::models::utcnow().timestamp().to_string())?;
+        let detail = serde_json::json!({"merged": maint["merged"], "archived": archived.len()});
+        self.store.log_event("cleanup", None, Some(&detail))?;
+        Ok(serde_json::json!({"merged": maint["merged"], "archived": archived.len(), "archived_ids": archived}))
+    }
+
+    /// Learn a chat again with the current rules: its memories are archived and its messages queued once more.
+    pub fn relearn_chat(&self, chat_id: &str) -> Result<Value> {
+        let (archived, queued) = self.store.relearn_chat(chat_id, self.config.max_attempts)?;
+        self.worker.wake();
+        Ok(serde_json::json!({"archived": archived, "queued": queued}))
+    }
+
     // ------------------------------------------------------------------ accounting & grading
     fn scalar(&self, sql: &str) -> Result<i64> {
         self.store.with_conn(|c| Ok(c.query_row(sql, [], |r| r.get(0))?))

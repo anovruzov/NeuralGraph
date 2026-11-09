@@ -466,3 +466,22 @@ async fn test_relations_carry_source_time() {
     assert!(!plan.relations.is_empty());
     assert!(plan.relations.iter().all(|r| r.observed_at == m1.sent_at));
 }
+
+#[tokio::test]
+async fn test_coding_sessions_get_the_durable_facts_rules() {
+    let f = fx();
+    let plain = add(&f.store, "c1", "Ali", "I moved to Berlin in March 2026 and adopted a cat.", "", None);
+    let coding =
+        add(&f.store, "claude-code-abc", "user", "I always use Rust for CLIs; ship the release now.", "", None);
+    let llm = default_llm();
+    let e = ex(&f.store, &llm, ExtractionConfig::default());
+    e.build_plan(std::slice::from_ref(&plain), &[], 1).await.unwrap();
+    e.build_plan(std::slice::from_ref(&coding), &[], 1).await.unwrap();
+    let memory_prompts: Vec<String> = llm.prompts().into_iter().filter(|p| p.contains("CHAT PARTICIPANTS:")).collect();
+    assert_eq!(memory_prompts.len(), 2);
+    assert!(!memory_prompts[0].contains("THIS IS A CODING SESSION"), "ordinary chats keep the recall-first rules");
+    let p = &memory_prompts[1];
+    assert!(p.contains("THIS IS A CODING SESSION"));
+    assert!(p.contains(r#"return {"memories": []}"#), "format braces are unescaped: {p}");
+    assert!(p.find("THIS IS A CODING SESSION").unwrap() < p.find("CHAT PARTICIPANTS:").unwrap());
+}

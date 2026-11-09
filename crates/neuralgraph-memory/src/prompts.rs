@@ -38,6 +38,15 @@ Return ONLY JSON:
 
 pub const ASSISTANT_RULE_OFF: &str = r##"Messages marked (assistant) are reference only and can never be a source; only what the human participants say counts."##;
 
+/// Added to the memory prompt for coding sessions (Claude Code chats): keep only what will still matter next week.
+pub const CODING_SESSION_RULES: &str = r##"THIS IS A CODING SESSION between the user and an AI coding agent. Almost all of it is work in progress that will not matter next week. Keep ONLY durable facts about the user and their world:
+- the user's preferences, habits and working style (tools, languages, how they like answers)
+- decisions the user made and why, and their goals and deadlines
+- what each of their projects is, its purpose and its stack
+- people, teams and organisations they mention
+- their machine, accounts and setup
+NEVER store: progress or status updates, what the agent did or will do next, test results, file edits, command output, errors, commit/PR/version/release status, or anything that is only true during this session. Merge related details into one memory instead of several. Most batches contain nothing durable: then return {{"memories": []}}. Rate importance 0.9 for a lasting preference or identity fact, 0.7 for a project goal or decision, 0.5 for useful background; leave out anything below 0.5."##;
+
 pub const ASSISTANT_RULE_ON: &str = r##"Messages marked (assistant) ARE valid sources for what the assistant told the user: recommendations, names, numbers, ratios, instructions, places, titles. Phrase them from the user's side with the user as subject ("The user was recommended Miss Bee Providore in Bandung", "The user was told to dilute tea tree oil 1:10 with a carrier oil"). Never make the assistant itself the subject."##;
 
 pub const ASSISTANT_SKIP_OFF: &str = r##"generic advice or explanations from the assistant"##;

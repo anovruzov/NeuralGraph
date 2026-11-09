@@ -572,6 +572,16 @@ pub struct EntityGraph {
     pub co_mentions: Vec<CoMention>,
 }
 
+/// Chats recorded by the Claude Code hooks. They are coding sessions: mostly work in progress, so they are read in
+/// big batches with stricter extraction rules (see [`CODING_BATCH`] and `prompts::CODING_SESSION_RULES`).
+pub const CODING_CHAT_PREFIX: &str = "claude-code-";
+/// Messages per extraction pass for coding chats (the hook's debounce lets a whole stretch of work pile up).
+pub const CODING_BATCH: i64 = 20;
+/// Memories rated below this are "minor": hidden by default in the web app and archived by the cleanup when nobody
+/// recalled them for [`ARCHIVE_MINOR_AFTER_DAYS`].
+pub const MINOR_IMPORTANCE: f64 = 0.6;
+pub const ARCHIVE_MINOR_AFTER_DAYS: f64 = 14.0;
+
 /// SQLite-backed store. See module docs.
 pub struct ChatMemoryStore {
     pub db_path: String,
@@ -744,6 +754,109 @@ impl ChatMemoryStore {
 
     pub fn set_paused(&self, paused: bool) -> Result<()> {
         self.set_meta("paused", if paused { "1" } else { "0" })
+    }
+
+    // ------------------------------------------------------------------ cleanup
+    /// Archive active memories rated below `min_importance` that were never recalled and are older than
+    /// `older_than_days` (0 = any age). Archived memories leave search and the graph but can be restored.
+    pub fn archive_minor(&self, min_importance: f64, older_than_days: f64) -> Result<Vec<String>> {
+        let now = now_iso();
+        let cutoff = iso(utcnow() - seconds(older_than_days.max(0.0) * 86400.0));
+        let out = self.tx(|c| {
+            let mut st = c.prepare(
+                "SELECT memory_id FROM memories WHERE status='active' AND importance < ? AND access_count = 0
+                   AND created_at <= ? ORDER BY created_at",
+            )?;
+            let ids: Vec<String> =
+                st.query_map(params![min_importance, cutoff], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+            for id in &ids {
+                Self::archive_sync(c, id, &now)?;
+            }
+            Ok(ids)
+        })?;
+        if !out.is_empty() {
+            self.bump();
+        }
+        Ok(out)
+    }
+
+    fn archive_sync(c: &Connection, memory_id: &str, now: &str) -> Result<()> {
+        c.execute(
+            "UPDATE memories SET status='archived', updated_at=? WHERE memory_id=? AND status='active'",
+            params![now, memory_id],
+        )?;
+        // a relation only this memory grounded goes with it, as on supersede
+        c.execute(
+            "UPDATE relations SET status='superseded', updated_at=? WHERE memory_id=? AND status='active' AND observation_count <= 1",
+            params![now, memory_id],
+        )?;
+        Ok(())
+    }
+
+    /// Bring an archived memory back. Returns false when it was not archived.
+    pub fn restore_memory(&self, memory_id: &str) -> Result<bool> {
+        let now = now_iso();
+        let n = self.tx(|c| {
+            let n = c.execute(
+                "UPDATE memories SET status='active', updated_at=? WHERE memory_id=? AND status='archived'",
+                params![now, memory_id],
+            )?;
+            if n > 0 {
+                c.execute(
+                    "UPDATE relations SET status='active', updated_at=? WHERE memory_id=? AND status='superseded'",
+                    params![now, memory_id],
+                )?;
+            }
+            Ok(n)
+        })?;
+        self.bump();
+        Ok(n > 0)
+    }
+
+    /// Learn a chat again from its messages (e.g. after the extraction rules changed): its active memories are
+    /// archived and every message is queued once more. Returns (memories archived, messages queued).
+    pub fn relearn_chat(&self, chat_id: &str, max_attempts: i64) -> Result<(usize, usize)> {
+        let now = now_iso();
+        let out = self.tx(|c| {
+            let mut st = c.prepare("SELECT memory_id FROM memories WHERE chat_id=? AND status='active'")?;
+            let mems: Vec<String> = st.query_map([chat_id], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+            for id in &mems {
+                Self::archive_sync(c, id, &now)?;
+            }
+            // finished jobs hold the dedupe keys; queued/leased ones are already on their way
+            c.execute(
+                "DELETE FROM jobs WHERE chat_id=? AND kind='extract' AND status IN ('done','dead')",
+                params![chat_id],
+            )?;
+            c.execute(
+                "UPDATE messages SET status='pending', processed_at=NULL WHERE chat_id=? AND status IN ('processed','skipped','failed')",
+                params![chat_id],
+            )?;
+            let mut st = c.prepare("SELECT message_id, seq FROM messages WHERE chat_id=? AND status='pending' ORDER BY seq")?;
+            let msgs: Vec<(String, i64)> =
+                st.query_map([chat_id], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
+            let mut queued = 0;
+            for (mid, seq) in &msgs {
+                if Self::enqueue_sync(
+                    c,
+                    "extract",
+                    Some(chat_id),
+                    Some(mid),
+                    Some(*seq),
+                    Some(&format!("extract:{mid}")),
+                    None,
+                    max_attempts,
+                    None,
+                )?
+                .is_some()
+                {
+                    queued += 1;
+                }
+            }
+            Ok((mems.len(), queued))
+        })?;
+        self.bump();
+        Ok(out)
     }
 
     // ------------------------------------------------------------------ chats & messages
@@ -1190,8 +1303,9 @@ impl ChatMemoryStore {
             // a job that already failed is retried with a smaller batch (halved per attempt) so one bad message
             // cannot poison its neighbours and the retried prompt differs from the failed one
             let shift = |v: i64| if head.attempts >= 63 || head.attempts < 0 { 0 } else { v >> head.attempts };
-            let eff_batch = shift(batch_size).max(1);
-            let eff_words = shift(batch_words).max(0);
+            let coding = head.chat_id.as_deref().is_some_and(|c| c.starts_with(CODING_CHAT_PREFIX));
+            let eff_batch = shift(if coding { CODING_BATCH } else { batch_size }).max(1);
+            let eff_words = if coding { 0 } else { shift(batch_words).max(0) };
             if head.kind == "extract" && eff_words > 0 && head.chat_id.is_some() {
                 // word mode: keep pulling contiguous queued messages until the batch holds eff_words words
                 let wtext: Option<String> = c

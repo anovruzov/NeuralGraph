@@ -488,6 +488,24 @@ async fn test_control_panel_pause_resume_and_settings() {
     assert_eq!(saved["user_name"], "Ada");
     let (code, _, _) = send(&app, "POST", "/api/auto-memory", &json_h, Some(json!({"on": "yes"}).to_string())).await;
     assert_eq!(code, 400);
+
+    // cleanup, re-learn and restore from the web app
+    let (code, _, body) =
+        send(&app, "POST", "/api/cleanup", &json_h, Some(json!({"all_minor": true}).to_string())).await;
+    assert_eq!(code, 200, "{body}");
+    let r: Value = serde_json::from_str(&body).unwrap();
+    assert!(r["merged"].is_number() && r["archived"].is_number(), "{r}");
+    let (code, _, _) = send(&app, "POST", "/api/chats/relearn", &json_h, Some("{}".into())).await;
+    assert_eq!(code, 400);
+    let (code, _, body) =
+        send(&app, "POST", "/api/chats/relearn", &json_h, Some(json!({"chat_id": "c1"}).to_string())).await;
+    assert_eq!(code, 200, "{body}");
+    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["archived"], 2, "both seeded memories of chat c1");
+    let archived = get("/api/memories?status=archived").await;
+    let first = archived["memories"][0]["memory_id"].as_str().unwrap().to_string();
+    let (_, _, body) =
+        send(&app, "POST", "/api/memories/restore", &json_h, Some(json!({"memory_id": first}).to_string())).await;
+    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["restored"], true);
 }
 
 #[tokio::test]

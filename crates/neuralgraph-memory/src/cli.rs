@@ -799,7 +799,9 @@ pub async fn run(cli: Cli) -> Result<i32> {
     match cli.cmd {
         Command::Setup { yes } => cmd_setup(yes).await,
         Command::Hook { common, .. } => {
-            let cm = build(&common)?;
+            let mut cfg = build_config(&common);
+            cfg.debounce_seconds = crate::hook::CODING_DEBOUNCE_SECONDS;
+            let cm = ChatMemory::open(&common.db, None, cfg)?;
             let code = crate::hook::run_claude_code_hook(&cm).await;
             cm.close().await;
             Ok(code)

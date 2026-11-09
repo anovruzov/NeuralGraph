@@ -399,6 +399,23 @@ impl MemoryWorker {
         Ok(n)
     }
 
+    /// Once a day (shared by every process on the database): archive minor memories nobody recalled for two weeks.
+    fn daily_cleanup(&self) -> Result<()> {
+        let now = utcnow().timestamp();
+        let last: i64 = self.store.get_meta("last_cleanup_at")?.and_then(|v| v.parse().ok()).unwrap_or(0);
+        if now - last < 86_400 {
+            return Ok(());
+        }
+        self.store.set_meta("last_cleanup_at", &now.to_string())?;
+        let archived =
+            self.store.archive_minor(crate::store::MINOR_IMPORTANCE, crate::store::ARCHIVE_MINOR_AFTER_DAYS)?;
+        if !archived.is_empty() {
+            tracing::info!("daily cleanup: archived {} minor memories nobody recalled", archived.len());
+            self.store.log_event("cleanup", None, Some(&serde_json::json!({"archived": archived.len()})))?;
+        }
+        Ok(())
+    }
+
     // ------------------------------------------------------------------ main loop
     async fn run_loop(self: Arc<Self>, idx: usize) {
         let cancel = self.cancel.lock().unwrap_or_else(|e| e.into_inner()).clone();
@@ -463,6 +480,7 @@ impl MemoryWorker {
             if n > 0 {
                 tracing::warn!("requeued {n} expired leases");
             }
+            self.daily_cleanup()?;
         }
         if cfg.maintenance_interval > 0.0 {
             let due = {

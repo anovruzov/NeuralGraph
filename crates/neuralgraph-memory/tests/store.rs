@@ -419,3 +419,57 @@ fn test_list_memories_filters() {
     let bad = s.list_memories(&MemoryQuery { order: "text; DROP TABLE memories".into(), ..Default::default() });
     assert!(matches!(bad, Err(MemoryError::Value(_))));
 }
+
+#[test]
+fn test_coding_chats_are_leased_in_big_batches() {
+    let f = fixture();
+    for i in 0..25 {
+        add(&f.store, "claude-code-1", "user", &format!("coding message {i}"));
+        add(&f.store, "plain", "user", &format!("plain message {i}"));
+    }
+    let mut sizes = std::collections::HashMap::new();
+    for _ in 0..2 {
+        let jobs = lease(&f.store, "w", 60.0, 2);
+        sizes.insert(jobs[0].chat_id.clone().unwrap(), jobs.len());
+    }
+    assert_eq!(sizes["claude-code-1"], 20, "a coding session is read 20 messages at a time");
+    assert_eq!(sizes["plain"], 2, "other chats keep the configured batch");
+}
+
+#[test]
+fn test_archive_minor_restore_and_relearn() {
+    let f = fixture();
+    let s = &f.store;
+    let mut minor = mem("Ali ran the tests again.");
+    minor.importance = 0.5;
+    let mut recalled = mem("Ali opened a pull request.");
+    recalled.importance = 0.5;
+    let mut major = mem("Ali prefers Rust for command-line tools.");
+    major.importance = 0.9;
+    for m in [&minor, &recalled, &major] {
+        s.insert_memory(m, &[], &[]).unwrap();
+    }
+    s.touch_access(std::slice::from_ref(&recalled.memory_id)).unwrap();
+    assert!(s.archive_minor(0.6, 14.0).unwrap().is_empty(), "nothing is two weeks old yet");
+    let archived = s.archive_minor(0.6, 0.0).unwrap();
+    assert_eq!(archived, [minor.memory_id.clone()], "only unrecalled minor memories go");
+    let active: Vec<String> = s
+        .list_memories(&MemoryQuery { status: Some("active".into()), ..Default::default() })
+        .unwrap()
+        .into_iter()
+        .map(|m| m.memory_id)
+        .collect();
+    assert!(!active.contains(&minor.memory_id) && active.contains(&major.memory_id));
+    assert!(s.restore_memory(&minor.memory_id).unwrap());
+    assert!(!s.restore_memory(&minor.memory_id).unwrap(), "already active");
+
+    // re-learn: the chat's memories are archived and its messages queued again, once
+    let (msg, _) = add(s, "c1", "Ali", "I prefer Rust.");
+    let job = lease(s, "w", 60.0, 1);
+    s.complete_jobs(&job.iter().map(|j| j.job_id).collect::<Vec<_>>()).unwrap();
+    s.set_message_status(std::slice::from_ref(&msg.message_id), "processed").unwrap();
+    let (archived, queued) = s.relearn_chat("c1", 5).unwrap();
+    assert_eq!((archived, queued), (3, 1));
+    assert_eq!(s.relearn_chat("c1", 5).unwrap(), (0, 0), "already queued: nothing twice");
+    assert_eq!(lease(s, "w2", 60.0, 1).len(), 1);
+}

@@ -25,6 +25,9 @@
 //! POST /api/connect           {client}: register the MCP server with Claude Code / Codex / Claude Desktop / Cursor
 //! POST /api/auto-memory       {on}: install or remove the Claude Code hooks
 //! GET  /api/chats             chats with message counts
+//! POST /api/chats/relearn     {chat_id}: archive the chat's memories and learn it again with the current rules
+//! POST /api/cleanup           {all_minor?}: merge near-duplicates, archive minor memories nobody recalled
+//! POST /api/memories/restore  {memory_id}: bring an archived memory back
 //! *    /mcp                   MCP Streamable HTTP transport (see [`crate::mcp`])
 //!
 //! The API is what a chat application calls after every turn ("all automatic"): POST the message, forget about
@@ -337,8 +340,15 @@ async fn route(
                 return not_allowed("GET,HEAD");
             }
         }
-        "/api/control" | "/api/settings" | "/api/settings/test" | "/api/connect" | "/api/auto-memory"
-        | "/api/chats" => {
+        "/api/control"
+        | "/api/settings"
+        | "/api/settings/test"
+        | "/api/connect"
+        | "/api/auto-memory"
+        | "/api/chats"
+        | "/api/cleanup"
+        | "/api/chats/relearn"
+        | "/api/memories/restore" => {
             return control_route(st, method, path, headers, &body).await;
         }
         "/api/messages" | "/api/messages/batch" | "/api/remember" | "/api/forget" | "/api/maintain" | "/api/answer" => {
@@ -742,6 +752,27 @@ async fn control_route(st: &Arc<AppState>, method: &Method, path: &str, headers:
                 Ok(Ok(msg)) => json_resp(&json!({"ok": true, "message": msg}), 200),
                 Ok(Err(e)) => json_resp(&json!({"ok": false, "message": e}), 200),
                 Err(e) => bad(&e.to_string(), 500),
+            }
+        }
+        ("/api/cleanup", _) => {
+            let all = b.get("all_minor").and_then(Value::as_bool).unwrap_or(true);
+            match cm.cleanup(all).await {
+                Ok(v) => json_resp(&v, 200),
+                Err(e) => internal(e),
+            }
+        }
+        ("/api/chats/relearn", _) => {
+            let Some(chat) = s("chat_id") else { return bad("'chat_id' is required", 400) };
+            match cm.relearn_chat(&chat) {
+                Ok(v) => json_resp(&v, 200),
+                Err(e) => internal(e),
+            }
+        }
+        ("/api/memories/restore", _) => {
+            let Some(id) = s("memory_id") else { return bad("'memory_id' is required", 400) };
+            match cm.store.restore_memory(&id) {
+                Ok(restored) => json_resp(&json!({"restored": restored}), 200),
+                Err(e) => internal(e),
             }
         }
         ("/api/auto-memory", _) => {
