@@ -62,6 +62,12 @@ impl LlmClient for ControlledLlm {
     async fn embed_many(&self, texts: &[String]) -> Result<Vec<Vec<f64>>> {
         self.check()?.embed_many(texts).await
     }
+    async fn embed_query(&self, text: &str) -> Result<Vec<f64>> {
+        self.check()?.embed_query(text).await
+    }
+    fn embed_scheme(&self) -> String {
+        self.current().embed_scheme()
+    }
     async fn close(&self) {
         self.current().close().await
     }

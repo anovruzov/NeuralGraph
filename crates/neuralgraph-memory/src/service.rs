@@ -284,6 +284,31 @@ impl ChatMemory {
         )));
     }
 
+    /// Make the stored vectors match the embedding model in use. Called when a long-running process starts and when
+    /// the embedding model changes; returns how many memories are being embedded again in the background.
+    pub fn ensure_embed_scheme(self: &Arc<Self>) -> Result<usize> {
+        let llm = self.control.current();
+        let scheme = llm.embed_scheme();
+        // databases from before schemes were recorded hold plain vectors of the model then in use
+        let dropped = self.store.adopt_embed_scheme(&scheme, &format!("{}|plain", llm.embed_model()))?;
+        if dropped > 0 {
+            tracing::info!("embedding scheme is now {scheme}: embedding {dropped} memories again");
+            let cm = self.clone();
+            tokio::spawn(async move {
+                for _ in 0..200 {
+                    if cm.store.is_paused() {
+                        break; // the back-fill of the next maintenance pass picks it up after resume
+                    }
+                    match cm.maintain().await {
+                        Ok(r) if r["embedded"].as_i64().unwrap_or(0) > 0 => continue,
+                        _ => break,
+                    }
+                }
+            });
+        }
+        Ok(dropped)
+    }
+
     /// Stop all model use and unload the models (see [`crate::control::pause`]).
     pub async fn pause(&self) -> Result<Vec<crate::control::Step>> {
         crate::control::pause(&self.store, self.control.as_ref()).await

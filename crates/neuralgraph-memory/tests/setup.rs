@@ -78,6 +78,7 @@ fn saved_config_maps_to_env_vars() {
         user_name: Some("Ada".into()),
         llm_backend: Some("ollama".into()),
         vision_model: None,
+        idle_unload_minutes: None,
     };
     assert_eq!(
         cfg.env_pairs(),

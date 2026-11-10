@@ -12,6 +12,7 @@
 pub mod answer;
 pub mod backend;
 pub mod bm25;
+pub mod chat;
 pub mod cli;
 pub mod clock;
 pub mod control;
@@ -24,6 +25,7 @@ pub mod import;
 pub mod jsonutil;
 pub mod llm;
 pub mod mcp;
+pub mod modelman;
 pub mod models;
 pub mod prompts;
 pub mod pycompat;

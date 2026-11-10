@@ -111,6 +111,9 @@ pub struct SavedConfig {
     /// a separate model that reads screenshots for Import, when the chat model cannot
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vision_model: Option<String>,
+    /// minutes of idleness before the chat model is unloaded (0 = never)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idle_unload_minutes: Option<String>,
     /// "ollama" or "openai"; only saved when the port alone would guess wrong (Ollama off :11434)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub llm_backend: Option<String>,
@@ -127,6 +130,7 @@ impl SavedConfig {
             ("NEURALGRAPH_USER_NAME", &self.user_name),
             ("LLM_BACKEND", &self.llm_backend),
             ("NEURALGRAPH_VISION_MODEL", &self.vision_model),
+            ("NEURALGRAPH_IDLE_UNLOAD_MIN", &self.idle_unload_minutes),
         ]
         .into_iter()
         .filter_map(|(k, v)| v.as_ref().filter(|v| !v.is_empty()).map(|v| (k, v.clone())))
@@ -1179,6 +1183,7 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
         db: Some(db.clone()),
         user_name: Some(user_name.clone()),
         vision_model: vision_model.clone(),
+        idle_unload_minutes: saved.idle_unload_minutes.clone(),
         llm_backend,
     };
     save(&path, &cfg).map_err(MemoryError::from)?;
@@ -1291,8 +1296,9 @@ pub async fn run_setup(yes: bool) -> Result<SetupOutcome> {
     }
     lines.extend([
         String::new(),
-        format!("  {}", ui.dim("Dashboard   neuralgraph-memory serve  →  http://127.0.0.1:8765/")),
-        format!("  {}", ui.dim("Graph       neuralgraph-memory graph")),
+        format!("  {}", ui.dim("Web app     neuralgraph-memory open   →  http://127.0.0.1:8765/")),
+        format!("  {}", ui.dim("Chat        neuralgraph-memory chat")),
+        format!("  {}", ui.dim("Update      neuralgraph-memory update")),
         format!("  {}", ui.dim("Change any  neuralgraph-memory setup")),
     ]);
     boxed(&ui, &lines);
@@ -1516,17 +1522,7 @@ pub async fn replace_dashboard(port: u16) -> bool {
     if !port_free(port) {
         return false;
     }
-    let log_path = config_path().parent().map(|d| d.join("serve.log")).unwrap_or_else(|| PathBuf::from("serve.log"));
-    let Ok(log) = std::fs::File::create(&log_path) else { return false };
-    let Ok(err) = log.try_clone() else { return false };
-    let mut cmd = Command::new(crate::update::exe_path());
-    cmd.arg("serve").stdin(std::process::Stdio::null()).stdout(log).stderr(err);
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0); // not in the terminal's group: closing the terminal does not stop it
-    }
-    cmd.spawn().is_ok()
+    spawn_dashboard()
 }
 
 /// Size on disk (GB) of every model the server has, by the id it lists them under.
@@ -1570,4 +1566,48 @@ async fn installed_sizes(srv: &Found) -> std::collections::HashMap<String, f64> 
 /// `{ram_gb, disk_free_gb}` of this machine, for the settings page.
 pub fn system_info() -> Value {
     json!({"ram_gb": ram_gb(), "disk_free_gb": disk_free_gb()})
+}
+
+/// Start this binary's `serve` detached from the terminal, logging to `~/.neuralgraph/serve.log`.
+pub fn spawn_dashboard() -> bool {
+    if let Some(dir) = config_path().parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let log_path = config_path().parent().map(|d| d.join("serve.log")).unwrap_or_else(|| PathBuf::from("serve.log"));
+    let Ok(log) = std::fs::File::create(&log_path) else { return false };
+    let Ok(err) = log.try_clone() else { return false };
+    let mut cmd = Command::new(crate::update::exe_path());
+    cmd.arg("serve").stdin(std::process::Stdio::null()).stdout(log).stderr(err);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0); // not in the terminal's group: closing the terminal does not stop it
+    }
+    cmd.spawn().is_ok()
+}
+
+/// LM Studio's `lms` command: on PATH, or where LM Studio installs it.
+pub fn lms_path() -> Option<PathBuf> {
+    which("lms").or_else(|| Some(home().join(".lmstudio/bin/lms")).filter(|p| p.is_file()))
+}
+
+/// The recommended models for the server at `url`: `[{role, name, model, size_gb, installed}]`.
+pub async fn suggested_models(url: &str) -> Vec<Value> {
+    let http = reqwest::Client::new();
+    let url = url.trim_end_matches('/');
+    let Some(srv) = probe_all(&http, Some(url.to_string())).await.into_iter().find(|f| f.url == url) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for role in [Role::Chat, Role::Embedding, Role::Vision] {
+        let Some(d) = srv.download(role) else { continue };
+        let installed = srv
+            .models
+            .iter()
+            .any(|m| m == &d.model || m.strip_prefix(d.model.as_str()).is_some_and(|r| r.starts_with(':')));
+        out.push(json!({
+            "role": role.name(), "name": d.name, "model": d.model, "size_gb": download_size(&srv, &d).await, "installed": installed,
+        }));
+    }
+    out
 }

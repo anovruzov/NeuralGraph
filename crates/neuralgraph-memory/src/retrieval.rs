@@ -790,7 +790,7 @@ impl MemoryRetriever {
         let qvec = if channels.contains('V') {
             match &opts.query_embedding {
                 Some(v) => Some(v.clone()),
-                None => self.llm.embed(&query).await.ok(),
+                None => self.llm.embed_query(&query).await.ok(),
             }
             .filter(|v| !v.is_empty())
         } else {

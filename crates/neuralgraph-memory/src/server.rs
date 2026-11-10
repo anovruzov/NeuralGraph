@@ -27,6 +27,12 @@
 //! GET  /api/update            {current, latest, available} (?force=1 asks GitHub again); POST installs the latest
 //!                             release (SHA-256 checked) and restarts in place
 //! POST /api/restart           restart the server in place (same pid), e.g. after `neuralgraph-memory update`
+//! POST /api/chat              {message, ai?, history?}: an answer written from memory with citations, its evidence
+//!                             (memories, similarity, source chat and message) and retrieval numbers; `/search`,
+//!                             `/who`, `/recent`, `/stats` query the knowledge base with no model
+//! GET  /api/models            the model manager: models on disk, sizes, loaded state, roles, downloads
+//! POST /api/models/load|unload {id}; /api/models/download {name}; /api/models/delete {id} (Ollama)
+//! POST /api/memories/edit     {memory_id, text}: reword a memory
 //! GET  /api/chats             chats with message counts
 //! POST /api/chats/relearn     {chat_id}: archive the chat's memories and learn it again with the current rules
 //! POST /api/cleanup           {all_minor?}: merge near-duplicates, archive minor memories nobody recalled
@@ -366,6 +372,13 @@ async fn route(
         | "/api/memories/restore"
         | "/api/update"
         | "/api/restart"
+        | "/api/chat"
+        | "/api/models"
+        | "/api/models/load"
+        | "/api/models/unload"
+        | "/api/models/download"
+        | "/api/models/delete"
+        | "/api/memories/edit"
         | "/api/import/claude-code"
         | "/api/import/text"
         | "/api/import/commit" => {
@@ -670,14 +683,14 @@ async fn control_route(
     let post = *method == Method::POST;
     let allowed = match path {
         "/api/control" | "/api/settings" | "/api/update" => get_like || post,
-        "/api/chats" => get_like,
+        "/api/chats" | "/api/models" => get_like,
         _ => post,
     };
     if !allowed {
         let mut r = text_error(405, "405: Method Not Allowed");
         let allow = match path {
             "/api/control" | "/api/settings" | "/api/update" => "GET,HEAD,POST",
-            "/api/chats" => "GET,HEAD",
+            "/api/chats" | "/api/models" => "GET,HEAD",
             _ => "POST",
         };
         set_header(&mut r, "Allow", allow);
@@ -776,6 +789,9 @@ async fn control_route(
                 }
                 cfg.db = Some(d.clone());
             }
+            if let Some(mins) = b.get("idle_unload_minutes").and_then(Value::as_u64) {
+                cfg.idle_unload_minutes = Some(mins.to_string());
+            }
             if b.contains_key("vision_model") {
                 // "" clears it: images then need a chat model that can see
                 cfg.vision_model = s("vision_model");
@@ -790,6 +806,8 @@ async fn control_route(
                 std::env::set_var(k, v);
             }
             cm.switch_models(url, s("llm_model"), s("embed_model"));
+            // another embedding model means every memory is embedded again, in the background
+            let reembedding = cm.ensure_embed_scheme().unwrap_or(0);
             if new_db.is_some() {
                 tokio::spawn(async {
                     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
@@ -801,7 +819,7 @@ async fn control_route(
                 "base_url": cm.control.current().base_url(),
                 "chat": cm.control.current().model(),
                 "embed": cm.control.current().embed_model(),
-            }, "note": if s("user_name").is_some() { "A new name applies to memories extracted after the next restart." } else { "" }}),
+            }, "reembedding": reembedding, "note": if s("user_name").is_some() { "A new name applies to memories extracted after the next restart." } else { "" }}),
                 200,
             )
         }
@@ -857,6 +875,71 @@ async fn control_route(
                 crate::update::request_restart();
             });
             json_resp(&json!({"ok": true}), 200)
+        }
+        ("/api/chat", _) => {
+            let Some(message) = s("message") else { return bad("'message' is required", 400) };
+            let ai = b.get("ai").and_then(Value::as_bool).unwrap_or(true);
+            let history: Vec<crate::chat::Turn> = b
+                .get("history")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|t| Some((t.get("q")?.as_str()?.to_string(), t.get("a")?.as_str()?.to_string())))
+                        .collect()
+                })
+                .unwrap_or_default();
+            match crate::chat::reply(cm, &message, ai, &history).await {
+                Ok(v) => json_resp(&v, 200),
+                Err(e) => internal(e),
+            }
+        }
+        ("/api/models", false) => json_resp(&crate::modelman::overview(cm).await, 200),
+        ("/api/models/load", _) | ("/api/models/unload", _) => {
+            let Some(id) = s("id") else { return bad("'id' is required", 400) };
+            let base = llm.base_url();
+            let steps = if path.ends_with("/load") {
+                crate::control::load_models(&base, std::slice::from_ref(&id)).await
+            } else {
+                crate::control::unload_models(&base, std::slice::from_ref(&id)).await
+            };
+            let ok = steps.iter().all(|x| x.ok);
+            json_resp(&json!({"ok": ok, "steps": steps.iter().map(|x| x.to_value()).collect::<Vec<_>>()}), 200)
+        }
+        ("/api/models/download", _) => {
+            let Some(name) = s("name") else { return bad("'name' is required", 400) };
+            match crate::modelman::start_download(&llm.base_url(), &name) {
+                Ok(()) => json_resp(&json!({"ok": true}), 200),
+                Err(e) => json_resp(&json!({"ok": false, "message": e}), 200),
+            }
+        }
+        ("/api/models/delete", _) => {
+            let Some(id) = s("id") else { return bad("'id' is required", 400) };
+            if id == llm.model() || id == llm.embed_model() {
+                return json_resp(
+                    &json!({"ok": false, "message": "NeuralGraph is using this model; pick another one first"}),
+                    200,
+                );
+            }
+            match crate::modelman::delete(&llm.base_url(), &id).await {
+                Ok(()) => json_resp(&json!({"ok": true}), 200),
+                Err(e) => json_resp(&json!({"ok": false, "message": e}), 200),
+            }
+        }
+        ("/api/memories/edit", _) => {
+            let (Some(id), Some(text)) = (s("memory_id"), s("text")) else {
+                return bad("'memory_id' and 'text' are required", 400);
+            };
+            // the new wording gets a new vector; while paused the back-fill embeds it later
+            let embedding = cm.llm().embed(&text).await.ok().filter(|v| !v.is_empty());
+            let fields = [crate::store::MemoryField::Text(text), crate::store::MemoryField::Embedding(embedding)];
+            match cm.store.update_memory(&id, &fields) {
+                Ok(()) => match cm.store.get_memory(&id, false) {
+                    Ok(Some(m)) => json_resp(&json!({"ok": true, "memory": m.to_value(false)}), 200),
+                    Ok(None) => bad("no such memory", 404),
+                    Err(e) => internal(e),
+                },
+                Err(e) => internal(e),
+            }
         }
         ("/api/cleanup", _) => {
             let all = b.get("all_minor").and_then(Value::as_bool).unwrap_or(true);

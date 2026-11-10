@@ -223,8 +223,13 @@ pub const RECALL_MIN_SIM: f64 = 0.57;
 /// Most memories added to one prompt.
 const RECALL_MAX: usize = 5;
 
-fn recall_min_sim() -> f64 {
-    std::env::var("NEURALGRAPH_RECALL_MIN_SIM").ok().and_then(|v| v.parse().ok()).unwrap_or(RECALL_MIN_SIM)
+/// The bar when the embedding model runs in query/document mode (nomic-embed, `embed_scheme` "…|prefix1"): scores
+/// sit higher and apart. Measured on real data: related 0.67-0.81, unrelated 0.57-0.66.
+pub const RECALL_MIN_SIM_TWO_MODE: f64 = 0.665;
+
+fn recall_min_sim(scheme: &str) -> f64 {
+    let default = if scheme.ends_with("|prefix1") { RECALL_MIN_SIM_TWO_MODE } else { RECALL_MIN_SIM };
+    std::env::var("NEURALGRAPH_RECALL_MIN_SIM").ok().and_then(|v| v.parse().ok()).unwrap_or(default)
 }
 
 /// The memories worth adding to `prompt`: semantically close ones only. Keyword-only hits are left out (a shared
@@ -250,7 +255,7 @@ pub async fn recall(cm: &ChatMemory, prompt: &str) -> Option<String> {
     let query: String = prompt.chars().take(600).collect();
     let opts = SearchOptions { k: 12, with_sources: false, ..Default::default() };
     let results = tokio::time::timeout(Duration::from_secs(8), cm.search(&query, &opts)).await.ok()?.ok()?;
-    let picked = pick_relevant(results, recall_min_sim());
+    let picked = pick_relevant(results, recall_min_sim(&cm.llm().embed_scheme()));
     if picked.is_empty() {
         return None;
     }
