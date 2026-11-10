@@ -159,8 +159,11 @@ input.field:focus,select.field:focus,textarea.field:focus{outline:2px solid var(
 .chat-empty{margin:auto;text-align:center;color:var(--text-secondary);max-width:520px}
 .chat-empty h2{font-size:20px;color:var(--text-primary);margin:0 0 6px}
 /* models */
-.rambar{height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-top:8px}
-.rambar b{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .4s}
+.rambar{display:flex;gap:2px;height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-top:10px}
+.rambar b,.rambar u{display:block;height:100%;transition:width .4s}
+.rambar b{background:var(--accent)} .rambar u{background:var(--warn)}
+.ramkey{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--text-secondary)}
+.ramkey i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
 .model{display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;padding:12px 16px;border-top:1px solid var(--line)}
 .model:first-child{border-top:0}
 .model .name{font-weight:600;word-break:break-all} .model .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;align-items:center;font-size:12.5px;color:var(--text-muted)}
@@ -647,7 +650,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   }
 
   // ---------- Models: what is on disk, what is in memory, which model does which job, downloads ----------
-  let MODELS = null, modelsTimer = 0;
+  let MODELS = null, modelsTimer = 0, modelTest = '';
   const gbs = g => g == null ? '' : g < 0.1 ? Math.round(g * 1000) + ' MB' : g.toFixed(1) + ' GB';
   async function loadModels(){ try { MODELS = await api('/api/models'); } catch(e) { MODELS = {error: e.message}; } return MODELS; }
   async function renderModels(_, changed){
@@ -666,6 +669,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     const sys = M.system || {}, ram = sys.ram_gb || 0, models = M.models || [], roles = M.roles || {};
     const chats = models.filter(m => m.kind === 'chat'), embs = models.filter(m => m.kind === 'embedding'), seers = chats.filter(m => m.vision);
     const chatM = models.find(m => m.id === roles.chat), chatSees = chatM && chatM.vision;
+    const others = models.filter(m => m.loaded && !m.roles.length), mine = M.paused ? 0 : (M.in_use_gb || 0);
+    const imgSub = roles.image && roles.image !== roles.chat ? 'Reads the screenshots you import. It is loaded only during an import and unloaded right after, so it takes no memory the rest of the time.'
+      : chatSees ? 'Reads the screenshots you import. Your chat model can read images, so it does this job too: nothing extra to load.'
+      : seers.length ? 'Reads the screenshots you import. Your chat model cannot read images, so pick one that can. It is loaded only during an import.'
+      : 'Reads the screenshots you import. Your chat model cannot read images and no image model is downloaded yet: get one under Download below.';
     const opt = (list, sel) => list.map(m => `<option value="${esc(m.id)}" ${m.id === sel ? 'selected' : ''}>${esc(m.id)}${m.size_gb != null ? ' · ' + gbs(m.size_gb) : ''}</option>`).join('');
     const missing = id => id && !models.some(m => m.id === id) ? `<option value="${esc(id)}" selected>${esc(id)} (not on this server)</option>` : '';
     const tagFor = m => [m.kind === 'embedding' ? 'embedding' : 'chat', m.vision ? 'reads images' : ''].filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('');
@@ -676,18 +684,21 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
       <div class="card">
         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><b>${esc(M.server.label)}</b>
           ${(M.servers || []).length > 1 ? `<select class="field" id="msrv" aria-label="Model server">${M.servers.map(sv => `<option value="${esc(sv.url)}" ${sv.url === M.server.url ? 'selected' : ''}>${esc(sv.label)}</option>`).join('')}</select>` : ''}</div>
-        <div class="muted small" style="margin-top:6px">${M.paused ? 'Paused: NeuralGraph is not using any model.' : `In memory now: <b style="color:var(--text-primary)">${gbs(M.in_memory_gb) || '0 GB'}</b>${ram ? ` of ${Math.round(ram)} GB` : ''} (model files; LM Studio adds about 30% while running)`}</div>
-        ${ram ? `<div class="rambar" title="Share of this computer's memory held by loaded models"><b style="width:${Math.min(100, (M.in_memory_gb || 0) / ram * 100).toFixed(1)}%"></b></div>` : ''}
+        <div style="margin-top:8px;font-size:15px">${M.paused ? 'Paused: NeuralGraph is not using any model.' : `NeuralGraph is using <b>${gbs(mine) || '0 GB'}</b>${ram ? ` of this computer’s ${Math.round(ram)} GB of memory` : ' of memory'}.${chatM && !chatM.loaded ? ` <span class="muted small">Your chat model is resting on disk. It loads in a few seconds when needed${chatM.size_gb != null ? ' (+' + gbs(chatM.size_gb) + ')' : ''}.</span>` : ''}`}</div>
+        ${others.length ? `<div class="muted small" style="margin-top:4px">Another <b style="color:var(--text-primary)">${gbs(M.other_gb)}</b> is held by ${others.map(m => `<b style="color:var(--text-primary)">${esc(m.id)}</b>`).join(', ')}: loaded in ${M.server.kind === 'ollama' ? 'Ollama' : 'LM Studio'}, but NeuralGraph does not use ${others.length === 1 ? 'it' : 'them'}. ${others.length === 1 ? `<button class="btn ghost sm" data-unload="${esc(others[0].id)}" style="margin-left:6px">Unload it</button>` : 'Unload them in the list below to get that memory back.'}</div>` : ''}
+        ${ram ? `<div class="rambar" title="Share of this computer's memory held by loaded models"><b style="width:${Math.min(100, mine / ram * 100).toFixed(1)}%"></b><u style="width:${Math.min(100, (M.other_gb || 0) / ram * 100).toFixed(1)}%"></u></div>
+        <div class="ramkey"><span><i style="background:var(--accent)"></i>NeuralGraph ${gbs(mine) || '0 GB'}</span>${others.length ? `<span><i style="background:var(--warn)"></i>Other loaded models ${gbs(M.other_gb)}</span>` : ''}</div>` : ''}
+        <div class="muted small" style="margin-top:8px">Sizes are the model files. Expect about 30% more while a model is running.</div>
       </div>
       <div class="group-title">Jobs</div><div class="group">
         ${r('Chat model', 'Reads your chats, writes memories and answers in Chat', `<select class="field" id="r-chat" aria-label="Chat model">${missing(roles.chat)}${opt(chats, roles.chat)}</select>`)}
         ${r('Embedding model', 'Finds related memories. Changing it re-embeds every memory in the background.', `<select class="field" id="r-emb" aria-label="Embedding model">${missing(roles.embedding)}${opt(embs, roles.embedding)}</select>`)}
-        ${r('Image model', 'Reads screenshots for Import. Swapped in only while importing.', `<select class="field" id="r-img" aria-label="Image model"><option value="">${chatSees ? 'Same as the chat model (it can see)' : 'None (no screenshot import)'}</option>${opt(seers.filter(m => m.id !== roles.chat), roles.image)}</select>`)}
+        ${r('Image model', imgSub, `<select class="field" id="r-img" aria-label="Image model"><option value="">${chatSees ? esc(roles.chat) + ' (your chat model)' : 'Off: screenshots cannot be imported'}</option>${opt(seers.filter(m => m.id !== roles.chat), roles.image)}</select>`)}
         ${r('Free memory when idle', 'Unloads the chat model after it has not been used for this long. It loads again in a few seconds when needed.', `<select class="field" id="r-idle" aria-label="Unload when idle">${[[0,'Never'],[5,'After 5 minutes'],[15,'After 15 minutes'],[30,'After 30 minutes'],[60,'After 1 hour']].map(([v, l]) => `<option value="${v}" ${+M.idle_unload_minutes === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
       </div>
-      <div class="toolbar" style="margin-top:12px"><button class="btn ghost" id="m-test">Test chat and embeddings</button><span class="muted small" id="m-res">Changes apply right away, no restart.</span></div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn ghost" id="m-test">Test chat and embeddings</button><span class="muted small" id="m-res">${modelTest || 'Changes apply right away, no restart.'}</span></div>
       <div class="group-title">On this computer · ${models.length} model${models.length === 1 ? '' : 's'}${models.some(m => m.size_gb != null) ? ' · ' + gbs(models.reduce((a, m) => a + (m.size_gb || 0), 0)) : ''}</div>
-      <div class="group">${models.map(m => `<div class="model"><div><div class="name">${esc(m.id)}</div><div class="tags">${m.roles.map(x => `<span class="tag role">${roleName[x]}</span>`).join('')}${tagFor(m)}<span>${gbs(m.size_gb)}</span>${m.loaded ? '<span class="badge on"><i></i>In memory</span>' : '<span>on disk</span>'}</div></div>
+      <div class="group">${models.map(m => `<div class="model"><div><div class="name">${esc(m.id)}</div><div class="tags">${m.roles.map(x => `<span class="tag role">${roleName[x]}</span>`).join('')}${tagFor(m)}<span>${gbs(m.size_gb)}</span>${m.loaded ? (m.roles.length ? '<span class="badge on"><i></i>In memory</span>' : '<span class="badge warn"><i></i>In memory, not used by NeuralGraph</span>') : '<span>on disk</span>'}</div></div>
           <div class="acts">${m.loaded ? `<button class="btn ghost sm" data-unload="${esc(m.id)}">Unload</button>` : `<button class="btn ghost sm" data-load="${esc(m.id)}">Load</button>`}${M.can_delete && !m.roles.length ? `<button class="btn danger sm" data-del="${esc(m.id)}">Delete</button>` : ''}</div></div>`).join('') || '<div class="empty">No models on this server yet. Download one below.</div>'}</div>
       <div class="group-title">Download</div>
       <div class="group">
@@ -708,15 +719,24 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     $('#r-emb').onchange = e => { if (confirm('Use ' + e.target.value + ' for embeddings? Every memory is embedded again in the background (a minute or two); search stays available by keyword meanwhile.')) saveRoles({embed_model: e.target.value}); else paintModels(); };
     $('#r-img').onchange = e => saveRoles({vision_model: e.target.value});
     $('#r-idle').onchange = e => saveRoles({idle_unload_minutes: +e.target.value});
-    $('#m-test').onclick = async () => { $('#m-res').innerHTML = '<span class="spinner"></span> testing (the first call loads the model)…';
-      try { const d = await api('/api/settings/test', {}); $('#m-res').textContent = `${d.chat.ok ? '✓' : '✗'} chat: ${d.chat.text} · ${d.embed.ok ? '✓' : '✗'} embeddings: ${d.embed.text}`; } catch(e) { $('#m-res').textContent = e.message; }
-      await loadModels(); };
+    $('#m-test').onclick = runModelTest;
+  }
+  // Ask the chat and embedding models for one answer each, and keep the result on screen across repaints.
+  async function runModelTest(){
+    const show = h => { modelTest = h; const el = $('#m-res'); if (el) el.innerHTML = h; };
+    show('<span class="spinner"></span> Testing (the first call loads the model)…');
+    try { const d = await api('/api/settings/test', {}); const mark = x => `<b style="color:var(--${x.ok ? 'on' : 'bad'})">${x.ok ? '✓' : '✗'}</b>`;
+      show(`${mark(d.chat)} Chat model ${esc(d.chat.text)} · ${mark(d.embed)} Embedding model ${esc(d.embed.ok ? 'works, ' + d.embed.text : d.embed.text)}`); }
+    catch(e) { show(esc(e.message)); }
+    await loadModels(); if (current.page === 'models') paintModels();
   }
   async function saveRoles(body){
     try { const d = await api('/api/settings', body); CONTROL.models = d.models; SETTINGS = null; paintSide();
       toast(d.reembedding ? `Saved. Embedding ${d.reembedding} memories again in the background.` : 'Saved'); }
     catch(e) { toast('Could not save: ' + e.message); }
     await loadModels(); renderModels(null, false);
+    // a newly chosen model is tried at once, so a model that cannot answer is caught here and not in a chat
+    if (body.llm_model || body.embed_model || body.llm_base_url) runModelTest();
   }
 
   // ---------- Graph ----------

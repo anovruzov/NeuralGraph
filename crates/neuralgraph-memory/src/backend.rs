@@ -104,7 +104,8 @@ pub async fn llm_generate(
 }
 
 /// [`llm_generate`] with an explicit per-call `think` switch. `think = false` is exactly [`llm_generate`] (the empty
-/// `<think>` prefill when `LLM_NO_THINK_PREFILL` is set, `reasoning_effort` from `LLM_REASONING_EFFORT`). `think = true`
+/// `<think>` prefill when `LLM_NO_THINK_PREFILL` is set or the model was seen reasoning anyway, `reasoning_effort` from
+/// `LLM_REASONING_EFFORT`; an empty reply that came with reasoning is asked again once with the prefill). `think = true`
 /// lets the model reason: no prefill and no `reasoning_effort` key on the OpenAI-compatible route, `"think": true` on
 /// Ollama. The reply is the message content only (a server's separate reasoning field is ignored), so `max_tokens`
 /// must cover the reasoning as well as the answer.
@@ -135,8 +136,50 @@ pub async fn llm_generate_think(
         let text = data.get("response").and_then(Value::as_str).unwrap_or("");
         return Ok(strip_thinking(text));
     }
+    // Reasoning models (Qwen 3 and friends) can spend the whole reply budget on hidden thinking and return an empty
+    // answer. An empty <think> block prefilled as the start of the reply switches that off. It is used when
+    // LLM_NO_THINK_PREFILL asks for it, and automatically for any model seen reasoning when asked not to.
+    let known = !think && (no_think_prefill() || needs_prefill(model));
+    let (first, reasoned) =
+        chat_once(client, prompt, model, base_url, temperature, max_tokens, timeout_seconds, think, known).await?;
+    if think || known {
+        return Ok(first);
+    }
+    if reasoned {
+        // it reasoned although asked not to: later calls skip the reasoning, which is several times faster
+        tracing::info!("{model} reasons even when asked not to; reasoning is now switched off for it");
+        PREFILL_MODELS.lock().unwrap_or_else(|e| e.into_inner()).insert(model.to_string());
+    }
+    if !first.is_empty() || !reasoned {
+        return Ok(first);
+    }
+    Ok(chat_once(client, prompt, model, base_url, temperature, max_tokens, timeout_seconds, think, true).await?.0)
+}
+
+static PREFILL_MODELS: LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> =
+    LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+/// Whether `model` was seen to need the empty-think prefill in this process.
+pub fn needs_prefill(model: &str) -> bool {
+    PREFILL_MODELS.lock().unwrap_or_else(|e| e.into_inner()).contains(model)
+}
+
+/// One OpenAI-compatible chat completion; `prefill` starts the reply with an empty `<think>` block. Returns the reply
+/// and whether the model reported hidden reasoning alongside it.
+#[allow(clippy::too_many_arguments)]
+async fn chat_once(
+    client: &reqwest::Client,
+    prompt: &str,
+    model: &str,
+    base_url: &str,
+    temperature: f64,
+    max_tokens: i64,
+    timeout_seconds: f64,
+    think: bool,
+    prefill: bool,
+) -> Result<(String, bool), String> {
     let mut messages = vec![json!({"role": "user", "content": prompt})];
-    if !think && no_think_prefill() {
+    if prefill {
         messages.push(json!({"role": "assistant", "content": "<think>\n\n</think>\n\n"}));
     }
     let mut body = json!({
@@ -156,8 +199,12 @@ pub async fn llm_generate_think(
         Some(_) => return Err("choices is not a list".into()),
         None => json!({}),
     };
-    let content = choice.get("message").and_then(|m| m.get("content")).and_then(Value::as_str).unwrap_or("");
-    Ok(strip_thinking(content))
+    let message = choice.get("message");
+    let content = message.and_then(|m| m.get("content")).and_then(Value::as_str).unwrap_or("");
+    let reasoned = ["reasoning_content", "reasoning"]
+        .iter()
+        .any(|k| message.and_then(|m| m.get(*k)).and_then(Value::as_str).is_some_and(|r| !r.trim().is_empty()));
+    Ok((strip_thinking(content), reasoned))
 }
 
 /// Embeddings for several texts in one request (OpenAI-compatible servers accept a list). `None` for Ollama's

@@ -66,7 +66,8 @@ pub async fn overview(cm: &ChatMemory) -> Value {
     let cur = servers.iter().find(|s| s["url"] == base.as_str()).cloned();
     let in_memory = loaded(&base).await;
     let mut models: Vec<Value> = Vec::new();
-    let mut ram_now = 0.0;
+    // model files in memory: everything loaded, and the part held by models NeuralGraph has no job for
+    let (mut ram_now, mut ram_other) = (0.0, 0.0);
     if let Some(s) = &cur {
         let sees: HashSet<&str> =
             s["models"]["vision"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
@@ -74,9 +75,6 @@ pub async fn overview(cm: &ChatMemory) -> Value {
             for id in s["models"][key].as_array().into_iter().flatten().filter_map(Value::as_str) {
                 let size = s["sizes"][id].as_f64();
                 let is_loaded = in_memory.contains(id);
-                if is_loaded {
-                    ram_now += size.unwrap_or(0.0);
-                }
                 let mut roles = Vec::new();
                 if id == chat {
                     roles.push("chat");
@@ -86,6 +84,12 @@ pub async fn overview(cm: &ChatMemory) -> Value {
                 }
                 if vision.as_deref() == Some(id) || (id == chat && sees.contains(id) && vision.is_none()) {
                     roles.push("image");
+                }
+                if is_loaded {
+                    ram_now += size.unwrap_or(0.0);
+                    if roles.is_empty() {
+                        ram_other += size.unwrap_or(0.0);
+                    }
                 }
                 models.push(json!({
                     "id": id, "kind": kind, "vision": sees.contains(id), "size_gb": size, "loaded": is_loaded, "roles": roles,
@@ -100,6 +104,8 @@ pub async fn overview(cm: &ChatMemory) -> Value {
         "roles": {"chat": chat, "embedding": embed, "image": vision},
         "models": models,
         "in_memory_gb": ram_now,
+        "in_use_gb": ram_now - ram_other,
+        "other_gb": ram_other,
         "suggested": setup::suggested_models(&base).await,
         "downloads": downloads(),
         "system": setup::system_info(),

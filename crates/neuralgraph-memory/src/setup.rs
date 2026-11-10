@@ -1420,6 +1420,10 @@ pub async fn test_models(url: &str, chat: &str, embed: &str) -> Value {
     let http = reqwest::Client::new();
     let t = Instant::now();
     let chat_r = match llm_generate(&http, "Reply with one word: ready", chat, url, 0.0, 16, 180.0).await {
+        Ok(r) if r.trim().is_empty() => json!({
+            "ok": false,
+            "text": "answered with nothing. This model cannot be used for chat here; pick another one.",
+        }),
         Ok(_) => json!({"ok": true, "text": format!("replied in {:.1}s", t.elapsed().as_secs_f64())}),
         Err(e) => json!({"ok": false, "text": short(&e)}),
     };

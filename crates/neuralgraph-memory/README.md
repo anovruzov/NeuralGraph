@@ -422,7 +422,7 @@ Two worth understanding:
 | `LLM_BACKEND` | inferred | Force `ollama` or `openai` (LM Studio and other OpenAI-compatible servers). |
 | `LLM_REASONING_EFFORT` | `none` | Sent to OpenAI-compatible servers; keeps thinking models from spending the budget. |
 | `OLLAMA_NUM_PARALLEL` | — | Match `--parallel` when using Ollama. |
-| `LLM_NO_THINK_PREFILL` | unset | Set to `1` for Qwen builds that ignore `reasoning_effort` and spend the whole output budget thinking (empty replies, retries, dead jobs). Prefills an empty think block. |
+| `LLM_NO_THINK_PREFILL` | unset | Set to `1` for Qwen builds that ignore `reasoning_effort` and spend the whole output budget thinking (empty replies, retries, dead jobs). Prefills an empty think block. Rarely needed since 1.7.1: a model seen reasoning when asked not to gets the prefill automatically (one retry if its reply was empty). |
 
 Command-line flags override environment variables.
 
