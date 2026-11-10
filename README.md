@@ -552,7 +552,7 @@ neuralgraph-memory graph --out graph.html     # self-contained explorer, opens w
 | `LLM_MODEL` | `google/gemma-4-e4b` | Generation model |
 | `EMBED_MODEL` | `text-embedding-nomic-embed-text-v1.5` | Embedding model |
 | `OLLAMA_NUM_PARALLEL` | — | Match `--parallel` when using Ollama |
-| `LLM_NO_THINK_PREFILL` | unset | `1` for Qwen builds that ignore `reasoning_effort` and return empty replies |
+| `LLM_NO_THINK_PREFILL` | unset | `1` always switches reasoning off with an empty think block. Rarely needed: a model seen reasoning anyway gets this automatically |
 
 Command-line flags override environment variables, which override the answers `setup`
 saved in `~/.neuralgraph/config.json`.
