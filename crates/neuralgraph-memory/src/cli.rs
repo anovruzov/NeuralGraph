@@ -45,6 +45,8 @@ const ABOUT: &str = "Command line for the cross-chat memory system.
 
     neuralgraph-memory setup     # first run: models, your name, connect Claude Code / Codex
     neuralgraph-memory update    # get the latest version (also a button in the web app)
+    neuralgraph-memory open      # the web app in your browser (starts it if needed)
+    neuralgraph-memory chat      # ask your memory questions in the terminal
     neuralgraph-memory serve     # worker + dashboard + REST API + MCP (Streamable HTTP)
     neuralgraph-memory mcp       # worker + MCP over stdio (Claude Desktop / Claude Code)
     neuralgraph-memory ingest chats.jsonl [--process]
@@ -148,6 +150,24 @@ pub enum Command {
         /// accept every default without asking (connects no tools)
         #[arg(short = 'y', long)]
         yes: bool,
+    },
+    /// ask your memory questions in the terminal (evidence and retrieval numbers on request)
+    Chat {
+        #[command(flatten)]
+        common: Common,
+        /// ask this one question and exit (omit for an interactive session)
+        question: Option<String>,
+        /// only search: show the matching memories, do not let the model write an answer
+        #[arg(long = "no-ai")]
+        no_ai: bool,
+        /// with a QUESTION: print the answer, evidence and stats as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// open the web app in the browser (starts the dashboard in the background if it is not running)
+    Open {
+        /// page to open: home, chat, memories, import, graph, models, activity, settings
+        page: Option<String>,
     },
     /// download the latest version, replace this program and restart the dashboard
     Update {
@@ -320,7 +340,7 @@ impl Command {
     /// The shared options (`setup` has none).
     pub fn common(&self) -> Option<&Common> {
         Some(match self {
-            Command::Setup { .. } | Command::Update { .. } => return None,
+            Command::Setup { .. } | Command::Update { .. } | Command::Open { .. } => return None,
             Command::Serve(ServeArgs { common, .. })
             | Command::Mcp { common }
             | Command::Ingest { common, .. }
@@ -331,6 +351,7 @@ impl Command {
             | Command::Profile { common, .. }
             | Command::Graph { common, .. }
             | Command::Hook { common, .. }
+            | Command::Chat { common, .. }
             | Command::Pause { common }
             | Command::Resume { common }
             | Command::Stats { common }
@@ -461,6 +482,7 @@ async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
     }
     let cm = build(&args.common)?;
     cm.store.announce_generation()?;
+    cm.ensure_embed_scheme()?;
     cm.start().await?;
     let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
     let mcp_token = args.mcp_token.clone().filter(|t| !t.is_empty()).or_else(|| env("NEURALGRAPH_MCP_TOKEN"));
@@ -499,10 +521,22 @@ async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
         "dashboard: http://{host}:{port}/   MCP: http://{host}:{port}/mcp   db: {}",
         cm.store.db_path
     ));
+    // free the chat model's memory after it has sat idle (LM Studio; Ollama does this itself)
+    let idle_cm = cm.clone();
+    let idle_task = tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            let minutes = crate::modelman::idle_unload_minutes();
+            if let Some(freed) = crate::modelman::unload_if_idle(&idle_cm, minutes).await {
+                tracing::info!("unloaded {freed} after {minutes} idle minutes (it loads again on demand)");
+            }
+        }
+    });
     let restart = tokio::select! {
         _ = shutdown_signal() => false,
         _ = crate::update::restart_requested() => true,
     };
+    idle_task.abort();
     println_flush(if restart { "restarting…" } else { "shutting down…" });
     runner.cleanup().await;
     cm.close().await;
@@ -512,6 +546,51 @@ async fn cmd_serve(args: &ServeArgs) -> Result<i32> {
         eprintln!("could not restart: {e}. Start it again with: neuralgraph-memory serve");
         return Ok(1);
     }
+    Ok(0)
+}
+
+/// `open`: the web app in the browser, starting the dashboard in the background when it is not running.
+async fn cmd_open(page: Option<&str>) -> Result<i32> {
+    let port: u16 = std::env::var("NEURALGRAPH_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(8765);
+    let base = format!("http://127.0.0.1:{port}");
+    let http = reqwest::Client::new();
+    let up = |http: reqwest::Client, base: String| async move {
+        http.get(format!("{base}/healthz"))
+            .timeout(std::time::Duration::from_secs(2))
+            .send()
+            .await
+            .is_ok_and(|r| r.status().is_success())
+    };
+    if !up(http.clone(), base.clone()).await {
+        if !crate::setup::spawn_dashboard() {
+            eprintln!("Could not start the dashboard. Start it yourself with: neuralgraph-memory serve");
+            return Ok(1);
+        }
+        let mut ready = false;
+        for _ in 0..40 {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            if up(http.clone(), base.clone()).await {
+                ready = true;
+                break;
+            }
+        }
+        if !ready {
+            eprintln!("The dashboard did not come up; see ~/.neuralgraph/serve.log");
+            return Ok(1);
+        }
+        println_flush("Started NeuralGraph in the background (log: ~/.neuralgraph/serve.log).");
+    }
+    let page = page.unwrap_or("home").trim_start_matches('/').to_lowercase();
+    let url = format!("{base}/#/{page}");
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    let _ = std::process::Command::new(opener).arg(&url).spawn();
+    println_flush(&url);
     Ok(0)
 }
 
@@ -617,6 +696,7 @@ pub async fn shutdown_signal() {
 async fn cmd_mcp(common: &Common) -> Result<i32> {
     let cm = build(common)?;
     cm.store.announce_generation()?;
+    cm.ensure_embed_scheme()?;
     cm.start().await?;
     let r = crate::mcp::serve_stdio(cm.clone()).await;
     cm.close().await;
@@ -906,6 +986,13 @@ pub async fn run(cli: Cli) -> Result<i32> {
     match cli.cmd {
         Command::Setup { yes } => cmd_setup(yes).await,
         Command::Update { check, version, keep_running } => cmd_update(check, version, keep_running).await,
+        Command::Chat { common, question, no_ai, json } => {
+            let cm = build(&common)?;
+            let code = crate::chat::run_terminal(&cm, question, !no_ai, json).await?;
+            cm.close().await;
+            Ok(code)
+        }
+        Command::Open { page } => cmd_open(page.as_deref()).await,
         Command::Hook { common, .. } => {
             let mut cfg = build_config(&common);
             cfg.debounce_seconds = crate::hook::CODING_DEBOUNCE_SECONDS;

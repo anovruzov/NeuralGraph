@@ -473,3 +473,19 @@ fn test_archive_minor_restore_and_relearn() {
     assert_eq!(s.relearn_chat("c1", 5).unwrap(), (0, 0), "already queued: nothing twice");
     assert_eq!(lease(s, "w2", 60.0, 1).len(), 1);
 }
+
+#[test]
+fn test_embed_scheme_change_drops_vectors_once() {
+    let f = fixture();
+    let s = &f.store;
+    let mut m = mem("Ali prefers tea.");
+    m.embedding = Some(vec![0.1, 0.2, 0.3]);
+    s.insert_memory(&m, &[], &[]).unwrap();
+    // a database from before schemes were recorded holds plain vectors of the model in use
+    assert_eq!(s.adopt_embed_scheme("nomic|plain", "nomic|plain").unwrap(), 0);
+    assert!(s.get_memory(&m.memory_id, false).unwrap().unwrap().embedding.is_some());
+    assert_eq!(s.adopt_embed_scheme("nomic|prefix1", "nomic|plain").unwrap(), 1, "another scheme: embed again");
+    assert!(s.get_memory(&m.memory_id, false).unwrap().unwrap().embedding.is_none());
+    assert_eq!(s.adopt_embed_scheme("nomic|prefix1", "nomic|plain").unwrap(), 0, "only once");
+    assert_eq!(s.get_meta("embed_scheme").unwrap().as_deref(), Some("nomic|prefix1"));
+}

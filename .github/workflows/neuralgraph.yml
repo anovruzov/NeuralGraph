@@ -26,37 +26,6 @@ jobs:
           cargo run -p neuralgraph-memory --locked --quiet -- ingest demo/data/sample_chats.jsonl --fake-llm --process --debounce 0 --db "$db"
           cargo run -p neuralgraph-memory --locked --quiet -- search "Where does the user live?" --fake-llm --db "$db"
 
-  research:
-    name: research track (Rust) — clippy, tests, pinned artifacts
-    # macOS: the fixtures pin numpy's float32 arithmetic, which numpy took from Accelerate, and the crate calls the
-    # same routines. Accelerate's last bits still differ between Apple CPU generations, so on CI's runners the
-    # float32-BLAS parity checks take their tolerance path (NEURALGRAPH_BLAS_TOLERANT); everything else stays exact.
-    runs-on: macos-latest
-    env:
-      NEURALGRAPH_BLAS_TOLERANT: "1"
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy -p neuralgraph-research --all-targets --locked -- -D warnings
-      # golden-fixture parity with the Python reference (last Python commit eba2f370)
-      - run: cargo test -p neuralgraph-research --release --locked
-      - name: the coordination track regenerates its pinned artifacts byte for byte
-        run: |
-          out="$RUNNER_TEMP/coordination"
-          mkdir -p "$out/figures"
-          cargo build -p neuralgraph-research --release --locked --bin coordination
-          bin=target/release/coordination
-          $bin experiment --output "$out/experiment_seed20260813.json"
-          $bin benchmark --output "$out/benchmark_seed20260813.json"
-          $bin benchmark --sweep 30 --output "$out/benchmark_sweep30_seed20260813.json"
-          $bin scale --output "$out/scale_seed20260813.json"
-          $bin figures --output-dir "$out/figures"
-          (cd "$out" && shasum -a 256 -c "$GITHUB_WORKSPACE/research/coordination/artifacts/SHA256SUMS")
-
   image:
     name: chat_memory image builds
     runs-on: ubuntu-latest

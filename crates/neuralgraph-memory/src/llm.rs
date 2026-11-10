@@ -52,6 +52,16 @@ pub trait LlmClient: Send + Sync {
     }
     async fn embed(&self, text: &str) -> Result<Vec<f64>>;
     async fn embed_many(&self, texts: &[String]) -> Result<Vec<Vec<f64>>>;
+    /// Embed a search query. Models trained with separate query and document modes (nomic-embed) tell related text
+    /// from unrelated text better when each side says which it is; for the others this is [`Self::embed`].
+    async fn embed_query(&self, text: &str) -> Result<Vec<f64>> {
+        self.embed(text).await
+    }
+    /// What the stored vectors were made with: `"<model>|plain"` or `"<model>|prefix1"`. A different scheme means
+    /// every memory has to be embedded again (see `ChatMemory::ensure_embed_scheme`).
+    fn embed_scheme(&self) -> String {
+        format!("{}|plain", self.embed_model())
+    }
     async fn close(&self);
     /// Call/latency counters for the dashboard (`None` when the client keeps none).
     fn stats(&self) -> Option<Value> {
@@ -229,27 +239,32 @@ impl LlmClient for BackendLlmClient {
     }
 
     async fn embed(&self, text: &str) -> Result<Vec<f64>> {
-        let t0 = Instant::now();
-        self.stats_mut().embed_calls += 1;
-        let out = self
-            .with_retries("embed", || async {
-                let v = crate::backend::llm_embed(&self.http, text, &self.embed_model, &self.base_url, 60.0).await?;
-                if v.is_empty() {
-                    return Err("empty embedding returned".to_string());
-                }
-                Ok(v)
-            })
-            .await;
-        let mut s = self.stats_mut();
-        s.embed_seconds += t0.elapsed().as_secs_f64();
-        if out.is_err() {
-            s.embed_failures += 1;
-        }
-        out
+        self.embed_as(text, false).await
+    }
+
+    async fn embed_query(&self, text: &str) -> Result<Vec<f64>> {
+        self.embed_as(text, true).await
+    }
+
+    fn embed_scheme(&self) -> String {
+        format!("{}|{}", self.embed_model, if self.two_mode() { "prefix1" } else { "plain" })
     }
 
     async fn embed_many(&self, texts: &[String]) -> Result<Vec<Vec<f64>>> {
-        // bounded by the semaphore inside embed(); join_all keeps ordering
+        // one request for the whole list where the server takes one (far fewer round trips while it is busy
+        // generating); otherwise one by one, bounded by the semaphore inside embed()
+        if texts.len() > 1 {
+            let docs: Vec<String> = texts.iter().map(|t| self.as_document(t)).collect();
+            let t0 = Instant::now();
+            if let Some(vs) =
+                crate::backend::llm_embed_batch(&self.http, &docs, &self.embed_model, &self.base_url, 120.0).await
+            {
+                let mut s = self.stats_mut();
+                s.embed_calls += 1;
+                s.embed_seconds += t0.elapsed().as_secs_f64();
+                return Ok(vs);
+            }
+        }
         let results = futures::future::join_all(texts.iter().map(|t| self.embed(t))).await;
         results.into_iter().collect()
     }
@@ -270,6 +285,47 @@ impl LlmClient for BackendLlmClient {
 
     fn base_url(&self) -> String {
         self.base_url.clone()
+    }
+}
+
+impl BackendLlmClient {
+    /// nomic-embed models are trained with a task prefix on every input.
+    fn two_mode(&self) -> bool {
+        self.embed_model.to_lowercase().contains("nomic-embed")
+    }
+
+    fn as_document(&self, text: &str) -> String {
+        if self.two_mode() {
+            format!("search_document: {text}")
+        } else {
+            text.to_string()
+        }
+    }
+
+    async fn embed_as(&self, text: &str, query: bool) -> Result<Vec<f64>> {
+        let owned = match (self.two_mode(), query) {
+            (true, true) => format!("search_query: {text}"),
+            (true, false) => format!("search_document: {text}"),
+            _ => text.to_string(),
+        };
+        let text = owned.as_str();
+        let t0 = Instant::now();
+        self.stats_mut().embed_calls += 1;
+        let out = self
+            .with_retries("embed", || async {
+                let v = crate::backend::llm_embed(&self.http, text, &self.embed_model, &self.base_url, 60.0).await?;
+                if v.is_empty() {
+                    return Err("empty embedding returned".to_string());
+                }
+                Ok(v)
+            })
+            .await;
+        let mut s = self.stats_mut();
+        s.embed_seconds += t0.elapsed().as_secs_f64();
+        if out.is_err() {
+            s.embed_failures += 1;
+        }
+        out
     }
 }
 

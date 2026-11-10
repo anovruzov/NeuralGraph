@@ -128,6 +128,48 @@ input.field:focus,select.field:focus,textarea.field:focus{outline:2px solid var(
 .chip{border:1px solid var(--line-strong);background:var(--surface-1);border-radius:999px;padding:4px 12px;font-size:13px;cursor:pointer;color:var(--text-secondary)}
 .chip.on{background:var(--text-primary);color:var(--surface-1);border-color:var(--text-primary)}
 .list .mem{display:flex;gap:12px;justify-content:space-between;align-items:flex-start}
+/* chat */
+.chat{display:flex;flex-direction:column;height:100%;max-width:860px;margin:0 auto;padding:20px 24px 16px}
+.chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.chat-head h1{font-size:22px;margin:0;font-weight:700}
+.chat-log{flex:1;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:8px 2px 16px;min-height:0}
+.msg-u{align-self:flex-end;background:var(--accent);color:#fff;border-radius:16px 16px 4px 16px;padding:9px 14px;max-width:80%;white-space:pre-wrap;word-break:break-word}
+.msg-a{align-self:stretch;background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.msg-a .body{font-size:15.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.msg-a .body ul{margin:6px 0;padding-left:20px;white-space:normal} .msg-a .body li{margin:3px 0}
+.msg-a .note{color:var(--text-secondary);font-size:14px;margin-bottom:6px}
+.cite{display:inline-block;min-width:18px;text-align:center;font-size:11.5px;font-weight:650;line-height:17px;border-radius:9px;background:var(--accent-soft);color:var(--text-primary);padding:0 5px;margin:0 1px;cursor:pointer;border:0;vertical-align:1px}
+.cite:hover{background:var(--accent);color:#fff}
+.msg-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:12.5px;color:var(--text-muted)}
+.msg-foot button{all:unset;cursor:pointer;padding:3px 10px;border-radius:999px;border:1px solid var(--line-strong);color:var(--text-secondary);font-size:12.5px}
+.msg-foot button[aria-expanded="true"]{background:var(--surface-2);color:var(--text-primary)}
+.ev{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+.ev-item{padding:9px 8px;border-radius:10px;display:grid;grid-template-columns:28px 1fr;gap:6px}
+.ev-item.hit{background:var(--accent-soft)} .ev-item.dimmed{opacity:.6}
+.ev-item .t{font-size:14px} .ev-item .m{font-size:12px;color:var(--text-muted);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ev-item .q{font-size:12.5px;color:var(--text-secondary);border-left:2px solid var(--line-strong);padding-left:8px;margin-top:6px}
+.sim{display:inline-flex;align-items:center;gap:5px} .sim i{display:inline-block;width:44px;height:5px;border-radius:3px;background:var(--surface-2);overflow:hidden;position:relative}
+.sim i b{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:3px}
+.statgrid{display:grid;grid-template-columns:130px 1fr;gap:5px 12px;font-size:13px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+.statgrid span:nth-child(odd){color:var(--text-muted)}
+.composer{display:flex;gap:8px;align-items:flex-end;background:var(--surface-1);border:1px solid var(--line-strong);border-radius:16px;padding:8px 8px 8px 14px}
+.composer textarea{flex:1;border:0;background:none;resize:none;outline:none;max-height:140px;min-height:24px;line-height:1.45;padding:6px 0}
+.composer-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;color:var(--text-muted);margin-top:6px;padding:0 4px}
+.suggest{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+.chat-empty{margin:auto;text-align:center;color:var(--text-secondary);max-width:520px}
+.chat-empty h2{font-size:20px;color:var(--text-primary);margin:0 0 6px}
+/* models */
+.rambar{height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-top:8px}
+.rambar b{display:block;height:100%;background:var(--accent);border-radius:999px;transition:width .4s}
+.model{display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;padding:12px 16px;border-top:1px solid var(--line)}
+.model:first-child{border-top:0}
+.model .name{font-weight:600;word-break:break-all} .model .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;align-items:center;font-size:12.5px;color:var(--text-muted)}
+.model .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.tag{font-size:11.5px;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--text-secondary)}
+.tag.role{background:var(--accent-soft);color:var(--text-primary);font-weight:600}
+.btn.sm{padding:5px 11px;font-size:13px;border-radius:8px}
+.prog{height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-top:6px;min-width:160px}
+.prog b{display:block;height:100%;background:var(--accent);transition:width .4s}
 .sources{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .source{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px}
 .source b{font-size:15px} .source p{margin:0;font-size:13px;color:var(--text-secondary);flex:1}
@@ -176,9 +218,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     </div>
     <nav class="menu" id="menu">
       <a href="#/home" data-p="home"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+      <a href="#/chat" data-p="chat"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chat</a>
       <a href="#/memories" data-p="memories"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6c0 2.4 1.3 3.8 2.3 5 .7.8 1.2 1.6 1.2 2.5V18h5v-1.5c0-.9.5-1.7 1.2-2.5 1-1.2 2.3-2.6 2.3-5a6 6 0 0 0-6-6zM10 21h4"/></svg>Memories</a>
       <a href="#/import" data-p="import"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>Import</a>
       <a href="#/graph" data-p="graph"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="11" cy="18" r="2.5"/><path d="M8.3 6.6 15.6 7.6M7 8.2 10 15.7M16.8 10.1 12.6 16"/></svg>Graph</a>
+      <a href="#/models" data-p="models"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>Models</a>
       <a href="#/activity" data-p="activity"><svg viewBox="0 0 24 24"><path d="M3 12h4l3 7 4-14 3 7h4"/></svg>Activity</a>
       <a href="#/settings" data-p="settings"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</a>
     </nav>
@@ -243,6 +287,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     $('#pw-title').textContent = busyToggle ? (on ? 'Pausing…' : 'Starting…') : on ? 'On' : 'Paused';
     $('#pw-sub').textContent = busyToggle ? 'one moment' : !on ? 'models unloaded' : w.busy_workers ? 'learning…' : q ? q + ' waiting' : 'learning from your chats';
     $('#sf-model').textContent = (CONTROL.models || {}).chat || '';
+    aiLabel();
     $('#sf-queue').textContent = STATUS ? (q ? q + ' in queue' : 'queue empty') : '';
     $('#sf-ver').textContent = UPDATE.current ? 'v' + UPDATE.current + ' · ' : '';
     const up = $('#sf-update'); up.style.display = UPDATE.available ? '' : 'none'; up.textContent = UPDATE.available ? `Update to ${UPDATE.latest} →` : '';
@@ -280,13 +325,18 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   // ---------- router: #/page/tab ----------
   const PAGES = {
     home: {title:'Home', render: renderHome},
-    memories: {title:'Memories', tabs:[['browse','Browse'],['ask','Ask'],['add','Add']], render: renderMemories},
+    chat: {title:'Chat', render: renderChat},
+    memories: {title:'Memories', tabs:[['browse','Browse'],['add','Add']], render: renderMemories},
+    models: {title:'Models', render: renderModels},
     import: {title:'Import', render: renderImport},
     graph: {title:'Graph', render: renderGraph},
     activity: {title:'Activity', tabs:[['chats','Chats'],['queue','Queue'],['log','Log']], render: renderActivity},
-    settings: {title:'Settings', tabs:[['general','General'],['models','Models'],['connections','Connections'],['advanced','Advanced']], render: renderSettings},
+    settings: {title:'Settings', tabs:[['general','General'],['connections','Connections'],['advanced','Advanced']], render: renderSettings},
   };
-  function route(){ const [p, t] = (location.hash.replace(/^#\/?/, '') || 'home').split('/'); const page = PAGES[p] ? p : 'home';
+  function route(){ let [p, t] = (location.hash.replace(/^#\/?/, '') || 'home').split('/');
+    if (p === 'settings' && t === 'models') p = 'models';   // moved to its own page
+    if (p === 'memories' && t === 'ask') p = 'chat';        // Ask grew into Chat
+    const page = PAGES[p] ? p : 'home';
     const tabs = PAGES[page].tabs; const tab = tabs ? (tabs.some(x => x[0] === t) ? t : tabs[0][0]) : null; return {page, tab}; }
   let current = {};
   function render(force){
@@ -334,7 +384,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         <div class="tile"><div class="l">Tokens saved</div><div class="v">${fmt(tk.tokens_saved||0)}</div><div class="d">${tk.compression_ratio ? tk.compression_ratio + '× smaller than the chats' : 'grows as it learns'}</div></div>
       </div>
       <div class="cols">
-        <div class="card"><h2>Recently learned</h2>${recent.length ? recent.map(memRow).join('') + '<div style="margin-top:12px"><a href="#/memories">See all memories →</a></div>' : '<div class="muted small">Nothing yet. Chat with Claude Code, or add a memory under Memories → Add.</div>'}</div>
+        <div class="card"><h2>Recently learned</h2>${recent.length ? recent.map(memRow).join('') + '<div style="margin-top:12px"><a href="#/memories">See all memories →</a> · <a href="#/chat">Ask about them →</a></div>' : '<div class="muted small">Nothing yet. Chat with Claude Code, or add a memory under Memories → Add.</div>'}</div>
         <div class="card"><h2>Health</h2>
           <div class="grade"><b>${esc(g.letter||'—')}</b><span>${(g.overall??0).toFixed(0)} / 100 overall</span></div>
           <div class="bars">${AX.map(([k, l, why]) => `<div class="bar" title="${why} (${(ax[k]??0).toFixed(0)} out of 100)"><span>${l}</span><div class="track"><div class="fill" style="width:${Math.max(0, Math.min(100, ax[k]||0))}%"></div></div><span class="n">${(ax[k]??0).toFixed(0)}</span></div>`).join('')}</div>
@@ -362,7 +412,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   let MEMS = null, memKind = '', memQuery = '', showMinor = false, memView = 'active';
   async function renderMemories(tab, changed){
     if (!changed) return;
-    const subs = {browse:'What NeuralGraph has learned. Minor details are hidden; hover a memory to forget it.', ask:'Ask a question. The answer comes only from your memories.', add:'Tell NeuralGraph something to remember right away.'};
+    const subs = {browse:'What NeuralGraph has learned. Minor details are hidden; hover a memory to edit or forget it.', add:'Tell NeuralGraph something to remember right away.'};
     $('#main').innerHTML = `<div class="page">${header('Memories', subs[tab], 'memories', tab)}<div id="mem-body"></div></div>`;
     const b = $('#mem-body');
     if (tab === 'browse') {
@@ -381,17 +431,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         current = {}; render(); };
       try { MEMS = (await api('/api/memories?limit=500&status=' + memView)).memories || []; } catch(e) { $('#mlist').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
       if (current.tab === 'browse') paintMems();
-    } else if (tab === 'ask') {
-      b.innerHTML = `<div class="toolbar"><input class="field" id="aq" placeholder="e.g. Where does Ali live? What did I decide about the release?" aria-label="Question"><button class="btn" id="ab">Ask</button></div><div id="ares"></div>`;
-      const go = async () => { const q = $('#aq').value.trim(); if (!q) return; const out = $('#ares');
-        out.innerHTML = '<div class="card empty"><span class="spinner"></span> Thinking…</div>';
-        const [ans, hits] = await Promise.allSettled([CONTROL.paused ? Promise.reject(new Error('paused')) : api('/api/answer', {question: q}), api('/api/search?k=8&q=' + encodeURIComponent(q))]);
-        const results = hits.status === 'fulfilled' ? hits.value.results || [] : [];
-        const a = ans.status === 'fulfilled' ? (ans.value.text || '') : '';
-        const why = ans.status === 'rejected' ? (CONTROL.paused ? 'NeuralGraph is paused, so it does not write an answer. Matching memories are below.' : 'Could not write an answer: ' + ans.reason.message) : '';
-        out.innerHTML = `<div class="card">${a ? `<div class="answer">${esc(a)}</div>` : why ? `<div class="muted" style="margin-bottom:12px">${esc(why)}</div>` : ''}
-          <h2>Based on</h2>${results.length ? results.map(r => memRow(r.memory || r)).join('') : '<div class="muted small">No matching memories.</div>'}</div>`; };
-      $('#ab').onclick = go; $('#aq').onkeydown = e => { if (e.key === 'Enter') go(); }; $('#aq').focus();
     } else {
       b.innerHTML = `<div class="card stack"><textarea class="field" id="rt" placeholder="e.g. I'm allergic to peanuts.&#10;My sister Lea lives in Lyon."></textarea>
         <div class="toolbar" style="margin:0"><input class="field" id="rs" placeholder="About whom? (optional, default: you)" aria-label="Subject"><button class="btn" id="rb">Remember</button></div>
@@ -413,13 +452,18 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     const rows = MEMS.filter(m => (archived || showMinor || m.importance >= MINOR) && (!memKind || m.kind === memKind) && (!q || (m.text + ' ' + m.subject_name).toLowerCase().includes(q)));
     const action = x => archived
       ? `<button class="btn ghost x" data-r="${esc(x.memory_id)}" title="Bring this memory back">Restore</button>`
-      : `<button class="btn danger x" data-id="${esc(x.memory_id)}" title="Forget this memory">Forget</button>`;
+      : `<span class="x" style="display:flex;gap:6px"><button class="btn ghost" data-edit="${esc(x.memory_id)}" title="Reword this memory">Edit</button><button class="btn danger" data-id="${esc(x.memory_id)}" title="Forget this memory">Forget</button></span>`;
     $('#mlist').innerHTML = rows.length ? rows.slice(0, 300).map(x => `<div class="mem"><div><div class="t">${esc(x.text)}</div><div class="m"><span class="kind">${esc(x.kind)}</span>${x.importance < MINOR ? '<span class="kind">minor</span>' : ''}<span>${esc(x.subject_name)}</span><span>${esc(ago(x.observed_at))}</span><span>${esc(x.chat_id)}</span></div></div>${action(x)}</div>`).join('')
       + (rows.length > 300 ? `<div class="muted small" style="padding-top:10px">Showing 300 of ${rows.length}. Filter to narrow it down.</div>` : '')
       : `<div class="empty">${archived ? 'Nothing archived.' : MEMS.length ? (minorCount && !showMinor ? 'Only minor memories match. Use “Show minor”.' : 'No memories match.') : 'No memories yet.'}</div>`;
     $('#mlist').querySelectorAll('[data-r]').forEach(bt => bt.onclick = async () => {
       try { await api('/api/memories/restore', {memory_id: bt.dataset.r}); MEMS = MEMS.filter(m => m.memory_id !== bt.dataset.r); paintMems(); toast('Restored'); }
       catch(e) { toast('Could not restore: ' + e.message); } });
+    $('#mlist').querySelectorAll('[data-edit]').forEach(bt => bt.onclick = async () => {
+      const m = MEMS.find(x => x.memory_id === bt.dataset.edit); if (!m) return;
+      const text = prompt('Reword this memory:', m.text); if (text == null || !text.trim() || text.trim() === m.text) return;
+      try { const d = await api('/api/memories/edit', {memory_id: m.memory_id, text: text.trim()}); if (d.ok) { m.text = d.memory.text; paintMems(); toast('Saved'); } }
+      catch(e) { toast('Could not save: ' + e.message); } });
     $('#mlist').querySelectorAll('[data-id]').forEach(bt => bt.onclick = async () => {
       if (!confirm('Forget this memory? It will no longer be recalled.')) return;
       try { await api('/api/forget', {memory_id: bt.dataset.id, reason: 'forgotten in the web UI'}); MEMS = MEMS.filter(m => m.memory_id !== bt.dataset.id); paintMems(); toast('Forgotten'); }
@@ -463,7 +507,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
     (SETTINGS ? Promise.resolve(SETTINGS) : loadSettings()).then(S => { const v = (S && S.vision) || {}; const p = $('#vis'); if (!p) return;
       p.textContent = v.chat_sees ? `${(CONTROL.models||{}).chat} reads them directly; nothing else is loaded.`
         : v.model ? `${v.model} reads them; it is swapped in for the chat model while importing, so both are never loaded at once.`
-        : 'Needs a vision model: choose one under Settings → Models first.'; });
+        : 'Needs a vision model: choose one on the Models page first.'; });
   }
   function busy(msg){ $('#imp').innerHTML = `<div class="card empty"><span class="spinner"></span> ${esc(msg)}</div>`; }
   function failed(e){ $('#imp').innerHTML = `<div class="card"><b>Could not import.</b><div class="muted small" style="margin-top:4px">${esc(e.message)}</div></div>`; }
@@ -506,6 +550,173 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         $('#imp').innerHTML = `<div class="card hero"><div><h2><span class="dot on"></span>Imported</h2><p>${r.queued ? `${plural(r.queued, 'part')} from ${plural(r.chats, 'item')} ${r.queued === 1 ? 'is' : 'are'} being learned in the background.` : 'Everything in this import was already in memory, so nothing was added.'} ${CONTROL.paused ? 'NeuralGraph is paused: turn it on to start.' : ''}</p></div><a class="btn ghost" href="#/activity/queue">Watch progress</a></div>`;
         refreshStatus(); }
       catch(e) { failed(e); } };
+  }
+
+  // ---------- Chat: ask in plain words; every answer shows its evidence and its numbers ----------
+  let CHAT = [], chatAI = true, chatBusy = false, aiLabel = () => {};
+  const fmtMs = v => v == null ? '—' : v >= 1000 ? (v / 1000).toFixed(1) + ' s' : Math.round(v) + ' ms';
+  function mdLite(text, cite){
+    // escape, then bullets, bold, inline code and [n] citations
+    const lines = esc(text).split('\n'); let out = '', inList = false;
+    for (const raw of lines) { const m = raw.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)$/);
+      if (m) { if (!inList) { out += '<ul>'; inList = true; } out += `<li>${m[1]}</li>`; }
+      else { if (inList) { out += '</ul>'; inList = false; } out += raw + '\n'; } }
+    if (inList) out += '</ul>';
+    out = out.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    return cite ? out.replace(/\[(\d{1,2}(?:\s*,\s*\d{1,2})*)\]/g, (m0, list) => list.split(',').map(n => `<button class="cite" data-n="${n.trim()}" title="Show the memory behind this">${n.trim()}</button>`).join('')) : out.trim();
+  }
+  function evidenceHtml(r, focus){
+    const cited = new Set(r.cited || []), ev = r.evidence || [];
+    return `<div class="ev">${ev.map(e => { const sim = e.similarity;
+      return `<div class="ev-item ${focus === e.n ? 'hit' : ''} ${cited.size && !cited.has(e.n) ? 'dimmed' : ''}" id="ev-${r.id}-${e.n}">
+        <span class="cite" style="cursor:default">${e.n}</span><div><div class="t">${esc(e.text)}</div>
+        <div class="m"><span class="kind">${esc(e.kind)}</span><span>${esc(e.date || '')}</span>${sim != null ? `<span class="sim" title="How close this memory is to your question (0 to 1)"><i><b style="width:${Math.round(Math.max(0, Math.min(1, sim)) * 100)}%"></b></i>${sim.toFixed(2)}</span>` : ''}<span title="${esc(e.matched || '')}">from ${esc(e.chat_title || e.chat_id)}</span>${cited.has(e.n) ? '<span class="tag role">used in the answer</span>' : ''}</div>
+        ${(e.sources || []).slice(0, 1).map(q => `<div class="q"><b>${esc(q.speaker)}:</b> ${esc(q.text)}</div>`).join('')}</div></div>`; }).join('') || '<div class="muted small">No memories matched.</div>'}
+      ${cited.size && cited.size < ev.length ? `<div class="muted small" style="padding:6px 8px">Faded memories were found but not used in the answer.</div>` : ''}</div>`;
+  }
+  function statsHtml(r){
+    const s = r.stats || {}, rows = [];
+    if (s.retrieval_ms != null) rows.push(['Search', `${fmtMs(s.retrieval_ms)} across ${fmt(s.memories_searched)} memories, ${s.candidates} kept`]);
+    if (s.answer_ms != null) rows.push(['Answer', `${fmtMs(s.answer_ms)} with ${esc(s.model || '')}`]);
+    if (s.search_query) rows.push(['Searched for', esc(s.search_query)]);
+    rows.push(['Mode', s.mode === 'ai' ? 'Found memories, then the model wrote the answer from them' : s.mode === 'paused' ? 'Paused: keyword search only, no model' : s.mode === 'search' ? 'Search only, no model' : 'Read straight from the knowledge base, no model']);
+    rows.push(['Model calls', String(s.model_calls ?? 0)]);
+    if (s.embed_model) rows.push(['Embeddings', esc(s.embed_model)]);
+    if (s.prompt_chars) rows.push(['Sent to the model', `${fmt(Math.round(s.prompt_chars / 4))} tokens (about)`]);
+    return `<div class="statgrid">${rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>`;
+  }
+  function chatMsgHtml(m){
+    if (m.role === 'user') return `<div class="msg-u">${esc(m.text)}</div>`;
+    if (m.pending) return `<div class="msg-a"><span class="spinner"></span> <span class="muted">${esc(m.pending)}</span></div>`;
+    if (m.error) return `<div class="msg-a"><div class="note">Could not answer: ${esc(m.error)}</div></div>`;
+    const r = m.r, ev = r.evidence || [], nCited = (r.cited || []).length, s = r.stats || {};
+    const direct = r.kind !== 'answer';
+    const open = m.open || (direct && ev.length ? 'ev' : '');
+    return `<div class="msg-a" data-id="${r.id}">
+      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ''}
+      ${r.answer ? `<div class="body">${mdLite(r.answer, r.kind === 'answer')}</div>` : ''}
+      <div class="msg-foot">
+        ${ev.length ? `<button data-t="ev" aria-expanded="${open === 'ev'}">Evidence · ${r.kind === 'answer' ? `${nCited} used of ${ev.length} found` : ev.length}</button>` : ''}
+        <button data-t="st" aria-expanded="${open === 'st'}">Stats</button>
+        <span>${s.retrieval_ms != null ? 'search ' + fmtMs(s.retrieval_ms) : ''}${s.answer_ms != null ? ' · answer ' + fmtMs(s.answer_ms) : ''}</span>
+      </div>
+      ${open === 'ev' ? evidenceHtml(r, m.focus) : open === 'st' ? statsHtml(r) : ''}</div>`;
+  }
+  function paintChat(scroll){
+    const log = $('#chat-log'); if (!log) return;
+    log.innerHTML = CHAT.length ? CHAT.map(chatMsgHtml).join('') : `<div class="chat-empty"><h2>Ask your memory anything</h2>
+      <div>Answers are written only from what NeuralGraph has stored, with the memories they came from. Nothing leaves this Mac.</div>
+      <div class="suggest">${['What do you know about me?', 'What am I working on?', 'Who do I work with?', '/recent', '/stats'].map(q => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
+      <div class="muted small" style="margin-top:14px">Query the knowledge base directly, with no AI: <code>/search words</code> · <code>/who name</code> · <code>/recent</code> · <code>/stats</code></div></div>`;
+    log.querySelectorAll('[data-q]').forEach(b => b.onclick = () => sendChat(b.dataset.q));
+    log.querySelectorAll('.msg-a[data-id]').forEach(el => { const m = CHAT.find(x => x.r && String(x.r.id) === el.dataset.id);
+      el.querySelectorAll('.msg-foot button').forEach(b => b.onclick = () => { m.open = (m.open || (m.r.kind !== 'answer' && (m.r.evidence||[]).length ? 'ev' : '')) === b.dataset.t ? 'none' : b.dataset.t; m.focus = null; paintChat(false); });
+      el.querySelectorAll('.body .cite').forEach(c => c.onclick = () => { m.open = 'ev'; m.focus = +c.dataset.n; paintChat(false);
+        const t = document.getElementById(`ev-${m.r.id}-${c.dataset.n}`); if (t) t.scrollIntoView({block:'nearest', behavior:'smooth'}); }); });
+    if (scroll) log.scrollTop = log.scrollHeight;
+    $('#chat-send').disabled = chatBusy;
+  }
+  let chatSeq = 0;
+  async function sendChat(text){
+    text = (text || '').trim(); if (!text || chatBusy) return;
+    chatBusy = true; CHAT.push({role:'user', text});
+    const direct = text.startsWith('/') || !chatAI || CONTROL.paused;
+    const slot = {role:'assistant', pending: direct ? 'Searching memory…' : 'Searching memory, then writing the answer…'}; CHAT.push(slot); paintChat(true);
+    const history = CHAT.filter(m => m.r && m.r.kind === 'answer').slice(-2).map(m => ({q: m.q, a: m.r.answer}));
+    try { const r = await api('/api/chat', {message: text, ai: chatAI, history}); r.id = ++chatSeq; delete slot.pending; slot.r = r; slot.q = text; }
+    catch(e) { delete slot.pending; slot.error = e.message; }
+    chatBusy = false; paintChat(true); const inp = $('#chat-in'); if (inp) inp.focus();
+  }
+  function renderChat(_, changed){
+    if (!changed) return;
+    $('#main').innerHTML = `<div class="chat">
+      <div class="chat-head"><h1>Chat</h1><button class="btn ghost sm" id="chat-new" title="Start over">New chat</button></div>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <div class="composer"><textarea id="chat-in" rows="1" placeholder="Ask about anything NeuralGraph remembers…" aria-label="Your question"></textarea><button class="btn" id="chat-send">Ask</button></div>
+      <div class="composer-foot"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><button class="switch" id="chat-ai" role="switch" aria-checked="${chatAI}" style="transform:scale(.8)" aria-label="Write answers with the model"></button><span id="chat-ai-l"></span></label><span>Enter to ask · Shift+Enter for a new line</span></div></div>`;
+    const inp = $('#chat-in');
+    aiLabel = () => { const l = $('#chat-ai-l'); if (!l) return; l.textContent = CONTROL.paused ? 'Paused: showing matching memories only' : chatAI ? `Answers written by ${(CONTROL.models || {}).chat || 'your model'}` : 'Search only: matching memories, no model'; };
+    aiLabel();
+    $('#chat-ai').onclick = () => { chatAI = !chatAI; $('#chat-ai').setAttribute('aria-checked', chatAI); aiLabel(); };
+    $('#chat-new').onclick = () => { CHAT = []; paintChat(true); inp.focus(); };
+    const go = () => { const v = inp.value; inp.value = ''; inp.style.height = ''; sendChat(v); };
+    $('#chat-send').onclick = go;
+    inp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } };
+    inp.oninput = () => { inp.style.height = ''; inp.style.height = Math.min(140, inp.scrollHeight) + 'px'; };
+    paintChat(true); inp.focus();
+  }
+
+  // ---------- Models: what is on disk, what is in memory, which model does which job, downloads ----------
+  let MODELS = null, modelsTimer = 0;
+  const gbs = g => g == null ? '' : g < 0.1 ? Math.round(g * 1000) + ' MB' : g.toFixed(1) + ' GB';
+  async function loadModels(){ try { MODELS = await api('/api/models'); } catch(e) { MODELS = {error: e.message}; } return MODELS; }
+  async function renderModels(_, changed){
+    if (changed) { $('#main').innerHTML = `<div class="page">${header('Models', 'The local models NeuralGraph thinks with: what is on this computer, what is in memory, and which model does which job.', 'models')}<div id="mdl"><div class="card empty"><span class="spinner"></span> Looking at your model server…</div></div></div>`; await loadModels(); }
+    if (current.page !== 'models') return;
+    paintModels();
+    clearTimeout(modelsTimer);
+    if (MODELS && (MODELS.downloads || []).some(d => d.status === 'running')) modelsTimer = setTimeout(async () => { await loadModels(); if (current.page === 'models') renderModels(null, false); }, 2000);
+  }
+  function paintModels(){
+    const M = MODELS, el = $('#mdl'); if (!el) return;
+    if (M.error) { el.innerHTML = `<div class="card empty">${esc(M.error)}</div>`; return; }
+    const r = (k, sub, ctl) => `<div class="row"><div class="label"><b>${k}</b>${sub ? `<span>${sub}</span>` : ''}</div><div class="ctl">${ctl}</div></div>`;
+    if (!M.server) { el.innerHTML = `<div class="card"><b>No model server is answering at ${esc(M.configured_url)}.</b><div class="muted small" style="margin-top:4px">Start LM Studio (Developer → Start Server) or Ollama, then reload. No server yet? Run <code>neuralgraph-memory setup</code> and choose “Install Ollama for me”.</div>${(M.servers || []).length ? `<div style="margin-top:12px">${M.servers.map(sv => `<button class="btn ghost" data-srv="${esc(sv.url)}">Use ${esc(sv.label)}</button>`).join(' ')}</div>` : ''}</div>`;
+      el.querySelectorAll('[data-srv]').forEach(b => b.onclick = () => saveRoles({llm_base_url: b.dataset.srv})); return; }
+    const sys = M.system || {}, ram = sys.ram_gb || 0, models = M.models || [], roles = M.roles || {};
+    const chats = models.filter(m => m.kind === 'chat'), embs = models.filter(m => m.kind === 'embedding'), seers = chats.filter(m => m.vision);
+    const chatM = models.find(m => m.id === roles.chat), chatSees = chatM && chatM.vision;
+    const opt = (list, sel) => list.map(m => `<option value="${esc(m.id)}" ${m.id === sel ? 'selected' : ''}>${esc(m.id)}${m.size_gb != null ? ' · ' + gbs(m.size_gb) : ''}</option>`).join('');
+    const missing = id => id && !models.some(m => m.id === id) ? `<option value="${esc(id)}" selected>${esc(id)} (not on this server)</option>` : '';
+    const tagFor = m => [m.kind === 'embedding' ? 'embedding' : 'chat', m.vision ? 'reads images' : ''].filter(Boolean).map(t => `<span class="tag">${t}</span>`).join('');
+    const roleName = {chat:'Chat model', embedding:'Embedding model', image:'Image model'};
+    const dl = M.downloads || [], sug = (M.suggested || []);
+    const dlRow = d => `<div class="model"><div><div class="name">${esc(d.name)}</div><div class="tags">${d.status === 'running' ? `<span>${d.percent != null ? d.percent.toFixed(0) + '%' : ''} ${esc(d.detail || '')}</span>` : d.status === 'done' ? '<span class="badge on"><i></i>Downloaded</span>' : `<span class="badge bad"><i></i>Failed</span><span>${esc(d.detail || '')}</span>`}</div>${d.status === 'running' ? `<div class="prog"><b style="width:${Math.max(2, d.percent || 0)}%"></b></div>` : ''}</div><div class="acts">${d.status === 'running' ? '<span class="spinner"></span>' : ''}</div></div>`;
+    el.innerHTML = `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><b>${esc(M.server.label)}</b>
+          ${(M.servers || []).length > 1 ? `<select class="field" id="msrv" aria-label="Model server">${M.servers.map(sv => `<option value="${esc(sv.url)}" ${sv.url === M.server.url ? 'selected' : ''}>${esc(sv.label)}</option>`).join('')}</select>` : ''}</div>
+        <div class="muted small" style="margin-top:6px">${M.paused ? 'Paused: NeuralGraph is not using any model.' : `In memory now: <b style="color:var(--text-primary)">${gbs(M.in_memory_gb) || '0 GB'}</b>${ram ? ` of ${Math.round(ram)} GB` : ''} (model files; LM Studio adds about 30% while running)`}</div>
+        ${ram ? `<div class="rambar" title="Share of this computer's memory held by loaded models"><b style="width:${Math.min(100, (M.in_memory_gb || 0) / ram * 100).toFixed(1)}%"></b></div>` : ''}
+      </div>
+      <div class="group-title">Jobs</div><div class="group">
+        ${r('Chat model', 'Reads your chats, writes memories and answers in Chat', `<select class="field" id="r-chat" aria-label="Chat model">${missing(roles.chat)}${opt(chats, roles.chat)}</select>`)}
+        ${r('Embedding model', 'Finds related memories. Changing it re-embeds every memory in the background.', `<select class="field" id="r-emb" aria-label="Embedding model">${missing(roles.embedding)}${opt(embs, roles.embedding)}</select>`)}
+        ${r('Image model', 'Reads screenshots for Import. Swapped in only while importing.', `<select class="field" id="r-img" aria-label="Image model"><option value="">${chatSees ? 'Same as the chat model (it can see)' : 'None (no screenshot import)'}</option>${opt(seers.filter(m => m.id !== roles.chat), roles.image)}</select>`)}
+        ${r('Free memory when idle', 'Unloads the chat model after it has not been used for this long. It loads again in a few seconds when needed.', `<select class="field" id="r-idle" aria-label="Unload when idle">${[[0,'Never'],[5,'After 5 minutes'],[15,'After 15 minutes'],[30,'After 30 minutes'],[60,'After 1 hour']].map(([v, l]) => `<option value="${v}" ${+M.idle_unload_minutes === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
+      </div>
+      <div class="toolbar" style="margin-top:12px"><button class="btn ghost" id="m-test">Test chat and embeddings</button><span class="muted small" id="m-res">Changes apply right away, no restart.</span></div>
+      <div class="group-title">On this computer · ${models.length} model${models.length === 1 ? '' : 's'}${models.some(m => m.size_gb != null) ? ' · ' + gbs(models.reduce((a, m) => a + (m.size_gb || 0), 0)) : ''}</div>
+      <div class="group">${models.map(m => `<div class="model"><div><div class="name">${esc(m.id)}</div><div class="tags">${m.roles.map(x => `<span class="tag role">${roleName[x]}</span>`).join('')}${tagFor(m)}<span>${gbs(m.size_gb)}</span>${m.loaded ? '<span class="badge on"><i></i>In memory</span>' : '<span>on disk</span>'}</div></div>
+          <div class="acts">${m.loaded ? `<button class="btn ghost sm" data-unload="${esc(m.id)}">Unload</button>` : `<button class="btn ghost sm" data-load="${esc(m.id)}">Load</button>`}${M.can_delete && !m.roles.length ? `<button class="btn danger sm" data-del="${esc(m.id)}">Delete</button>` : ''}</div></div>`).join('') || '<div class="empty">No models on this server yet. Download one below.</div>'}</div>
+      <div class="group-title">Download</div>
+      <div class="group">
+        ${sug.map(g => `<div class="model"><div><div class="name">${esc(g.name)}</div><div class="tags"><span class="tag">recommended ${g.role === 'image' ? 'image' : g.role} model</span><span>${g.size_gb != null ? gbs(g.size_gb) : 'size unknown'}</span></div></div><div class="acts">${g.installed ? '<span class="badge on"><i></i>Installed</span>' : dl.some(d => d.name === g.name && d.status === 'running') ? '<span class="muted small">downloading…</span>' : `<button class="btn sm" data-dl="${esc(g.name)}" data-gb="${g.size_gb ?? ''}">Download</button>`}</div></div>`).join('')}
+        <div class="model"><div><div class="name" style="font-weight:500">Another model</div><div class="tags"><input class="field" id="dl-name" placeholder="${M.server.kind === 'ollama' ? 'e.g. llama3.2:3b' : 'e.g. qwen/qwen3-vl-4b'}" style="width:280px" aria-label="Model name"></div></div><div class="acts"><button class="btn ghost sm" id="dl-go">Download</button></div></div>
+        ${dl.map(dlRow).join('')}
+      </div>
+      <div class="group-note">${sys.disk_free_gb != null ? Math.round(sys.disk_free_gb) + ' GB of disk space free. ' : ''}Downloads come from ${M.server.kind === 'ollama' ? 'the Ollama library' : 'LM Studio’s catalog'} and keep running if you leave this page.${M.can_delete ? '' : ' To delete a model, use LM Studio (My Models).'}</div>`;
+    const act = async (path, body, okMsg) => { try { const d = await api(path, body); toast(d.ok === false ? (d.message || (d.steps || []).filter(x => !x.ok).map(x => x.text).join('; ') || 'Did not work') : okMsg); } catch(e) { toast(e.message); } await loadModels(); renderModels(null, false); };
+    el.querySelectorAll('[data-load]').forEach(b => b.onclick = () => { b.disabled = true; b.innerHTML = '<span class="spinner"></span>'; act('/api/models/load', {id: b.dataset.load}, 'Loaded ' + b.dataset.load); });
+    el.querySelectorAll('[data-unload]').forEach(b => b.onclick = () => { b.disabled = true; act('/api/models/unload', {id: b.dataset.unload}, 'Unloaded ' + b.dataset.unload); });
+    el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm(`Delete ${b.dataset.del} from this computer?`)) act('/api/models/delete', {id: b.dataset.del}, 'Deleted'); });
+    const startDl = (name, gb) => { if (!name) return; if (!confirm(`Download ${name}${gb ? ' (' + gbs(+gb) + ')' : ''}?${sys.disk_free_gb != null ? ' You have ' + Math.round(sys.disk_free_gb) + ' GB free.' : ''}`)) return; act('/api/models/download', {name}, 'Download started'); };
+    el.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => startDl(b.dataset.dl, b.dataset.gb));
+    $('#dl-go').onclick = () => startDl($('#dl-name').value.trim());
+    if ($('#msrv')) $('#msrv').onchange = e => saveRoles({llm_base_url: e.target.value});
+    $('#r-chat').onchange = e => saveRoles({llm_model: e.target.value});
+    $('#r-emb').onchange = e => { if (confirm('Use ' + e.target.value + ' for embeddings? Every memory is embedded again in the background (a minute or two); search stays available by keyword meanwhile.')) saveRoles({embed_model: e.target.value}); else paintModels(); };
+    $('#r-img').onchange = e => saveRoles({vision_model: e.target.value});
+    $('#r-idle').onchange = e => saveRoles({idle_unload_minutes: +e.target.value});
+    $('#m-test').onclick = async () => { $('#m-res').innerHTML = '<span class="spinner"></span> testing (the first call loads the model)…';
+      try { const d = await api('/api/settings/test', {}); $('#m-res').textContent = `${d.chat.ok ? '✓' : '✗'} chat: ${d.chat.text} · ${d.embed.ok ? '✓' : '✗'} embeddings: ${d.embed.text}`; } catch(e) { $('#m-res').textContent = e.message; }
+      await loadModels(); };
+  }
+  async function saveRoles(body){
+    try { const d = await api('/api/settings', body); CONTROL.models = d.models; SETTINGS = null; paintSide();
+      toast(d.reembedding ? `Saved. Embedding ${d.reembedding} memories again in the background.` : 'Saved'); }
+    catch(e) { toast('Could not save: ' + e.message); }
+    await loadModels(); renderModels(null, false);
   }
 
   // ---------- Graph ----------
@@ -565,9 +776,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
   async function renderSettings(tab, changed, force){
     if (!changed && !force) return;
     if (!changed && force && tab !== 'general') return;
-    const subs = {general:'You, the on/off switch and how NeuralGraph looks.', models:'The local models NeuralGraph learns and recalls with.', connections:'The AI tools that share this memory.', advanced:'Files, endpoints and command-line equivalents.'};
+    const subs = {general:'You, the on/off switch and how NeuralGraph looks.', connections:'The AI tools that share this memory.', advanced:'Files, endpoints and command-line equivalents.'};
     if (changed) $('#main').innerHTML = `<div class="page">${header('Settings', subs[tab], 'settings', tab)}<div id="set-body"><div class="card empty"><span class="spinner"></span> Loading…</div></div></div>`;
-    if (!SETTINGS || SETTINGS.error || (changed && (tab === 'connections' || tab === 'models'))) await loadSettings();
+    if (!SETTINGS || SETTINGS.error || (changed && tab === 'connections')) await loadSettings();
     if (current.page !== 'settings' || current.tab !== tab) return;
     const S = SETTINGS, b = $('#set-body');
     if (S.error) { b.innerHTML = `<div class="card empty">${esc(S.error)}</div>`; return; }
@@ -604,44 +815,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
         if (!confirm(`Use ${v} as the memory file? NeuralGraph restarts. The current file stays where it is; nothing is copied.`)) return;
         try { await api('/api/settings', {db: v}); toast('Saved. Restarting…'); setTimeout(() => location.reload(), 4000); } catch(e) { toast('Could not save: ' + e.message); } };
       $('#unb').onclick = async () => { try { const d = await api('/api/settings', {user_name: $('#un').value}); SETTINGS.user_name = $('#un').value; toast(d.note || 'Saved'); } catch(e) { toast('Could not save: ' + e.message); } };
-    } else if (tab === 'models') {
-      const srv = S.servers || [], cur = S.models || {};
-      const sizeOf = m => { const s = srv.find(x => x.url === $('#srv').value) || srv[0]; const g = s && s.sizes ? s.sizes[m] : null; return g == null ? null : g; };
-      const gbs = g => g == null ? '' : g < 0.1 ? Math.round(g * 1000) + ' MB' : g.toFixed(1) + ' GB';
-      const opt = (list, sel, rec) => list.map(x => { const s = srv.find(y => y.sizes && y.sizes[x] != null); const g = s ? gbs(s.sizes[x]) : '';
-        return `<option value="${esc(x)}" ${x===sel?'selected':''}>${esc(x)}${g ? ' · ' + g : ''}${x===rec||x.startsWith(rec+':')?'  (recommended)':''}</option>`; }).join('');
-      b.innerHTML = `${srv.length ? '' : `<div class="card" style="margin-bottom:16px"><b>No model server is answering.</b><div class="muted small">Start LM Studio (Developer → Start Server) or Ollama, then open this tab again. Or run <code>neuralgraph-memory setup</code> and choose “Install Ollama for me”.</div></div>`}
-        <div class="group-title">Model server</div><div class="group">
-          ${r('Server', 'Where your local models run', `<select class="field" id="srv" aria-label="Model server">${srv.map(s => `<option value="${esc(s.url)}" ${s.url===cur.base_url?'selected':''}>${esc(s.label)}</option>`).join('')}${srv.some(s => s.url === cur.base_url) ? '' : `<option value="${esc(cur.base_url)}" selected>${esc(cur.base_url)} (not answering)</option>`}</select>`)}
-        </div>
-        <div class="group-title">Models</div><div class="group">
-          ${r('Chat model', 'Reads your chats and writes memories', `<select class="field" id="cm" aria-label="Chat model"></select>`)}
-          ${r('Embedding model', 'Finds related memories', `<select class="field" id="em" aria-label="Embedding model"></select>`)}
-          ${r('Image model', 'Reads screenshots for Import. Swapped in only while importing.', `<select class="field" id="vm" aria-label="Image model"></select>`)}
-        </div>
-        <div class="toolbar" style="margin-top:16px"><button class="btn" id="msave">Save and use</button><button class="btn ghost" id="mtest">Test</button><span class="muted small" id="mres"></span></div>
-        <div class="group-note">Changes apply right away, no restart. Recommended: Gemma 4 E4B (LM Studio) or Qwen 2.5 7B (Ollama), with nomic-embed-text.</div>
-        <div class="group-title">Disk and memory</div><div class="group" id="dm"></div>
-        <div class="group-note">To download more models, use LM Studio's search or <code>ollama pull</code>; <code>neuralgraph-memory setup</code> downloads the recommended ones and shows their size first.</div>`;
-      const paint = () => { const s = srv.find(x => x.url === $('#srv').value);
-        const chats = s ? s.models.chat : [], embs = s ? s.models.embedding : [];
-        const keep = (list, v, rec) => list.includes(v) ? v : (list.find(x => x === rec || x.startsWith(rec + ':')) || list[0] || v);
-        $('#cm').innerHTML = chats.length ? opt(chats, keep(chats, $('#cm').value || cur.chat, s.recommended.chat), s.recommended.chat) : `<option>${esc(cur.chat)}</option>`;
-        $('#em').innerHTML = embs.length ? opt(embs, keep(embs, $('#em').value || cur.embed, s.recommended.embedding), s.recommended.embedding) : `<option>${esc(cur.embed)}</option>`;
-        const vis = s ? s.models.vision || [] : [], v = S.vision || {}, chatSel = $('#cm').value;
-        $('#vm').innerHTML = (vis.includes(chatSel) ? `<option value="">Same as the chat model (it can see)</option>` : `<option value="">None (no screenshot import)</option>`)
-          + vis.filter(m => m !== chatSel).map(m => `<option value="${esc(m)}" ${m===v.model?'selected':''}>${esc(m)}</option>`).join('')
-          + (vis.length ? '' : `<option value="" disabled>No vision model on this server: e.g. ${esc((s && s.recommended.vision) || 'qwen2.5vl:3b')}</option>`);
-        const sys = S.system || {}, c = sizeOf($('#cm').value), e = sizeOf($('#em').value), vg = $('#vm').value ? sizeOf($('#vm').value) : null;
-        const disk = [c, e, vg].filter(x => x != null).reduce((a, x) => a + x, 0);
-        $('#dm').innerHTML = r('On disk', 'The models selected above', disk ? gbs(disk) : '—')
-          + r('Memory while learning', 'The chat model is in memory only around learning and Ask; Pause frees it at once', c != null ? `about ${Math.round(c * 1.3)} GB${sys.ram_gb ? ' of your ' + Math.round(sys.ram_gb) + ' GB' : ''}` : '—')
-          + r('Free disk space', '', sys.disk_free_gb != null ? Math.round(sys.disk_free_gb) + ' GB' : '—'); };
-      paint(); $('#srv').onchange = paint; $('#cm').onchange = paint; $('#em').onchange = paint; $('#vm').onchange = () => { const v = $('#vm').value; paint(); $('#vm').value = v; };
-      const vals = () => ({llm_base_url: $('#srv').value, llm_model: $('#cm').value, embed_model: $('#em').value, vision_model: $('#vm').value});
-      $('#mtest').onclick = async () => { $('#mres').innerHTML = '<span class="spinner"></span> testing (the first call loads the model)…';
-        try { const d = await api('/api/settings/test', vals()); $('#mres').textContent = `${d.chat.ok?'✓':'✗'} chat: ${d.chat.text} · ${d.embed.ok?'✓':'✗'} embedding: ${d.embed.text}`; } catch(e) { $('#mres').textContent = e.message; } };
-      $('#msave').onclick = async () => { try { const d = await api('/api/settings', vals()); CONTROL.models = d.models; SETTINGS.models = d.models; paintSide(); toast('Saved · now using ' + d.models.chat); } catch(e) { toast('Could not save: ' + e.message); } };
     } else if (tab === 'connections') {
       const cl = S.clients || [], claude = cl.find(c => c.name === 'Claude Code');
       const status = c => !c.found ? '<span class="badge"><i></i>Not installed</span>' : c.connected ? '<span class="badge on"><i></i>Connected</span>' : '<span class="badge warn"><i></i>Not connected</span>';

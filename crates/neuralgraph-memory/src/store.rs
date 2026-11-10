@@ -604,7 +604,7 @@ pub fn batch_for(chat_id: &str) -> Option<i64> {
 
 /// The worker generation that understands every job in this database. A worker from an older install (still running
 /// inside an AI tool that was not restarted after an update) must not process the queue with outdated rules.
-pub const WORKER_GENERATION: i64 = 2;
+pub const WORKER_GENERATION: i64 = 3;
 
 /// SQLite-backed store. See module docs.
 pub struct ChatMemoryStore {
@@ -811,6 +811,34 @@ impl ChatMemoryStore {
                 .flatten()
                 .and_then(|v| v.parse::<i64>().ok())
                 .is_some_and(|until| until > crate::models::utcnow().timestamp())
+    }
+
+    /// Record how the stored vectors were made. When that differs from `scheme` (another embedding model, or the same
+    /// one now used with query/document modes), every vector is dropped so the back-fill embeds the memories again;
+    /// until it has, those memories are found by keyword only. Returns how many vectors were dropped.
+    pub fn adopt_embed_scheme(&self, scheme: &str, assumed_when_unset: &str) -> Result<usize> {
+        let dropped = self.tx(|c| {
+            let stored: Option<String> =
+                c.query_row("SELECT value FROM meta WHERE key='embed_scheme'", [], |r| r.get(0)).optional()?;
+            let stored = stored.unwrap_or_else(|| assumed_when_unset.to_string());
+            let n = if stored != scheme {
+                c.execute("UPDATE memories SET embedding=NULL, embedding_dim=NULL WHERE embedding IS NOT NULL", [])?
+            } else {
+                0
+            };
+            c.execute(
+                "INSERT INTO meta(key, value) VALUES ('embed_scheme', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                params![scheme],
+            )?;
+            if n > 0 {
+                c.execute("DELETE FROM meta WHERE key='embed_dim'", [])?;
+            }
+            Ok(n)
+        })?;
+        if dropped > 0 {
+            self.bump();
+        }
+        Ok(dropped)
     }
 
     // ------------------------------------------------------------------ cleanup

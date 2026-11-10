@@ -66,6 +66,15 @@ Options are environment variables, for example
 `curl -fsSL …/install.sh | NEURALGRAPH_NO_SETUP=1 sh` installs without starting the wizard.
 The script's header lists all of them.
 
+### Everyday commands
+
+```bash
+neuralgraph-memory open            # the web app in your browser (starts it if it is not running)
+neuralgraph-memory open chat       # straight to a page: chat, memories, import, graph, models, settings
+neuralgraph-memory chat            # ask your memory questions in the terminal
+neuralgraph-memory chat "what cameras do I own?"   # one question, one answer
+```
+
 ### Updating
 
 You run the install command once. After that:
@@ -156,11 +165,17 @@ neuralgraph-memory serve --user-name "Your Name"
 Open **http://127.0.0.1:8765/** — the dashboard shows the queue draining, memories
 appearing, tokens saved and a five-axis health grade in real time.
 
-| Default | Value |
+The built-in defaults are for LM Studio. `setup` detects Ollama and saves its settings; the
+block above sets them by hand.
+
+| Default | LM Studio (built in) | Ollama (via `setup` or the variables above) |
+|---|---|---|
+| Chat model | `google/gemma-4-e4b` | `qwen2.5:7b-instruct` |
+| Embedding model | `text-embedding-nomic-embed-text-v1.5` | `nomic-embed-text` |
+| Model endpoint | `http://127.0.0.1:1234` | `http://localhost:11434` |
+
+| | |
 |---|---|
-| Generation model | `qwen2.5:7b-instruct` (Ollama) |
-| Embedding model | `nomic-embed-text` |
-| Model endpoint | `http://localhost:11434` |
 | Database | `~/.neuralgraph/chat_memory.db` |
 | Dashboard / API / MCP | `http://127.0.0.1:8765/`, `/api/*`, `/mcp` |
 
@@ -221,7 +236,7 @@ and a `.bak` copy of the old file is saved.
 | Hook | What it does |
 |---|---|
 | `Stop` | After every reply, queues your prompt and Claude's final answer from the session transcript. Any running `mcp` or `serve` process turns them into memories in the background. Tool calls, tool output, thinking, system reminders and subagents are skipped. Re-reading a transcript never stores anything twice. |
-| `UserPromptSubmit` | Before Claude sees a prompt, adds the memories that are semantically close to it (at most 5, similarity 0.57 or higher with nomic-embed-text; `NEURALGRAPH_RECALL_MIN_SIM` changes the bar). Prompts with nothing relevant get nothing added. |
+| `UserPromptSubmit` | Before Claude sees a prompt, adds the memories that are semantically close to it (at most 5, similarity 0.665 or higher with nomic-embed-text; `NEURALGRAPH_RECALL_MIN_SIM` changes the bar). Prompts with nothing relevant get nothing added. |
 
 Both hooks run `neuralgraph-memory hook claude-code`, take milliseconds, and never block
 Claude Code: if something fails, the hook logs it and steps aside. To turn them off, re-run
@@ -357,6 +372,8 @@ Everything the server does, available from a terminal. All commands are
 
 | Command | What it does |
 |---|---|
+| `open [PAGE]` | Open the web app in the browser; starts the dashboard in the background if needed |
+| `chat [QUESTION]` | Ask your memory in the terminal: cited answers, `/e` evidence, `/s` stats, `/search`, `/who`, `/recent` (`--no-ai`, `--json`) |
 | `update` | Download the latest version, replace the program, restart the dashboard (`--check`, `--version TAG`) |
 | `setup` | First-run wizard: model server, model tests, your name, connect Claude Code / Codex / Claude Desktop / Cursor (`--yes` for defaults) |
 | `serve` | Worker + dashboard + REST API + MCP over HTTP |
@@ -395,14 +412,49 @@ share nothing.
 | Section | What it holds |
 |---|---|
 | **Home** | Whether NeuralGraph is on, learning or paused; memories, entities, chats and tokens saved; recently learned memories; a health grade |
-| **Memories** | *Browse* (filter, forget), *Ask* (an answer written only from your memories, with its sources), *Add* (remember something now) |
+| **Chat** | Ask in plain words. Each answer cites the memories it used, with evidence and retrieval numbers one click away |
+| **Memories** | *Browse* (filter, edit, forget, archived) and *Add* (remember something now) |
+| **Models** | Model manager: what is on disk and in memory, which model does which job, downloads |
 | **Graph** | The entity graph explorer (below) |
 | **Activity** | *Chats* read, the *Queue* of messages still to learn, and a *Log* of recent work |
-| **Settings** | *General* (name, on/off, theme), *Models* (pick the server and models, test them, switch live), *Connections* (connect Claude Code, Codex, Claude Desktop or Cursor, and turn on automatic memory), *Advanced* (files, endpoints, CLI equivalents) |
+| **Settings** | *General* (name, on/off, memory file, version and update, theme), *Connections* (connect Claude Code, Codex, Claude Desktop or Cursor, and turn on automatic memory), *Advanced* (files, endpoints, CLI equivalents) |
 
 <div align="center">
   <img src="docs/images/dashboard.png" alt="The NeuralGraph web app: sidebar with an on/off switch and five sections; the Home page shows status, counts, recent memories and health" width="820">
 </div>
+
+**Chat.** Chat answers in two visible steps. First it searches memory, the same hybrid search
+every tool uses. Then the local model writes an answer from the numbered memories it found and
+cites them as `[1]`, `[2]`.
+
+- **Evidence:** click a citation, or *Evidence*, to see each memory with its similarity to
+  your question, the chat or document it came from, and the original message.
+- **Stats:** shows the search time and how many memories were searched and kept, the answer
+  time and model, the text that was searched for, and how much was sent to the model.
+- **Direct queries:** these skip the model: `/search words`, `/who name` (an entity's
+  connections and memories), `/recent`, `/stats`.
+- **Search only:** a switch turns the model off for plain questions.
+- **Paused:** you get the matching memories instead of a written answer.
+
+`neuralgraph-memory chat` is the same engine in the terminal.
+
+**Models.** The *Models* page is a manager for the model server (LM Studio or Ollama):
+
+- **On this computer:** every model with its size, whether it is a chat or embedding model,
+  whether it reads images, and whether it is in memory now, with *Load* and *Unload*.
+- **Jobs:** which model is the chat model, the embedding model and the image model. Changes
+  apply at once. Changing the embedding model re-embeds every memory in the background.
+- **Download:** the recommended models with their sizes, or any model by name, with progress.
+- **Free memory when idle:** unloads the chat model after it has gone unused (default 15
+  minutes, LM Studio). It loads again in a few seconds when learning or Chat needs it. Models
+  you are using yourself are left alone: LM Studio reports each model's last use.
+
+**Sharper recall.** nomic-embed models are trained with a mode marker on every input:
+`search_query:` for questions and `search_document:` for stored text. NeuralGraph now sends
+both. On real data that moved related prompts to 0.67–0.81 similarity and unrelated ones to
+0.57–0.66, so the automatic recall bar (0.665) separates them: 14 of 15 test prompts were
+handled correctly, against 11 before. Existing memories are embedded again once, by
+themselves, the first time the new version starts.
 
 **Import.** The *Import* section brings in what other tools already know about you:
 
@@ -571,8 +623,8 @@ and grade, and the MCP protocol over both stdio and HTTP.
 
 | Symptom | Fix |
 |---|---|
-| Model server unreachable | `ollama serve`; confirm `LLM_BASE_URL` (default `http://localhost:11434`) |
-| Model not found | `ollama list`, then `ollama pull qwen2.5:7b-instruct` / `nomic-embed-text` |
+| Model server unreachable | Start LM Studio's server (Developer → Start Server) or `ollama serve`; the Models page shows which server NeuralGraph talks to |
+| Model not found | Models page → Download, or `neuralgraph-memory setup` |
 | Build errors | Rust 1.89+ (`rustup update`) and a C compiler (`xcode-select --install`, `build-essential`) |
 | MCP client cannot connect | Run `neuralgraph-memory mcp` in a terminal first; then check the **absolute** binary path in your client config |
 | Extraction seems stuck | Open the dashboard — the queue and worker mood tell you immediately |

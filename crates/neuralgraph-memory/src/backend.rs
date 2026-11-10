@@ -160,6 +160,34 @@ pub async fn llm_generate_think(
     Ok(strip_thinking(content))
 }
 
+/// Embeddings for several texts in one request (OpenAI-compatible servers accept a list). `None` for Ollama's
+/// one-at-a-time route or when the reply does not line up with the input; the caller then embeds one by one.
+pub async fn llm_embed_batch(
+    client: &reqwest::Client,
+    texts: &[String],
+    model: &str,
+    base_url: &str,
+    timeout_seconds: f64,
+) -> Option<Vec<Vec<f64>>> {
+    let base_url = base_url.trim_end_matches('/');
+    if backend_for(base_url) == "ollama" || texts.len() < 2 {
+        return None;
+    }
+    let body = json!({"model": model, "input": texts});
+    let data = post_json(client, &format!("{base_url}/v1/embeddings"), &body, timeout_seconds).await.ok()?;
+    let rows = data.get("data")?.as_array()?;
+    if rows.len() != texts.len() {
+        return None;
+    }
+    let mut out = vec![Vec::new(); texts.len()];
+    for (i, row) in rows.iter().enumerate() {
+        let at = row.get("index").and_then(Value::as_u64).map(|x| x as usize).unwrap_or(i);
+        let v: Option<Vec<f64>> = row.get("embedding")?.as_array()?.iter().map(Value::as_f64).collect();
+        *out.get_mut(at)? = v?;
+    }
+    out.iter().all(|v| !v.is_empty()).then_some(out)
+}
+
 /// An embedding vector. Errors on HTTP/network failure.
 pub async fn llm_embed(
     client: &reqwest::Client,
