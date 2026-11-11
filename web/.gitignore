@@ -1,0 +1,7 @@
+*.tsbuildinfo
+.next
+.next-dev
+next-env.d.ts
+node_modules
+out
+.next-export
