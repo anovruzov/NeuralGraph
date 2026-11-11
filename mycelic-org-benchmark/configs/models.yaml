@@ -1,0 +1,121 @@
+# Model profiles. IMPORTANT: every value here is an ASSUMPTION unless
+# `measured: true`. No real model was reachable in the environment that
+# produced results/ (see DESIGN.md §9). scripts/validate_with_real_slm.py
+# measures attr_omission, attr_misread, label_drop, label_spurious and
+# injection_susceptibility against an OpenAI-compatible endpoint and writes a
+# measured profile you can drop in here.
+models:
+  edge_profile: sim-3b
+  frontier_profile: sim-frontier
+  backend: simulated-slm
+
+  profiles:
+    sim-1b:
+      params_b: 1.0
+      attr_omission: 0.18
+      attr_misread: 0.06
+      label_drop: 0.15
+      label_spurious: 0.06
+      injection_susceptibility: 0.55
+      poison_tpr: 0.55
+      poison_fpr: 0.12
+      latency_ms_per_1k_tokens: 900
+      ram_gb: 1.5
+      energy_j_per_1k_tokens: 25
+      usd_per_1k_tokens: 0.00002
+      context_window_tokens: 8192
+      measured: false
+    sim-3b:
+      params_b: 3.0
+      attr_omission: 0.10
+      attr_misread: 0.03
+      label_drop: 0.08
+      label_spurious: 0.03
+      injection_susceptibility: 0.35
+      poison_tpr: 0.70
+      poison_fpr: 0.08
+      latency_ms_per_1k_tokens: 2200
+      ram_gb: 3.5
+      energy_j_per_1k_tokens: 60
+      usd_per_1k_tokens: 0.00005
+      context_window_tokens: 32768
+      measured: false
+    sim-7b:
+      params_b: 7.0
+      attr_omission: 0.06
+      attr_misread: 0.02
+      label_drop: 0.05
+      label_spurious: 0.02
+      injection_susceptibility: 0.25
+      poison_tpr: 0.80
+      poison_fpr: 0.06
+      latency_ms_per_1k_tokens: 5000
+      ram_gb: 7.5
+      energy_j_per_1k_tokens: 140
+      usd_per_1k_tokens: 0.00012
+      context_window_tokens: 32768
+      measured: false
+    sim-8b:
+      params_b: 8.0
+      attr_omission: 0.055
+      attr_misread: 0.018
+      label_drop: 0.045
+      label_spurious: 0.018
+      injection_susceptibility: 0.22
+      poison_tpr: 0.82
+      poison_fpr: 0.055
+      latency_ms_per_1k_tokens: 5600
+      ram_gb: 8.5
+      energy_j_per_1k_tokens: 160
+      usd_per_1k_tokens: 0.00014
+      context_window_tokens: 32768
+      measured: false
+    sim-14b:
+      params_b: 14.0
+      attr_omission: 0.04
+      attr_misread: 0.012
+      label_drop: 0.03
+      label_spurious: 0.012
+      injection_susceptibility: 0.15
+      poison_tpr: 0.88
+      poison_fpr: 0.04
+      latency_ms_per_1k_tokens: 9800
+      ram_gb: 15.0
+      energy_j_per_1k_tokens: 280
+      usd_per_1k_tokens: 0.00025
+      context_window_tokens: 65536
+      measured: false
+    sim-frontier:
+      params_b: 400.0
+      attr_omission: 0.02
+      attr_misread: 0.005
+      label_drop: 0.02
+      label_spurious: 0.005
+      injection_susceptibility: 0.08
+      poison_tpr: 0.93
+      poison_fpr: 0.03
+      latency_ms_per_1k_tokens: 1500
+      ram_gb: 0.0
+      energy_j_per_1k_tokens: 900
+      usd_per_1k_tokens: 0.006
+      context_window_tokens: 200000
+      measured: false
+    # A deliberately *perfect* extractor for ablations that isolate information flow from model noise.
+    sim-perfect:
+      params_b: 0.0
+      attr_omission: 0.0
+      attr_misread: 0.0
+      label_drop: 0.0
+      label_spurious: 0.0
+      injection_susceptibility: 0.0
+      poison_tpr: 1.0
+      poison_fpr: 0.0
+      latency_ms_per_1k_tokens: 0
+      ram_gb: 0.0
+      energy_j_per_1k_tokens: 0
+      usd_per_1k_tokens: 0.0
+      context_window_tokens: 1000000000
+      measured: false
+
+  # Rough cost model for the edge: amortised hardware per 1k tokens is folded into usd_per_1k_tokens.
+  cloud_egress_usd_per_gb: 0.09

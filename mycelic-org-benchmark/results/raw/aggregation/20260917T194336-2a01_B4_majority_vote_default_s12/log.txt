@@ -1,0 +1,2 @@
+2026-09-17T20:26:18Z start 20260917T194336-2a01_B4_majority_vote_default_s12 system=B4_majority_vote kind=baseline seed=12 condition=default dataset=4281c50f257377b6
+2026-09-17T20:29:06Z ok runtime_s=167.63 peak_rss_mb=457 n_accepted=1601 recall_global=0.7

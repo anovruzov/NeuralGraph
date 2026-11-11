@@ -1,0 +1,2 @@
+2026-09-17T21:43:28Z start 20260917T194336-2a01_ORACLE_central_stats_default_s20 system=ORACLE_central_stats kind=oracle seed=20 condition=default dataset=3260b8f1e04cba9a
+2026-09-17T21:46:16Z ok runtime_s=168.42 peak_rss_mb=542 n_accepted=1116 recall_global=0.9

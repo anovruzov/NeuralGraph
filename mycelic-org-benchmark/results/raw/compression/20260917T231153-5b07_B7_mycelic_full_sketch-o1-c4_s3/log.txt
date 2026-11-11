@@ -1,0 +1,2 @@
+2026-09-17T23:24:22Z start 20260917T231153-5b07_B7_mycelic_full_sketch-o1-c4_s3 system=B7_mycelic kind=hierarchy seed=3 condition=full_sketch-o1-c4 dataset=c45ec7ed8069c397
+2026-09-17T23:24:26Z ok runtime_s=4.23 peak_rss_mb=125 n_accepted=305 recall_global=0.0

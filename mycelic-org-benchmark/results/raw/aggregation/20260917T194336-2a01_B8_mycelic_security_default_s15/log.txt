@@ -1,0 +1,2 @@
+2026-09-17T21:06:00Z start 20260917T194336-2a01_B8_mycelic_security_default_s15 system=B8_mycelic_security kind=hierarchy seed=15 condition=default dataset=37dc642660c9cfdc
+2026-09-17T21:06:40Z ok runtime_s=39.73 peak_rss_mb=389 n_accepted=546 recall_global=0.8
