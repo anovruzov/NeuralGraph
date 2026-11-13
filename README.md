@@ -1,42 +1,45 @@
 <h1 align="center">NeuralGraph</h1>
 
+<p align="center"><strong>Local-first, evidence-backed memory for AI agents.</strong></p>
+<p align="center">Remember across conversations. Retrieve by meaning, time, person, and source. Run locally.</p>
+
 <p align="center">
-  <strong>Persistent graph memory for Claude and AI agents — local-first, yours.</strong>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
+  <a href="https://www.rust-lang.org/"><img alt="Rust 1.89+" src="https://img.shields.io/badge/Rust-1.89%2B-B7410E?style=flat-square"></a>
+  <a href="https://modelcontextprotocol.io"><img alt="Model Context Protocol" src="https://img.shields.io/badge/MCP-stdio%20%2B%20HTTP-555555?style=flat-square"></a>
+  <a href="#privacy-by-construction"><img alt="Local-first" src="https://img.shields.io/badge/storage-local%20SQLite-333333?style=flat-square"></a>
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square"></a>
-  <a href="https://www.rust-lang.org/"><img alt="Rust 1.89+" src="https://img.shields.io/badge/Rust-1.89%2B-B7410E.svg?style=flat-square&amp;logo=rust&amp;logoColor=white"></a>
-  <a href="https://modelcontextprotocol.io"><img alt="MCP 2025-06-18" src="https://img.shields.io/badge/MCP-2025--06--18-7c3aed.svg?style=flat-square"></a>
-  <a href="#privacy-by-construction"><img alt="Local-first" src="https://img.shields.io/badge/Cloud_accounts-0-0ea5e9.svg?style=flat-square"></a>
-</p>
-
-<p align="center">
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#connect-to-claude">Connect to Claude</a> ·
-  <a href="#what-you-get">Features</a> ·
+  <a href="#quick-start">Install</a> ·
+  <a href="#connect-to-claude">Connect an agent</a> ·
+  <a href="#what-you-get">Capabilities</a> ·
   <a href="#how-it-works">Architecture</a> ·
+  <a href="#benchmarks">Benchmarks</a> ·
   <a href="#cli">CLI</a> ·
-  <a href="#rest-api-and-dashboard">REST API</a>
+  <a href="#rest-api-and-dashboard">API & dashboard</a>
 </p>
 
 ---
 
-NeuralGraph gives Claude and any MCP-capable agent memory that survives the end of a
-conversation. Every turn becomes structured memories, entities and typed relations in a
-local knowledge graph; retrieval fuses vector and keyword channels by rank, with an entity-graph channel you can opt into; the whole thing runs on
-your machine against a local model.
+NeuralGraph is a persistent memory engine for Claude Code, Claude Desktop, Codex, Cursor, and other [MCP](https://modelcontextprotocol.io)-capable clients. It converts selected conversation content and imported documents into structured memories with **source provenance**, **entities**, **typed relationships**, and **temporal history**. On recall, it combines vector similarity and keyword search, with an optional graph channel. A local model can then answer using retrieved evidence and cite its sources.
 
-**Free and open source** — no cloud accounts, no API keys, no subscriptions, no telemetry.
+The goal is not to store every token forever. It is to preserve useful information, know where it came from, distinguish old facts from current ones, and avoid supplying irrelevant memories to the next answer.
 
-What makes it different from a vector store with a nice wrapper:
-
-| | NeuralGraph |
+| Capability | What it means in practice |
 |---|---|
-| **Retrieval** | Vector + BM25 fused by Reciprocal Rank Fusion, plus subject and entity priors — not cosine similarity alone |
-| **Time** | Facts supersede facts. "Where did Ali live in March?" returns the *March* answer, not today's |
-| **Speakers** | Per-agent routing: a question about Nurman searches Nurman's memories |
-| **Ownership** | One binary, one SQLite file. Delete the file and the memory is gone — really gone |
+| **Persistent** | Memory survives chat sessions and model restarts in a SQLite database you control |
+| **Evidence-backed** | Memories retain references to originating messages or documents; the answer interface exposes citations and retrieval evidence |
+| **Temporal** | Earlier observations remain in history when newer facts supersede them |
+| **Hybrid retrieval** | Vector + BM25 rankings fuse via Reciprocal Rank Fusion; graph expansion is optional |
+| **Local-first** | Works with locally running LM Studio or Ollama; no hosted account is required for normal operation |
+| **Inspectable** | Use the CLI, local dashboard, API, or MCP tools to inspect, search, edit, and retract memories |
+
+**Measured, not extrapolated:** a 66-question LoCoMo subset reached **87.9% evidence@15** (retrieval of gold-source evidence), while a separate 150-question LongMemEval Oracle evaluation averaged **69% judged answer accuracy** with a local reader and judge. These are different tasks, metrics, and evaluation populations; neither is a full-dataset vendor-comparable score. [Methods and results](#benchmarks).
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="NeuralGraph local dashboard showing memory activity and recent memories" width="820">
+</p>
 
 ---
 
@@ -58,8 +61,7 @@ That is the whole install. The script:
 3. Starts the [setup wizard](#setup-wizard-recommended). If no model server is running, the
    wizard offers to install [Ollama](https://ollama.com) for you and download the models.
 
-You need about 8 GB of RAM for a 7B-class model. The memory server itself idles at
-about 12 MB, and the database is tiny. Read the script before piping it to `sh`:
+You need about 8 GB of RAM for a 7B-class model. The memory server has been observed to idle around 12 MB in the documented environment; memory and database size grow with workload. Read the script before piping it to `sh`:
 [`install.sh`](install.sh).
 
 Options are environment variables, for example
@@ -183,7 +185,7 @@ block above sets them by hand.
 
 ## Connect to Claude
 
-The MCP server is `neuralgraph-chat-memory` (v1.0.0). It speaks **stdio** for desktop
+The MCP server reports the name `neuralgraph-chat-memory` (protocol/server version 1.0.0); the installed binary is `neuralgraph-memory`. It speaks **stdio** for desktop
 clients and **Streamable HTTP** for everything else, negotiating protocol `2025-06-18`,
 `2025-03-26` or `2024-11-05`.
 
@@ -249,53 +251,41 @@ Claude Code: if something fails, the hook logs it and steps aside. To turn them 
 
 ## What you get
 
-### Nine MCP tools
+### Ten MCP tools
 
-**Read** — always safe, never mutate:
+NeuralGraph offers **seven read-only tools** and **three write tools**. The CLI and HTTP API expose additional entry points to the same memory system.
 
-| Tool | What it does |
+| Tool | Purpose |
 |---|---|
-| `memory_search` | Hybrid search across every memory, with subject/time/kind filters |
-| `memory_context` | A prompt-ready context block, evidence-floored and size-capped |
-| `memory_profile` | Everything known about a person or entity |
-| `memory_related` | Memories connected to a given one through the graph |
-| `memory_entities` | The entity graph and its typed relations |
-| `memory_status` | Queue depth, worker health, tokens saved, grade |
+| \`memory_search\` | Search with subject, time, and kind filters |
+| \`memory_context\` | Produce an evidence-filtered, prompt-sized context block |
+| \`memory_answer\` | Answer from memory using the routed reader, with source-backed context |
+| \`memory_profile\` | Retrieve known information about a subject |
+| \`memory_related\` | Follow memory relationships |
+| \`memory_entities\` | Inspect entities and typed relations |
+| \`memory_status\` | Inspect ingestion, queue, and health |
+| \`memory_add_message\` | Queue a conversation turn for asynchronous extraction |
+| \`memory_remember\` | Write a specified fact immediately |
+| \`memory_forget\` | Retract a memory while preserving the corresponding audit entry |
 
-**Write** — the only three calls that change anything:
+The MCP server also exposes resources and a recall prompt. See the [full MCP guide](crates/neuralgraph-memory/README.md) for arguments, outputs, and client-specific configuration.
 
-| Tool | What it does |
-|---|---|
-| `memory_add_message` | Record a turn. Returns immediately; extraction happens in the background |
-| `memory_remember` | Store a fact immediately, write-through |
-| `memory_forget` | Retract a memory, keeping an audit entry |
+### Why the memory behaves differently
 
-Plus three MCP resources and a `recall` prompt.
+- **Asynchronous, selective extraction.** Recording a turn need not block generation; a background worker decides which information is worth storing.
+- **Source grounding.** Extracted memories are checked against their source text before the write is accepted.
+- **Time-aware updates.** New observations can supersede old ones without erasing historical context.
+- **Worker recovery.** Leases, retries, and commit fencing protect queue processing across worker restarts.
+- **Incremental retrieval.** SQLite FTS5 and vector retrieval combine rankings, with optional entity-graph expansion and subject priors.
+- **Useful answers, not just matches.** \`memory_answer\`, \`neuralgraph-memory answer\`, and \`POST /api/answer\` use a reader that routes some numerical and temporal questions to a computation-oriented prompt. This is a model-based answer path, not a guarantee of correctness.
 
-### The properties behind them
-
-- **Asynchronous extraction.** Recording a turn never blocks the conversation. A debounce
-  window pairs a user turn with its reply so they are extracted as one unit.
-- **Gated extraction.** Not every message contains a fact worth keeping. The worker decides
-  before it spends a token.
-- **Grounded writes.** A memory that is not supported by the source text is rejected rather
-  than stored.
-- **Time-aware supersession.** The observation with the latest *source* time wins, whatever
-  order chats were ingested in. History is kept and shown as `superseded by …`.
-- **Fenced commits.** Work is leased; a worker that dies mid-job has its lease expire and its
-  job retried, never double-committed. Restart recovery is tested.
-- **Incremental indexes.** The vector index is refreshed with rows written since the last
-  query, and filters are masks.
-- **Safe model swaps.** Change your embedding model and old rows keep answering queries of
-  their own dimension until maintenance re-embeds them.
+**Limits:** retrieval may miss relevant evidence, extraction can omit or misread facts, and the reader can still answer incorrectly. The graph stores relationships and provenance; it does not independently prove that user-supplied statements are true.
 
 ---
 
 ## For organizations: Mycelic
 
-NeuralGraph is memory for one assistant, on one machine. Its enterprise sibling,
-**[Mycelic](https://github.com/PNurmanM/MycelicLabs)**, rolls many agents' private memories up through an
-organization's hierarchy as a self-hosted service.
+NeuralGraph is the open-source local memory engine for an assistant. **[Mycelic Labs](https://myceliclabs.com)** is building a broader enterprise intelligence fabric for connecting evidence across teams and systems while preserving control of underlying data at its source. They address different deployment needs; the features documented here are those available in **this repository**.
 
 ---
 
@@ -346,6 +336,26 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 
 ---
 
+
+## Benchmarks
+
+**Different metrics answer different questions.** NeuralGraph's research engine, its shipped assistant pipeline, and the local answer reader have separate evaluations. The following results are documented in [BENCHMARKS.md](docs/BENCHMARKS.md) and the [reproduction guide](research/overnight/README.md).
+
+| Evaluation | Result | What was measured |
+|---|---:|---|
+| **LoCoMo — shipped extraction/retrieval pipeline** | **87.9% evidence@15** | Retrieval-only: in 66 questions from conversation 0, sessions 1–8, at least one retrieved memory cites a gold evidence message. Qwen3.8-9B extractor, nomic embeddings; one conversation and one run per configuration |
+| **LongMemEval Oracle — retrieval** | **93.5% turn@15** | 50-question stratified sample, seed 1; whether retrieved context cites an answer-bearing source turn, not whether the assistant answers correctly |
+| **LongMemEval Oracle — end-to-end answers** | **69% mean judged accuracy** | Three 50-question draws (150 total), local Qwen3.8-9B reader and Gemma-4-e4b using official judge prompts. The 100-question held-out mean was **67%**; the other 50 questions were used in protocol selection |
+| **Research retrieval A/B** | **+8.9 points** | A controlled comparison on the same 282 LoCoMo questions, with the same judge; research pipeline, not the shipped assistant's end-to-end result |
+
+**Interpretation matters.** \`evidence@15\` and \`turn@15\` are *retrieval* metrics, not LoCoMo answer accuracy. The LongMemEval run uses **Oracle**, where evidence sessions are supplied; it does not represent the harder LongMemEval S setting. These local-model, local-judge, partial-sample results must not be compared directly with vendor claims from different datasets, readers, judges, retrieval budgets, or evaluation procedures. The 69% is an observed score; projected frontier-model scores are **not** benchmark results.
+
+**Latency:** the benchmark document records p50 **10 ms** and p95 **12 ms** retrieval on the particular 50-question LongMemEval Oracle databases, including embedding, and a separate **3.45 s mean** for a 50-question product-path answer check. These are different operations on specific hardware/workloads, not universal service-level guarantees; the repository does not substantiate a single blanket “17 ms end-to-end” claim.
+
+For protocols, samples, prompts, limitations, negative results, and reproduction commands, start with [docs/BENCHMARKS.md](docs/BENCHMARKS.md). The [overnight reproduction guide](research/overnight/README.md) describes the shipped reader and its held-out evaluation.
+
+---
+
 ## Repository layout
 
 ```text
@@ -367,175 +377,62 @@ research/                     research datasets and artifacts
 
 ## CLI
 
-Everything the server does, available from a terminal. All commands are
-`neuralgraph-memory <command>`.
+After installation, run \`neuralgraph-memory --help\` for all options. Frequently used commands:
 
-| Command | What it does |
+| Command | Purpose |
 |---|---|
-| `open [PAGE]` | Open the web app in the browser; starts the dashboard in the background if needed |
-| `chat [QUESTION]` | Ask your memory in the terminal: cited answers, `/e` evidence, `/s` stats, `/search`, `/who`, `/recent` (`--no-ai`, `--json`) |
-| `update` | Download the latest version, replace the program, restart the dashboard (`--check`, `--version TAG`) |
-| `setup` | First-run wizard: model server, model tests, your name, connect Claude Code / Codex / Claude Desktop / Cursor (`--yes` for defaults) |
-| `serve` | Worker + dashboard + REST API + MCP over HTTP |
-| `mcp` | Worker + MCP over stdio |
-| `ingest FILE` | Import a JSONL chat log, or LoCoMo JSON with `--locomo` |
-| `process` | Drain the extraction queue in the foreground |
-| `search QUERY` | Search memories (`-k`, `--subject`, `--history`, `--json`) |
-| `context QUERY` | Print a prompt-ready context block (`-k`, `--max-chars`) |
-| `profile SUBJECT` | What is known about a subject (`--json`) |
-| `graph [ENTITY]` | Entity graph as a terminal tree (`--depth`, `--hubs`, `--chat-id`, `--json`), or `--out graph.html` for an offline explorer |
-| `stats` | Counts, queue, tokens saved, grade |
-| `remember TEXT` | Store a memory now (`--subject`, `--kind`, `--when`) |
-| `forget MEMORY_ID` | Retract a memory (`--reason`) |
-| `maintain` | Run one maintenance pass |
+| \`setup\` | Select local models, test the endpoints, and connect MCP clients |
+| \`open [PAGE]\` | Open the dashboard (home, chat, memories, import, graph, models, activity, settings) |
+| \`chat [QUESTION]\` | Ask memory interactively or once; show citations, evidence, and stats |
+| \`answer "QUESTION"\` | Use the routed answer reader, with optional \`--today\` and \`--json\` |
+| \`search "QUERY"\` / \`context "QUERY"\` | Inspect retrieval or print context without asking the reader |
+| \`remember "FACT"\` / \`forget MEMORY_ID\` | Explicitly save or retract a memory |
+| \`profile SUBJECT\` / \`graph [ENTITY]\` | Inspect subject knowledge and relations |
+| \`ingest FILE\` / \`process\` | Import JSONL or LoCoMo data and process the extraction queue |
+| \`stats\` / \`maintain\` | Inspect health and perform maintenance |
+| \`pause\` / \`resume\` | Pause or resume model-backed learning |
+| \`serve\` / \`mcp\` | HTTP dashboard + API + MCP server, or MCP over stdio |
+| \`update\` / \`update --check\` | Upgrade or check for a new GitHub release |
 
-```bash
-neuralgraph-memory remember "Ali moved to Berlin" --subject Ali
-neuralgraph-memory search "where does Ali live" --history
-neuralgraph-memory stats
-```
+\`\`\`bash
+neuralgraph-memory remember "I prefer local-first tools" --subject "Your Name"
+neuralgraph-memory search "local-first tools"
+neuralgraph-memory answer "What tools do I prefer?"
+neuralgraph-memory graph --out graph.html
+\`\`\`
 
-Common flags on every command: `--db`, `--model`, `--base-url`, `--embed-model`,
-`--parallel`, `--workers`, `--batch-size`, `--debounce`, `--user-name`,
-`--no-extract-assistant`, `--fake-llm`, `-v`.
-
-Separate databases are just separate paths — `--db ~/work.db` and `--db ~/personal.db`
-share nothing.
+Choose a separate database with \`--db ~/work.db\` or \`--db ~/personal.db\`. These are separate memory stores; the application does not automatically merge them.
 
 ---
 
 ## REST API and dashboard
 
-`serve` runs four things in one process: the worker, MCP at `/mcp`, a REST API under
-`/api/*`, and the web app at `/`. Everything can be controlled from the web app:
+\`neuralgraph-memory serve\` runs the background worker, the dashboard at **http://127.0.0.1:8765/**, REST endpoints under \`/api/*\`, and Streamable HTTP MCP at \`/mcp\`.
 
-| Section | What it holds |
+The local dashboard is intended for inspecting and controlling the actual stored data, not just looking at aggregate counts.
+
+| Page | Primary use |
 |---|---|
-| **Home** | Whether NeuralGraph is on, learning or paused; memories, entities, chats and tokens saved; recently learned memories; a health grade |
-| **Chat** | Ask in plain words. Each answer cites the memories it used, with evidence and retrieval numbers one click away |
-| **Memories** | *Browse* (filter, edit, forget, archived) and *Add* (remember something now) |
-| **Models** | Model manager: what is on disk and in memory, which model does which job, downloads |
-| **Graph** | The entity graph explorer (below) |
-| **Activity** | *Chats* read, the *Queue* of messages still to learn, and a *Log* of recent work |
-| **Settings** | *General* (name, on/off, memory file, version and update, theme), *Connections* (connect Claude Code, Codex, Claude Desktop or Cursor, and turn on automatic memory), *Advanced* (files, endpoints, CLI equivalents) |
+| **Home** | Status, memory and entity counts, recent activity, worker and queue health |
+| **Chat** | Ask questions; inspect numbered source citations, search evidence, and timing |
+| **Memories** | Search, add, edit, retract, archive, and restore memory entries |
+| **Import** | Preview and import Claude/ChatGPT exports, Claude Code sessions, notes, PDFs, screenshots, or text |
+| **Graph** | Explore entities, typed relations, co-mentions, neighborhoods, and source memories |
+| **Models** | See local models, change assignments, load/unload, and download compatible models |
+| **Activity** | Review imported chats, extraction queue, and recent work |
+| **Settings** | Configure identity, memory location, clients, model endpoints, and updates |
 
-<div align="center">
-  <img src="docs/images/dashboard.png" alt="The NeuralGraph web app: sidebar with an on/off switch and five sections; the Home page shows status, counts, recent memories and health" width="820">
-</div>
+<p align="center">
+  <img src="docs/images/graph-explorer.png" alt="NeuralGraph graph explorer with entity relationships and local neighborhood views" width="820">
+</p>
 
-**Chat.** Chat answers in two visible steps. First it searches memory, the same hybrid search
-every tool uses. Then the local model writes an answer from the numbered memories it found and
-cites them as `[1]`, `[2]`.
+**Import behavior:** chats use the speaker's own turns as the source of personal memories and retain assistant responses as context; documents are read in smaller sections. Imports show a preview before processing. A vision-capable local model can process screenshots; this may require a separate model download. The resulting facts can still be incomplete or mistaken, so review imported memories before using them for high-stakes decisions.
 
-- **Evidence:** click a citation, or *Evidence*, to see each memory with its similarity to
-  your question, the chat or document it came from, and the original message.
-- **Stats:** shows the search time and how many memories were searched and kept, the answer
-  time and model, the text that was searched for, and how much was sent to the model.
-- **Direct queries:** these skip the model: `/search words`, `/who name` (an entity's
-  connections and memories), `/recent`, `/stats`.
-- **Search only:** a switch turns the model off for plain questions.
-- **Paused:** you get the matching memories instead of a written answer.
+**Answers with citations:** \`POST /api/answer\` and \`memory_answer\` use the routed reader. The ordinary Chat UI can also return a citation-backed answer from retrieved context. Citations show *where an answer came from*, not an external validation of that source.
 
-`neuralgraph-memory chat` is the same engine in the terminal.
+**Automatic recall:** \`setup\` can install Claude Code hooks that save conversation content and supply relevant memories before a prompt. MCP alone does not automatically capture every conversation unless the client calls a write tool or a hook/integration is enabled. Existing client settings are backed up by the setup process.
 
-**Models.** The *Models* page is a manager for the model server (LM Studio or Ollama):
-
-- **On this computer:** every model with its size, whether it is a chat or embedding model,
-  whether it reads images, and whether it is in memory now, with *Load* and *Unload*.
-- **Jobs:** which model is the chat model, the embedding model and the image model. Changes
-  apply at once. Changing the embedding model re-embeds every memory in the background.
-- **Download:** the recommended models with their sizes, or any model by name, with progress.
-- **Free memory when idle:** unloads the chat model after it has gone unused (default 15
-  minutes, LM Studio). It loads again in a few seconds when learning or Chat needs it. Models
-  you are using yourself are left alone: LM Studio reports each model's last use.
-
-**Sharper recall.** nomic-embed models are trained with a mode marker on every input:
-`search_query:` for questions and `search_document:` for stored text. NeuralGraph now sends
-both. On real data that moved related prompts to 0.67–0.81 similarity and unrelated ones to
-0.57–0.66, so the automatic recall bar (0.665) separates them: 14 of 15 test prompts were
-handled correctly, against 11 before. Existing memories are embedded again once, by
-themselves, the first time the new version starts.
-
-**Import.** The *Import* section brings in what other tools already know about you:
-
-| Source | How |
-|---|---|
-| Claude.ai | Settings → Privacy → *Export data*, then drop the `.zip` |
-| ChatGPT | Settings → Data controls → *Export data*, then drop the `.zip` |
-| Claude Code | *Find sessions* reads every past session in `~/.claude/projects` |
-| Notes and PDFs | `.md`, `.txt`, `.pdf`, or a `.zip` of a notes folder such as an Obsidian vault |
-| Screenshots | `.png`, `.jpg` and friends, read by a vision model first |
-| Paste | Any text |
-
-Every import shows a preview first: what it found, a checkbox for each item, and an estimate
-of the time. Re-importing the same file stores nothing twice. The two kinds of import are
-learned differently:
-
-- **Chats** (Claude.ai, ChatGPT, Claude Code) are read 20 messages at a time, and only what
-  *you* said becomes a memory. The assistant's turns are context: its long answers are
-  explanations and status reports, not facts about you.
-- **Documents** (notes, PDFs, screenshots, pasted text) are split into sections of about 900
-  characters at their headings. Each section is read on its own with "record every fact"
-  rules, several sections in parallel. A 13 KB profile becomes about 90 memories in roughly
-  7 minutes with Gemma 4 E4B on an Apple-silicon laptop. Uploads stay on your machine. The endpoint takes files up to 512 MB and refuses
-requests from other websites.
-
-**Screenshots without overloading your machine.** When the chat model can see (LM Studio's
-recommended Gemma 4 E4B can), it reads screenshots itself and nothing else is loaded. When it
-cannot (Ollama's Qwen 2.5 7B), a small vision model reads them, and the two are swapped
-instead of loaded together. Learning is held, the chat model is unloaded, the vision model
-reads every image of the import, then it is unloaded and the chat model returns. The chat
-model is reloaded only if it was loaded before. Choose the image model under
-*Settings → Models*.
-
-**Fewer, better memories.** Chats recorded by the Claude Code hooks are coding sessions, so they
-are learned differently from ordinary chats. Each turn waits ten minutes, and every new turn
-pushes the earlier ones back, so a stretch of work is read in one go, 20 messages at a time,
-instead of two at a time. The model is told to keep only lasting facts: your preferences,
-decisions, projects, people and setup. It drops progress updates, test results and release
-status. On a real 30-message session this cut 38 memories to 10, and 15 model calls to 2.
-*Activity → Chats → Re-learn* re-reads an older chat with today's rules.
-
-Memories rated below 0.6 are **minor**. *Memories → Browse* hides them unless you ask to see
-them. Once a day, minor memories nobody has recalled for two weeks are archived. *Clean up
-now* merges near-duplicates and archives every minor memory nobody has recalled, at any age.
-Archived memories leave search and the graph, and *Archived → Restore* brings any of them back.
-
-**On/off switch.** The switch at the top of the sidebar pauses NeuralGraph and unloads its
-chat and embedding models from LM Studio or Ollama, so their RAM is free for something else.
-Other models you have loaded are left alone. While paused, no NeuralGraph process calls a
-model: chats are still saved and queue up, search falls back to keyword matching, and
-*Remember* still works. Switching it back on loads both models again and learns whatever
-queued up. The same switch is `neuralgraph-memory pause` and `neuralgraph-memory resume`.
-
-Settings changes made in the web app apply immediately and are saved to
-`~/.neuralgraph/config.json`. Requests that change settings are accepted only as JSON from the
-page's own origin, so other websites cannot change them.
-
-### Entity graph
-
-The dashboard embeds a graph explorer (also at `/graph` full screen). Entities are nodes,
-sized by mentions and coloured by type. Typed relations and co-mentions (two entities named
-in the same memory) are the edges.
-
-- **Local graph:** click an entity to highlight its neighbourhood to a chosen depth (1–3),
-  or press *Local graph* to show only that neighbourhood. The side panel lists the
-  entity's top memories and every connection.
-- **Filters:** toggle relations, co-mentions, orphans and each type in the legend, find an
-  entity with <kbd>/</kbd>, or scope to one chat. *Table* shows the same data as a list.
-- **Time-lapse:** replays the graph forming in the order memories were learned.
-- **Live:** new entities pulse in as the worker extracts them; signals travel along edges
-  while it is busy.
-- **Deep links:** `/graph?focus=Caroline&depth=2&local=1` opens the explorer on one entity.
-
-<div align="center">
-  <img src="docs/images/graph-explorer.png" alt="Graph explorer focused on one entity, with its two-hop neighbourhood highlighted and its connections listed in the side panel" width="820">
-</div>
-
-```bash
-neuralgraph-memory graph Melanie --depth 2    # ASCII tree in the terminal
-neuralgraph-memory graph --out graph.html     # self-contained explorer, opens without a server
-```
+More precise API payloads, supported imports, modes, and operating limits are documented in the [user guide](crates/neuralgraph-memory/README.md).
 
 ---
 
@@ -561,21 +458,15 @@ saved in `~/.neuralgraph/config.json`.
 
 ## Privacy by construction
 
-NeuralGraph is local-first by design, not by policy:
+For normal use, memory lives in local SQLite and the chat and embedding requests go to the **model endpoint you configure**, typically Ollama or LM Studio on the same machine. The app does not require a hosted NeuralGraph account or send product telemetry. **Installation and version checks contact GitHub**; a remotely configured model endpoint may send prompts or memory content to that endpoint.
 
-- **Local SQLite** — one file, on your disk, that you can inspect, back up or delete.
-- **Local models** — generation and embeddings run on your machine via Ollama or LM Studio.
-- **Local transport** — stdio, or HTTP bound to `127.0.0.1` by default.
-- **No telemetry.** Nothing phones home. There is nothing to phone home to.
+- **Local storage is not encryption.** SQLite files, journals, exports, and backups must be protected with appropriate file permissions and disk encryption.
+- **Loopback is the safe default.** \`serve\` binds to \`127.0.0.1\` unless you change it.
+- **Tokens are not on by default.** When exposing HTTP beyond localhost, configure \`NEURALGRAPH_MCP_TOKEN\` and \`NEURALGRAPH_API_TOKEN\`, restrict network access, and terminate TLS in a reverse proxy.
+- **Retraction is not secure erasure.** \`memory_forget\` preserves an audit record; imported originals, backups, application transcripts, and any previously supplied context may still contain the information.
+- **One store is not a multi-tenant service.** Run separate processes/databases for separate people. There is no built-in user-level isolation.
 
-Hardening if you expose it beyond localhost: bearer tokens on `/mcp` and `/api/*`
-(`--mcp-token`, `--api-token`), a CORS allow-list, `Host` validation and CSRF protection
-(a state-changing request from a foreign `Origin` is refused). Binding to anything other
-than `127.0.0.1` makes the server reachable by other machines — read
-[Security](crates/neuralgraph-memory/README.md#12-security) before you do.
-
-You remain responsible for the machine and the applications that can reach the database
-and the MCP server.
+Review [SECURITY.md](SECURITY.md) before remote deployment or storing sensitive information.
 
 ---
 
