@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 470" width="800" height="470" role="img" aria-labelledby="t d">
+<title id="t">Reciprocal Rank Fusion, worked example</title>
+<desc id="d">A vector ranking (m3, m1, m7) with weight 1.0 and a BM25 ranking (m1, m9, m3) with weight 0.8 are fused with k = 60. The fused order is m1 0.0292, m3 0.0291, m7 0.0159, m9 0.0129. The entity-graph channel is optional and off by default. Illustrative ranks; the weights and k are the defaults in the code.</desc>
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#bdbdbd" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="arrd" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#5c5c5c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="1" cy="1" r="1" fill="#1c1c1c"/>
+  </pattern>
+</defs>
+<rect x="0.5" y="0.5" width="799" height="469" rx="14" fill="#0a0a0a" stroke="#2a2a2a"/>
+<rect x="1" y="1" width="798" height="468" rx="14" fill="url(#dots)"/>
+<text x="40" y="46" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8f8f8f" text-anchor="start" letter-spacing="2.2">HYBRID RETRIEVAL</text>
+<text x="40" y="76" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#ededed" text-anchor="start">Ranks fuse, scores don't.</text>
+<rect x="40" y="104" width="180" height="250" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="58" y="134" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="1.6">VECTOR</text>
+<text x="58" y="154" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="start">weight 1.0</text>
+<text x="58" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">1  m3</text>
+<text x="202" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="end">cos .71</text>
+<line x1="58" y1="200" x2="202" y2="200" stroke="#2a2a2a"/>
+<text x="58" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">2  m1</text>
+<text x="202" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="end">cos .64</text>
+<line x1="58" y1="234" x2="202" y2="234" stroke="#2a2a2a"/>
+<text x="58" y="256" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">3  m7</text>
+<text x="202" y="256" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="end">cos .58</text>
+<rect x="236" y="104" width="180" height="250" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="254" y="134" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="1.6">BM25</text>
+<text x="254" y="154" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="start">weight 0.8</text>
+<text x="254" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">1  m1</text>
+<text x="398" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="end">bm25 9.2</text>
+<line x1="254" y1="200" x2="398" y2="200" stroke="#2a2a2a"/>
+<text x="254" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">2  m9</text>
+<text x="398" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="end">bm25 6.0</text>
+<line x1="254" y1="234" x2="398" y2="234" stroke="#2a2a2a"/>
+<text x="254" y="256" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">3  m3</text>
+<text x="398" y="256" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="end">bm25 4.1</text>
+<rect x="432" y="104" width="124" height="250" rx="12" fill="#0a0a0a" stroke="#5c5c5c" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="450" y="134" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#8f8f8f" text-anchor="start" letter-spacing="1.6">GRAPH</text>
+<text x="450" y="154" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#5c5c5c" text-anchor="start">optional</text>
+<text x="450" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#5c5c5c" text-anchor="start">off by</text>
+<text x="538" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#5c5c5c" text-anchor="end"></text>
+<line x1="450" y1="200" x2="538" y2="200" stroke="#2a2a2a"/>
+<text x="450" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#5c5c5c" text-anchor="start">default</text>
+<text x="538" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#5c5c5c" text-anchor="end"></text>
+<rect x="596" y="104" width="164" height="250" rx="12" fill="#181818" stroke="#bdbdbd" stroke-width="1.3"/>
+<text x="614" y="134" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="1.6">FUSED</text>
+<text x="614" y="154" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="start">k = 60</text>
+<text x="614" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="start">1  m1</text>
+<text x="742" y="188" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#bdbdbd" text-anchor="end">.0292</text>
+<line x1="614" y1="200" x2="742" y2="200" stroke="#2a2a2a"/>
+<text x="614" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">2  m3</text>
+<text x="742" y="222" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#bdbdbd" text-anchor="end">.0291</text>
+<line x1="614" y1="234" x2="742" y2="234" stroke="#2a2a2a"/>
+<text x="614" y="256" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">3  m7</text>
+<text x="742" y="256" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#bdbdbd" text-anchor="end">.0159</text>
+<line x1="614" y1="268" x2="742" y2="268" stroke="#2a2a2a"/>
+<text x="614" y="290" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#ededed" text-anchor="start">4  m9</text>
+<text x="742" y="290" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#bdbdbd" text-anchor="end">.0129</text>
+<line x1="562" y1="229" x2="590" y2="229" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="40" y="392" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13.5" font-weight="400" fill="#bdbdbd" text-anchor="start">m1 = 1.0 / (60 + 2) + 0.8 / (60 + 1) = 0.0292</text>
+<text x="40" y="424" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">A memory ranked well by both channels beats one ranked first by only one of them,</text>
+<text x="40" y="444" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">and cosine and bm25 are never compared on the same scale.</text>
+</svg>
