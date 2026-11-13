@@ -1,7 +1,7 @@
 <h1 align="center">NeuralGraph</h1>
 
-<p align="center"><strong>Local-first, evidence-backed memory for AI agents.</strong></p>
-<p align="center">Remember across conversations. Retrieve by meaning, time, person, and source. Run locally.</p>
+<p align="center"><strong>High-evidence recall. Millisecond retrieval. Your data stays local.</strong></p>
+<p align="center">A persistent, source-traceable memory engine for AI agents — designed for the accuracy–latency frontier.</p>
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
@@ -35,7 +35,16 @@ The goal is not to store every token forever. It is to preserve useful informati
 | **Local-first** | Works with locally running LM Studio or Ollama; no hosted account is required for normal operation |
 | **Inspectable** | Use the CLI, local dashboard, API, or MCP tools to inspect, search, edit, and retract memories |
 
-**Measured, not extrapolated:** a 66-question LoCoMo subset reached **87.9% evidence@15** (retrieval of gold-source evidence), while a separate 150-question LongMemEval Oracle evaluation averaged **69% judged answer accuracy** with a local reader and judge. These are different tasks, metrics, and evaluation populations; neither is a full-dataset vendor-comparable score. [Methods and results](#benchmarks).
+### Retrieval quality and speed
+
+| **87.9%** | **17 ms** | **Local-first** |
+|:---:|:---:|:---:|
+| **LoCoMo evidence@15** | **Team-reported recall latency** | **SQLite + local models** |
+| Gold-source evidence retrieved in a 66-question LoCoMo subset | Reported recall measurement; percentile and run artifact not yet published | No hosted NeuralGraph service required |
+
+**What the numbers mean:** **87.9%** is evidence retrieval coverage, **not** 87.9% end-to-end LoCoMo answer accuracy. The **17 ms** figure is a separately reported recall latency, **not** a published same-run accuracy/latency benchmark. For a documented latency measurement, the repository records **10 ms p50 / 12 ms p95** retrieval on a separate LongMemEval Oracle sample. The 150-question LongMemEval Oracle *answer* evaluation averaged **69%** under a local judge. [Evaluation protocols and evidence](#benchmarks).
+
+**The design goal:** source-grounded recall with strong evidence coverage at interactive latency, without treating slow reranking or large context dumps as a substitute for retrieval quality.
 
 <p align="center">
   <img src="docs/images/dashboard.png" alt="NeuralGraph local dashboard showing memory activity and recent memories" width="820">
@@ -350,7 +359,13 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 
 **Interpretation matters.** `evidence@15` and `turn@15` are *retrieval* metrics, not LoCoMo answer accuracy. The LongMemEval run uses **Oracle**, where evidence sessions are supplied; it does not represent the harder LongMemEval S setting. These local-model, local-judge, partial-sample results must not be compared directly with vendor claims from different datasets, readers, judges, retrieval budgets, or evaluation procedures. The 69% is an observed score; projected frontier-model scores are **not** benchmark results.
 
-**Latency:** the benchmark document records p50 **10 ms** and p95 **12 ms** retrieval on the particular 50-question LongMemEval Oracle databases, including embedding, and a separate **3.45 s mean** for a 50-question product-path answer check. These are different operations on specific hardware/workloads, not universal service-level guarantees; the repository does not substantiate a single blanket “17 ms end-to-end” claim.
+### Accuracy at speed
+
+**17 ms recall** is a team-reported measurement supplied after the published evaluation. It is shown here as a reported result, **not** a reproducible leaderboard entry: the test population, hardware, latency statistic (mean/p50/p95), context size, and raw run artifact have not yet been added to this repository. It must not be represented as 17 ms *end-to-end answering* or automatically paired with the 87.9% LoCoMo result.
+
+**Reproduced evaluation context:** the benchmark document records p50 **10 ms** and p95 **12 ms** retrieval on its 50-question LongMemEval Oracle databases, including embedding. A separate 50-question product-path answer check measured a **3.45 s mean** including retrieval and generation. These are different workloads, not a universal service-level guarantee.
+
+**Competitive benchmark standard:** for any claim of “#1 accuracy at speed,” systems must be evaluated on the *same* LoCoMo questions, extraction protocol, answer model, judge, retrieval depth, hardware, and latency statistic. The current repository does **not** establish that ranking or ≥85% **end-to-end answer accuracy**. It does establish the more specific **87.9% evidence@15** on the documented subset; that is the metric presented above.
 
 For protocols, samples, prompts, limitations, negative results, and reproduction commands, start with [docs/BENCHMARKS.md](docs/BENCHMARKS.md). The [overnight reproduction guide](research/overnight/README.md) describes the shipped reader and its held-out evaluation.
 
