@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1766" width="800" height="1766" role="img" aria-labelledby="t d">
+<title id="t">The NeuralGraph memory pipeline</title>
+<desc id="d">Write path: a conversation turn is queued, extracted asynchronously by a leased worker, grounded against the source text and reconciled, then committed to the persistent graph in SQLite. The graph holds memories, entities, a speaker and typed relations; a newer memory supersedes an older one, which is kept as history. Read path: vector and BM25 channels, plus an optional entity-graph channel that is off by default, are fused by Reciprocal Rank Fusion, filtered by an evidence floor, and returned to the agent as context.</desc>
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#bdbdbd" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="arrd" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#5c5c5c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="1" cy="1" r="1" fill="#1c1c1c"/>
+  </pattern>
+</defs>
+<rect x="0.5" y="0.5" width="799" height="1765" rx="14" fill="#0a0a0a" stroke="#2a2a2a"/>
+<rect x="1" y="1" width="798" height="1764" rx="14" fill="url(#dots)"/>
+<rect x="40" y="34" width="720" height="136" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="64" y="68" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">01</text>
+<text x="96" y="68" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">CONVERSATION</text>
+<text x="64" y="96" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">A turn arrives from an MCP tool call, a Claude Code hook, the REST API or an import.</text>
+<text x="64" y="118" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">Recording it is a queue insert, so the chat never waits on a model.</text>
+<text x="64" y="146" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#bdbdbd" text-anchor="start">memory_add_message → messages + jobs (SQLite, WAL)</text>
+<line x1="400.0" y1="173" x2="400.0" y2="197" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="40" y="200" width="720" height="158" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="64" y="234" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">02</text>
+<text x="96" y="234" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">ASYNCHRONOUS EXTRACTION</text>
+<text x="64" y="262" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">A leased background worker takes the turn and its reply together. A gate skips</text>
+<text x="64" y="284" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">greetings and boilerplate without a model call; a local model then extracts memories,</text>
+<text x="64" y="306" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">entities and typed relations.</text>
+<text x="64" y="334" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#bdbdbd" text-anchor="start">gate → extract · chats in parallel, each chat in order</text>
+<line x1="400.0" y1="361" x2="400.0" y2="385" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="40" y="388" width="720" height="158" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="64" y="422" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">03</text>
+<text x="96" y="422" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">GROUNDING + RECONCILIATION</text>
+<text x="64" y="450" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">Candidates the source text does not support are rejected and audited. Each survivor is</text>
+<text x="64" y="472" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">compared with what is already stored, then committed in one transaction fenced on the</text>
+<text x="64" y="494" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">worker's lease.</text>
+<text x="64" y="522" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#bdbdbd" text-anchor="start">ADD · DUPLICATE · UPDATE · CONTRADICT</text>
+<line x1="400.0" y1="549" x2="400.0" y2="573" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="40" y="576" width="720" height="430" rx="12" fill="#0a0a0a" stroke="#bdbdbd" stroke-width="1.3"/>
+<text x="64" y="610" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">04</text>
+<text x="96" y="610" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">PERSISTENT NEURALGRAPH</text>
+<text x="736" y="610" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="end">one SQLite file</text>
+<rect x="64" y="640" width="250" height="64" rx="8" fill="#0a0a0a" stroke="#5c5c5c" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="78" y="667" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">Ali lives in Berlin.</text>
+<text x="78" y="689" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">observed 2026-03-02 · v1</text>
+<rect x="64" y="764" width="250" height="64" rx="8" fill="#181818" stroke="#bdbdbd" stroke-width="1.2"/>
+<text x="78" y="791" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#ededed" text-anchor="start">Ali lives in Kreuzberg.</text>
+<text x="78" y="813" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">observed 2026-04-06 · v2</text>
+<line x1="189" y1="761" x2="189" y2="710" stroke="#bdbdbd" stroke-width="1.4" marker-end="url(#arr)"/>
+<rect x="147.0" y="727.0" width="84.0" height="18" rx="4" fill="#0a0a0a"/><text x="189" y="740.0" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#bdbdbd" text-anchor="middle">supersedes</text>
+<rect x="64" y="868" width="250" height="64" rx="8" fill="#181818" stroke="#bdbdbd" stroke-width="1.2"/>
+<text x="78" y="895" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#ededed" text-anchor="start">Ali works at Charité.</text>
+<text x="78" y="917" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">observed 2026-03-02 · v1</text>
+<path d="M 314 798 C 345 798, 350 808, 373 808" fill="none" stroke="#4a4a4a" stroke-width="1.3" stroke-linecap="round"/>
+<path d="M 314 902 C 345 902, 350 808, 373 808" fill="none" stroke="#4a4a4a" stroke-width="1.3" stroke-linecap="round"/>
+<path d="M 314 674 C 360 674, 375 738, 392 782" fill="none" stroke="#5c5c5c" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="4 4"/>
+<path d="M 426 808 C 480 808, 470 686, 547 686" fill="none" stroke="#5c5c5c" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="5 4" marker-end="url(#arrd)"/>
+<circle cx="560" cy="686" r="9" fill="#0a0a0a" stroke="#5c5c5c" stroke-width="1.4" stroke-dasharray="3 3"/>
+<text x="578" y="687" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#8f8f8f" text-anchor="start">Berlin</text>
+<text x="578" y="705" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">lives_in · superseded</text>
+<path d="M 426 808 C 480 808, 470 776, 547 776" fill="none" stroke="#bdbdbd" stroke-width="1.4" stroke-linecap="round" marker-end="url(#arr)"/>
+<circle cx="560" cy="776" r="9" fill="#bdbdbd"/>
+<text x="578" y="777" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Kreuzberg</text>
+<text x="578" y="795" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">lives_in</text>
+<path d="M 426 808 C 480 808, 470 866, 547 866" fill="none" stroke="#bdbdbd" stroke-width="1.4" stroke-linecap="round" marker-end="url(#arr)"/>
+<circle cx="560" cy="866" r="9" fill="#bdbdbd"/>
+<text x="578" y="867" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Charité</text>
+<text x="578" y="885" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">works_at</text>
+<circle cx="400" cy="808" r="26" fill="#0a0a0a" stroke="#ffffff" stroke-width="1.6"/><circle cx="400" cy="808" r="21" fill="none" stroke="#ffffff" stroke-width="1"/><text x="400" y="813" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ffffff" text-anchor="middle">Ali</text>
+<text x="400" y="854" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="middle">speaker</text>
+<line x1="64" y1="950" x2="736" y2="950" stroke="#2a2a2a"/>
+<text x="64" y="975" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="start">Every memory and relation keeps its source message, observation time, version</text>
+<text x="64" y="994" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="start">and an audit entry. Superseded rows stay in the file as history.</text>
+<line x1="400.0" y1="1009" x2="400.0" y2="1033" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="40" y="1050" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">05</text>
+<text x="72" y="1050" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">RETRIEVAL CHANNELS</text>
+<rect x="40" y="1064" width="228" height="118" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="58" y="1094" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="1.6">VECTOR</text>
+<text x="58" y="1119" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">cosine over local</text>
+<text x="58" y="1139" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">embeddings</text>
+<text x="58" y="1168" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#bdbdbd" text-anchor="start">on</text>
+<path d="M 154.0 1182 L 154.0 1198 L 386.0 1198 L 386.0 1216" fill="none" stroke="#bdbdbd" stroke-width="1.4" stroke-linecap="round" marker-end="url(#arr)"/>
+<rect x="286" y="1064" width="228" height="118" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="304" y="1094" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="1.6">BM25</text>
+<text x="304" y="1119" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">SQLite FTS5 keyword</text>
+<text x="304" y="1139" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">match, Porter stemming</text>
+<text x="304" y="1168" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#bdbdbd" text-anchor="start">on</text>
+<path d="M 400.0 1182 L 400.0 1198 L 400.0 1198 L 400.0 1216" fill="none" stroke="#bdbdbd" stroke-width="1.4" stroke-linecap="round" marker-end="url(#arr)"/>
+<rect x="532" y="1064" width="228" height="118" rx="12" fill="#0a0a0a" stroke="#5c5c5c" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="550" y="1094" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="700" fill="#8f8f8f" text-anchor="start" letter-spacing="1.6">ENTITY GRAPH</text>
+<text x="550" y="1119" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">entities named in the</text>
+<text x="550" y="1139" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">query + one typed hop</text>
+<text x="550" y="1168" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#5c5c5c" text-anchor="start">optional · off by default</text>
+<path d="M 646.0 1182 L 646.0 1198 L 414.0 1198 L 414.0 1216" fill="none" stroke="#5c5c5c" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="5 4" marker-end="url(#arrd)"/>
+<rect x="40" y="1220" width="720" height="158" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="64" y="1254" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">06</text>
+<text x="96" y="1254" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">RECIPROCAL RANK FUSION</text>
+<text x="64" y="1282" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">Channels vote by rank, so no scorer's scale can dominate. Priors then reweight by</text>
+<text x="64" y="1304" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">importance, mild recency, and whether the query names the memory's subject or a</text>
+<text x="64" y="1326" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">mentioned entity.</text>
+<text x="64" y="1354" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#bdbdbd" text-anchor="start">score(m) = Σ wᵢ / (60 + rankᵢ(m))</text>
+<line x1="400.0" y1="1381" x2="400.0" y2="1405" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="40" y="1408" width="720" height="158" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="64" y="1442" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">07</text>
+<text x="96" y="1442" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">EVIDENCE-FLOORED RETRIEVAL</text>
+<text x="64" y="1470" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">A line must earn its place: a keyword or graph hit, or cosine similarity of at least</text>
+<text x="64" y="1492" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">0.30, and a fused score of at least a quarter of the top hit. Otherwise it never</text>
+<text x="64" y="1514" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">reaches the model.</text>
+<text x="64" y="1542" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#bdbdbd" text-anchor="start">context_min_vector_sim = 0.3 · context_min_relative_score = 0.25</text>
+<line x1="400.0" y1="1569" x2="400.0" y2="1593" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="40" y="1596" width="720" height="136" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="64" y="1630" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="13" font-weight="400" fill="#5c5c5c" text-anchor="start">08</text>
+<text x="96" y="1630" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="700" fill="#ffffff" text-anchor="start" letter-spacing="2">AGENT CONTEXT</text>
+<text x="64" y="1658" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">A size-capped block of memories with their source quotes, returned to Claude Code,</text>
+<text x="64" y="1680" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8f8f8f" text-anchor="start">Claude Desktop, Codex, Cursor or any MCP client.</text>
+<text x="64" y="1708" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#bdbdbd" text-anchor="start">memory_context · memory_search · memory_answer</text>
+</svg>

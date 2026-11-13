@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 740" width="960" height="740" role="img" aria-labelledby="t d">
+<title id="t">NeuralGraph: persistent memory for AI agents</title>
+<desc id="d">Three conversation turns flow through asynchronous extraction, grounding and reconciliation into a persistent graph: three memories about the speaker Ali, and typed relations from Ali to the entities Berlin (lives_in, superseded), Kreuzberg (lives_in, current), Charité (works_at) and Luna (has_pet).</desc>
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#bdbdbd" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="arrd" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#5c5c5c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="1" cy="1" r="1" fill="#1c1c1c"/>
+  </pattern>
+</defs>
+<rect x="0.5" y="0.5" width="959" height="739" rx="14" fill="#0a0a0a" stroke="#2a2a2a"/>
+<rect x="1" y="1" width="958" height="738" rx="14" fill="url(#dots)"/>
+<text x="486.0" y="82" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="52" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="12">NEURALGRAPH</text>
+<text x="480.0" y="122" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="21" font-weight="400" fill="#a6a6a6" text-anchor="middle">Persistent memory for AI agents.</text>
+<text x="40" y="170" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8f8f8f" text-anchor="start" letter-spacing="2.2">CONVERSATIONS</text>
+<rect x="40" y="184" width="280" height="96" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="56" y="208" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">chat 2026-03-02 · user</text>
+<text x="56" y="234" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">I just moved from Baku to Berlin</text>
+<text x="56" y="256" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">for a nursing job at Charité.</text>
+<line x1="180" y1="280" x2="180" y2="306" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="340" y="184" width="280" height="96" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="356" y="208" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">chat 2026-03-02 · user</text>
+<text x="356" y="234" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Also my cat Luna needs a vet,</text>
+<text x="356" y="256" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">she's 3 and due for her shots.</text>
+<line x1="480" y1="280" x2="480" y2="306" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="640" y="184" width="280" height="96" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="656" y="208" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">chat 2026-04-06 · user</text>
+<text x="656" y="234" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Also, I moved flats: I'm now in</text>
+<text x="656" y="256" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Kreuzberg, not Prenzlauer Berg.</text>
+<line x1="780" y1="280" x2="780" y2="306" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="40" y="310" width="880" height="40" rx="20" fill="#0a0a0a" stroke="#4a4a4a" stroke-width="1"/>
+<text x="480.0" y="335" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="14.5" font-weight="400" fill="#bdbdbd" text-anchor="middle">asynchronous extraction   →   grounding   →   reconciliation</text>
+<line x1="480.0" y1="350" x2="480.0" y2="378" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<rect x="40" y="382" width="880" height="300" rx="12" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="60" y="410" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8f8f8f" text-anchor="start" letter-spacing="2.2">PERSISTENT GRAPH</text>
+<text x="900" y="410" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="end">one SQLite file on your machine</text>
+<path d="M 392 460 C 430 460, 440 548, 475 548" fill="none" stroke="#4a4a4a" stroke-width="1.3" stroke-linecap="round"/>
+<rect x="60" y="428" width="332" height="64" rx="8" fill="#181818" stroke="#bdbdbd" stroke-width="1.2"/>
+<text x="74" y="455" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#ededed" text-anchor="start">Ali just moved from Baku to Berlin…</text>
+<text x="74" y="477" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">event · 2026-03-02</text>
+<path d="M 392 540 C 430 540, 440 548, 475 548" fill="none" stroke="#4a4a4a" stroke-width="1.3" stroke-linecap="round"/>
+<rect x="60" y="508" width="332" height="64" rx="8" fill="#181818" stroke="#bdbdbd" stroke-width="1.2"/>
+<text x="74" y="535" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#ededed" text-anchor="start">Ali's cat Luna needs a vet, she's 3…</text>
+<text x="74" y="557" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">fact · 2026-03-02</text>
+<path d="M 392 620 C 430 620, 440 548, 475 548" fill="none" stroke="#4a4a4a" stroke-width="1.3" stroke-linecap="round"/>
+<rect x="60" y="588" width="332" height="64" rx="8" fill="#181818" stroke="#bdbdbd" stroke-width="1.2"/>
+<text x="74" y="615" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#ededed" text-anchor="start">Ali moved flats: Ali is now in Kreuzberg…</text>
+<text x="74" y="637" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">event · 2026-04-06</text>
+<path d="M 533 548 C 595 548, 610 446, 677 446" fill="none" stroke="#5c5c5c" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="5 4" marker-end="url(#arrd)"/>
+<circle cx="690" cy="446" r="9" fill="#0a0a0a" stroke="#5c5c5c" stroke-width="1.4" stroke-dasharray="3 3"/>
+<text x="708" y="447" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#8f8f8f" text-anchor="start">Berlin</text>
+<text x="708" y="465" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">lives_in · superseded</text>
+<path d="M 533 548 C 595 548, 610 508, 677 508" fill="none" stroke="#bdbdbd" stroke-width="1.4" stroke-linecap="round" marker-end="url(#arr)"/>
+<circle cx="690" cy="508" r="9" fill="#bdbdbd"/><text x="707" y="509" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Kreuzberg</text>
+<text x="708" y="527" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">lives_in · current</text>
+<path d="M 533 548 C 595 548, 610 570, 677 570" fill="none" stroke="#bdbdbd" stroke-width="1.4" stroke-linecap="round" marker-end="url(#arr)"/>
+<circle cx="690" cy="570" r="9" fill="#bdbdbd"/><text x="707" y="571" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Charité</text>
+<text x="708" y="589" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">works_at</text>
+<path d="M 533 548 C 595 548, 610 632, 677 632" fill="none" stroke="#bdbdbd" stroke-width="1.4" stroke-linecap="round" marker-end="url(#arr)"/>
+<circle cx="690" cy="632" r="9" fill="#bdbdbd"/><text x="707" y="633" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15.5" font-weight="400" fill="#ededed" text-anchor="start">Luna</text>
+<text x="708" y="651" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="start">has_pet</text>
+<circle cx="505" cy="548" r="28" fill="#0a0a0a" stroke="#ffffff" stroke-width="1.6"/><circle cx="505" cy="548" r="23" fill="none" stroke="#ffffff" stroke-width="1"/><text x="505" y="553" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ffffff" text-anchor="middle">Ali</text>
+<rect x="150" y="703" width="26" height="16" rx="4" fill="#181818" stroke="#bdbdbd" stroke-width="1.2"/>
+<text x="184" y="717" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="start">memory</text>
+<rect x="268" y="703" width="26" height="16" rx="4" fill="#0a0a0a" stroke="#5c5c5c" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="302" y="717" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="start">superseded memory</text>
+<circle cx="462" cy="711" r="7" fill="#bdbdbd"/>
+<text x="478" y="717" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="start">entity</text>
+<circle cx="551" cy="711" r="9" fill="#0a0a0a" stroke="#ffffff" stroke-width="1.4"/><circle cx="551" cy="711" r="5.5" fill="none" stroke="#ffffff" stroke-width="0.9"/>
+<text x="568" y="717" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="start">speaker</text>
+<line x1="646" y1="711" x2="676" y2="711" stroke="#bdbdbd" stroke-width="1.4" marker-end="url(#arr)"/>
+<text x="684" y="717" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13.5" font-weight="400" fill="#8f8f8f" text-anchor="start">typed relation</text>
+</svg>

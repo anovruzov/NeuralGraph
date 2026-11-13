@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 430" width="800" height="430" role="img" aria-labelledby="t d">
+<title id="t">Local by design</title>
+<desc id="d">Inside the boundary of your machine: your agent talks to the neuralgraph-memory binary over stdio or HTTP on 127.0.0.1; the binary talks to a local model server (Ollama or LM Studio) and stores everything in one SQLite file. The only outbound call NeuralGraph makes itself is the release version check against GitHub, while the web app is open or when you run update.</desc>
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#bdbdbd" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="arrd" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M1 1.5 L8.5 5 L1 8.5" fill="none" stroke="#5c5c5c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="1" cy="1" r="1" fill="#1c1c1c"/>
+  </pattern>
+</defs>
+<rect x="0.5" y="0.5" width="799" height="429" rx="14" fill="#0a0a0a" stroke="#2a2a2a"/>
+<rect x="1" y="1" width="798" height="428" rx="14" fill="url(#dots)"/>
+<text x="40" y="46" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8f8f8f" text-anchor="start" letter-spacing="2.2">LOCAL BY DESIGN</text>
+<text x="40" y="76" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" font-weight="400" fill="#ededed" text-anchor="start">Everything that touches your conversations runs inside one boundary.</text>
+<rect x="40" y="104" width="560" height="286" rx="14" fill="#0a0a0a" stroke="#bdbdbd" stroke-width="1.3"/>
+<text x="60" y="132" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="600" fill="#bdbdbd" text-anchor="start" letter-spacing="2.2">YOUR MACHINE</text>
+<text x="580" y="132" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12.5" font-weight="400" fill="#8f8f8f" text-anchor="end">127.0.0.1</text>
+<rect x="60" y="160" width="150" height="78" rx="10" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="135.0" y="188" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#ededed" text-anchor="middle">Your agent</text>
+<text x="135.0" y="208" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="middle">MCP client</text>
+<rect x="250" y="160" width="160" height="78" rx="10" fill="#181818" stroke="#bdbdbd" stroke-width="1"/>
+<text x="330.0" y="188" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#ffffff" text-anchor="middle">neuralgraph-memory</text>
+<text x="330.0" y="208" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="middle">one binary</text>
+<rect x="450" y="160" width="130" height="78" rx="10" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="515.0" y="188" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#ededed" text-anchor="middle">Model server</text>
+<text x="515.0" y="208" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="middle">Ollama or</text>
+<text x="515.0" y="225" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="middle">LM Studio</text>
+<rect x="250" y="290" width="160" height="78" rx="10" fill="#121212" stroke="#2a2a2a" stroke-width="1"/>
+<text x="330.0" y="318" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#ededed" text-anchor="middle">chat_memory.db</text>
+<text x="330.0" y="338" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="middle">one SQLite file</text>
+<text x="330.0" y="355" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#8f8f8f" text-anchor="middle">~/.neuralgraph/</text>
+<line x1="213" y1="199" x2="247" y2="199" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="247" y1="199" x2="213" y2="199" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="413" y1="199" x2="447" y2="199" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="447" y1="199" x2="413" y2="199" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="330" y1="241" x2="330" y2="287" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="330" y1="287" x2="330" y2="241" stroke="#bdbdbd" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="230" y="150" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="11.5" font-weight="400" fill="#5c5c5c" text-anchor="middle">stdio / HTTP</text>
+<text x="430" y="150" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="11.5" font-weight="400" fill="#5c5c5c" text-anchor="middle">HTTP</text>
+<text x="60" y="318" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">No cloud account.</text>
+<text x="60" y="338" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">No API key.</text>
+<text x="60" y="358" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">No telemetry.</text>
+<text x="450" y="318" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">Delete the file and</text>
+<text x="450" y="338" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8f8f8f" text-anchor="start">the memory is gone.</text>
+<rect x="640" y="160" width="120" height="78" rx="10" fill="#0a0a0a" stroke="#5c5c5c" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="700" y="188" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14.5" font-weight="600" fill="#8f8f8f" text-anchor="middle">GitHub</text>
+<text x="700" y="208" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="12" font-weight="400" fill="#5c5c5c" text-anchor="middle">releases</text>
+<path d="M 603 199 L 636 199" fill="none" stroke="#5c5c5c" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="5 4" marker-end="url(#arrd)"/>
+<text x="640" y="262" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">Only outbound call:</text>
+<text x="640" y="280" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">the version check,</text>
+<text x="640" y="298" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">while the web app is</text>
+<text x="640" y="316" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">open or on `update`.</text>
+<text x="640" y="344" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">Model downloads go</text>
+<text x="640" y="362" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">through your model</text>
+<text x="640" y="380" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#5c5c5c" text-anchor="start">server, when you ask.</text>
+</svg>
