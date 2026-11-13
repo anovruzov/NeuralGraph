@@ -257,16 +257,16 @@ NeuralGraph offers **seven read-only tools** and **three write tools**. The CLI 
 
 | Tool | Purpose |
 |---|---|
-| \`memory_search\` | Search with subject, time, and kind filters |
-| \`memory_context\` | Produce an evidence-filtered, prompt-sized context block |
-| \`memory_answer\` | Answer from memory using the routed reader, with source-backed context |
-| \`memory_profile\` | Retrieve known information about a subject |
-| \`memory_related\` | Follow memory relationships |
-| \`memory_entities\` | Inspect entities and typed relations |
-| \`memory_status\` | Inspect ingestion, queue, and health |
-| \`memory_add_message\` | Queue a conversation turn for asynchronous extraction |
-| \`memory_remember\` | Write a specified fact immediately |
-| \`memory_forget\` | Retract a memory while preserving the corresponding audit entry |
+| `memory_search` | Search with subject, time, and kind filters |
+| `memory_context` | Produce an evidence-filtered, prompt-sized context block |
+| `memory_answer` | Answer from memory using the routed reader, with source-backed context |
+| `memory_profile` | Retrieve known information about a subject |
+| `memory_related` | Follow memory relationships |
+| `memory_entities` | Inspect entities and typed relations |
+| `memory_status` | Inspect ingestion, queue, and health |
+| `memory_add_message` | Queue a conversation turn for asynchronous extraction |
+| `memory_remember` | Write a specified fact immediately |
+| `memory_forget` | Retract a memory while preserving the corresponding audit entry |
 
 The MCP server also exposes resources and a recall prompt. See the [full MCP guide](crates/neuralgraph-memory/README.md) for arguments, outputs, and client-specific configuration.
 
@@ -277,7 +277,7 @@ The MCP server also exposes resources and a recall prompt. See the [full MCP gui
 - **Time-aware updates.** New observations can supersede old ones without erasing historical context.
 - **Worker recovery.** Leases, retries, and commit fencing protect queue processing across worker restarts.
 - **Incremental retrieval.** SQLite FTS5 and vector retrieval combine rankings, with optional entity-graph expansion and subject priors.
-- **Useful answers, not just matches.** \`memory_answer\`, \`neuralgraph-memory answer\`, and \`POST /api/answer\` use a reader that routes some numerical and temporal questions to a computation-oriented prompt. This is a model-based answer path, not a guarantee of correctness.
+- **Useful answers, not just matches.** `memory_answer`, `neuralgraph-memory answer`, and `POST /api/answer` use a reader that routes some numerical and temporal questions to a computation-oriented prompt. This is a model-based answer path, not a guarantee of correctness.
 
 **Limits:** retrieval may miss relevant evidence, extraction can omit or misread facts, and the reader can still answer incorrectly. The graph stores relationships and provenance; it does not independently prove that user-supplied statements are true.
 
@@ -348,7 +348,7 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 | **LongMemEval Oracle — end-to-end answers** | **69% mean judged accuracy** | Three 50-question draws (150 total), local Qwen3.8-9B reader and Gemma-4-e4b using official judge prompts. The 100-question held-out mean was **67%**; the other 50 questions were used in protocol selection |
 | **Research retrieval A/B** | **+8.9 points** | A controlled comparison on the same 282 LoCoMo questions, with the same judge; research pipeline, not the shipped assistant's end-to-end result |
 
-**Interpretation matters.** \`evidence@15\` and \`turn@15\` are *retrieval* metrics, not LoCoMo answer accuracy. The LongMemEval run uses **Oracle**, where evidence sessions are supplied; it does not represent the harder LongMemEval S setting. These local-model, local-judge, partial-sample results must not be compared directly with vendor claims from different datasets, readers, judges, retrieval budgets, or evaluation procedures. The 69% is an observed score; projected frontier-model scores are **not** benchmark results.
+**Interpretation matters.** `evidence@15` and `turn@15` are *retrieval* metrics, not LoCoMo answer accuracy. The LongMemEval run uses **Oracle**, where evidence sessions are supplied; it does not represent the harder LongMemEval S setting. These local-model, local-judge, partial-sample results must not be compared directly with vendor claims from different datasets, readers, judges, retrieval budgets, or evaluation procedures. The 69% is an observed score; projected frontier-model scores are **not** benchmark results.
 
 **Latency:** the benchmark document records p50 **10 ms** and p95 **12 ms** retrieval on the particular 50-question LongMemEval Oracle databases, including embedding, and a separate **3.45 s mean** for a 50-question product-path answer check. These are different operations on specific hardware/workloads, not universal service-level guarantees; the repository does not substantiate a single blanket “17 ms end-to-end” claim.
 
@@ -377,37 +377,37 @@ research/                     research datasets and artifacts
 
 ## CLI
 
-After installation, run \`neuralgraph-memory --help\` for all options. Frequently used commands:
+After installation, run `neuralgraph-memory --help` for all options. Frequently used commands:
 
 | Command | Purpose |
 |---|---|
-| \`setup\` | Select local models, test the endpoints, and connect MCP clients |
-| \`open [PAGE]\` | Open the dashboard (home, chat, memories, import, graph, models, activity, settings) |
-| \`chat [QUESTION]\` | Ask memory interactively or once; show citations, evidence, and stats |
-| \`answer "QUESTION"\` | Use the routed answer reader, with optional \`--today\` and \`--json\` |
-| \`search "QUERY"\` / \`context "QUERY"\` | Inspect retrieval or print context without asking the reader |
-| \`remember "FACT"\` / \`forget MEMORY_ID\` | Explicitly save or retract a memory |
-| \`profile SUBJECT\` / \`graph [ENTITY]\` | Inspect subject knowledge and relations |
-| \`ingest FILE\` / \`process\` | Import JSONL or LoCoMo data and process the extraction queue |
-| \`stats\` / \`maintain\` | Inspect health and perform maintenance |
-| \`pause\` / \`resume\` | Pause or resume model-backed learning |
-| \`serve\` / \`mcp\` | HTTP dashboard + API + MCP server, or MCP over stdio |
-| \`update\` / \`update --check\` | Upgrade or check for a new GitHub release |
+| `setup` | Select local models, test the endpoints, and connect MCP clients |
+| `open [PAGE]` | Open the dashboard (home, chat, memories, import, graph, models, activity, settings) |
+| `chat [QUESTION]` | Ask memory interactively or once; show citations, evidence, and stats |
+| `answer "QUESTION"` | Use the routed answer reader, with optional `--today` and `--json` |
+| `search "QUERY"` / `context "QUERY"` | Inspect retrieval or print context without asking the reader |
+| `remember "FACT"` / `forget MEMORY_ID` | Explicitly save or retract a memory |
+| `profile SUBJECT` / `graph [ENTITY]` | Inspect subject knowledge and relations |
+| `ingest FILE` / `process` | Import JSONL or LoCoMo data and process the extraction queue |
+| `stats` / `maintain` | Inspect health and perform maintenance |
+| `pause` / `resume` | Pause or resume model-backed learning |
+| `serve` / `mcp` | HTTP dashboard + API + MCP server, or MCP over stdio |
+| `update` / `update --check` | Upgrade or check for a new GitHub release |
 
-\`\`\`bash
+```bash
 neuralgraph-memory remember "I prefer local-first tools" --subject "Your Name"
 neuralgraph-memory search "local-first tools"
 neuralgraph-memory answer "What tools do I prefer?"
 neuralgraph-memory graph --out graph.html
-\`\`\`
+```
 
-Choose a separate database with \`--db ~/work.db\` or \`--db ~/personal.db\`. These are separate memory stores; the application does not automatically merge them.
+Choose a separate database with `--db ~/work.db` or `--db ~/personal.db`. These are separate memory stores; the application does not automatically merge them.
 
 ---
 
 ## REST API and dashboard
 
-\`neuralgraph-memory serve\` runs the background worker, the dashboard at **http://127.0.0.1:8765/**, REST endpoints under \`/api/*\`, and Streamable HTTP MCP at \`/mcp\`.
+`neuralgraph-memory serve` runs the background worker, the dashboard at **http://127.0.0.1:8765/**, REST endpoints under `/api/*`, and Streamable HTTP MCP at `/mcp`.
 
 The local dashboard is intended for inspecting and controlling the actual stored data, not just looking at aggregate counts.
 
@@ -428,9 +428,9 @@ The local dashboard is intended for inspecting and controlling the actual stored
 
 **Import behavior:** chats use the speaker's own turns as the source of personal memories and retain assistant responses as context; documents are read in smaller sections. Imports show a preview before processing. A vision-capable local model can process screenshots; this may require a separate model download. The resulting facts can still be incomplete or mistaken, so review imported memories before using them for high-stakes decisions.
 
-**Answers with citations:** \`POST /api/answer\` and \`memory_answer\` use the routed reader. The ordinary Chat UI can also return a citation-backed answer from retrieved context. Citations show *where an answer came from*, not an external validation of that source.
+**Answers with citations:** `POST /api/answer` and `memory_answer` use the routed reader. The ordinary Chat UI can also return a citation-backed answer from retrieved context. Citations show *where an answer came from*, not an external validation of that source.
 
-**Automatic recall:** \`setup\` can install Claude Code hooks that save conversation content and supply relevant memories before a prompt. MCP alone does not automatically capture every conversation unless the client calls a write tool or a hook/integration is enabled. Existing client settings are backed up by the setup process.
+**Automatic recall:** `setup` can install Claude Code hooks that save conversation content and supply relevant memories before a prompt. MCP alone does not automatically capture every conversation unless the client calls a write tool or a hook/integration is enabled. Existing client settings are backed up by the setup process.
 
 More precise API payloads, supported imports, modes, and operating limits are documented in the [user guide](crates/neuralgraph-memory/README.md).
 
@@ -461,9 +461,9 @@ saved in `~/.neuralgraph/config.json`.
 For normal use, memory lives in local SQLite and the chat and embedding requests go to the **model endpoint you configure**, typically Ollama or LM Studio on the same machine. The app does not require a hosted NeuralGraph account or send product telemetry. **Installation and version checks contact GitHub**; a remotely configured model endpoint may send prompts or memory content to that endpoint.
 
 - **Local storage is not encryption.** SQLite files, journals, exports, and backups must be protected with appropriate file permissions and disk encryption.
-- **Loopback is the safe default.** \`serve\` binds to \`127.0.0.1\` unless you change it.
-- **Tokens are not on by default.** When exposing HTTP beyond localhost, configure \`NEURALGRAPH_MCP_TOKEN\` and \`NEURALGRAPH_API_TOKEN\`, restrict network access, and terminate TLS in a reverse proxy.
-- **Retraction is not secure erasure.** \`memory_forget\` preserves an audit record; imported originals, backups, application transcripts, and any previously supplied context may still contain the information.
+- **Loopback is the safe default.** `serve` binds to `127.0.0.1` unless you change it.
+- **Tokens are not on by default.** When exposing HTTP beyond localhost, configure `NEURALGRAPH_MCP_TOKEN` and `NEURALGRAPH_API_TOKEN`, restrict network access, and terminate TLS in a reverse proxy.
+- **Retraction is not secure erasure.** `memory_forget` preserves an audit record; imported originals, backups, application transcripts, and any previously supplied context may still contain the information.
 - **One store is not a multi-tenant service.** Run separate processes/databases for separate people. There is no built-in user-level isolation.
 
 Review [SECURITY.md](SECURITY.md) before remote deployment or storing sensitive information.
