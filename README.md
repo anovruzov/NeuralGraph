@@ -41,7 +41,7 @@
 
 NeuralGraph has **two distinct layers** in one repository:
 
-| | Shipped assistant: \`neuralgraph-memory\` | Experimental engine: \`neuralgraph-research\` |
+| | Shipped assistant: `neuralgraph-memory` | Experimental engine: `neuralgraph-research` |
 |---|---|---|
 | **Purpose** | Remember useful facts from conversations and documents, then retrieve attributable evidence | Investigate associative recall beyond ordinary nearest-neighbor search |
 | **Retrieval** | SQLite vector similarity + FTS5/BM25, rank fusion, optional graph expansion | Multi-stage graph retrieval; optional Electron propagation, wave alignment, and learned links |
@@ -50,7 +50,7 @@ NeuralGraph has **two distinct layers** in one repository:
 
 The product is useful today: Claude Code, Claude Desktop, Codex and Cursor can retain memories across sessions, recover citations to the original source, inspect changes, and retract incorrect records. The research asks a harder question: **could a memory graph learn better routes to evidence every time it is used?**
 
-\`\`\`text
+```text
 SHIPPED ASSISTANT                          RESEARCH ENGINE
 conversation / documents                  query + signature
           │                                      │
@@ -68,7 +68,7 @@ conversation / documents                  query + signature
           │                                      │
           ▼                                      ▼
  compact cited context → reader          experimental ranked recall
-\`\`\`
+```
 
 **One rule throughout:** the system must make it easier to get the *right evidence*, not just return a confident-looking answer.
 ---
@@ -370,11 +370,11 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 
 **A search query becomes a signal that travels through memory.** Instead of only sorting passages by embedding distance, NeuralGraph's experimental Electron retriever launches computational *charge carriers* into a weighted memory graph. Each carrier explores relationships, loses or gains effective energy, responds to compatible wave signatures, and contributes to the activation of memories along its route.
 
-This is **not** a physical electron, a quantum computer, or a claim that electrical signals are traveling through the machine. An \`Electron\` is a Rust struct representing a **bounded search path with state**: charge (+ excitation / − inhibition), energy, phase, frequency, wave signature, current node, hop count, and traversed path.
+This is **not** a physical electron, a quantum computer, or a claim that electrical signals are traveling through the machine. An `Electron` is a Rust struct representing a **bounded search path with state**: charge (+ excitation / − inhibition), energy, phase, frequency, wave signature, current node, hop count, and traversed path.
 
 ### From a question to a firing memory
 
-\`\`\`text
+```text
  Question: "Which change preceded the outage?"
                        │
           embed query + wave signature
@@ -405,7 +405,7 @@ This is **not** a physical electron, a quantum computer, or a claim that electri
                    │
                    ▼
         ranked fired + charged memories
-\`\`\`
+```
 
 *Illustrative graph, not an experimental output or an assertion that the algorithm proves causality.*
 
@@ -420,11 +420,11 @@ This is **not** a physical electron, a quantum computer, or a claim that electri
 
 A carrier's energy progression is approximately:
 
-\`\`\`text
+```text
 E_next = E_now × |edge_weight| × 0.95 × edge_gate × target_fairness
 signature_next = 0.70 × signature_previous + 0.30 × source_node_signature
 node_net_charge = sum(excitatory_resonant_energy) − sum(inhibitory_resonant_energy)
-\`\`\`
+```
 
 The graph acts as a **weighted circuit for evidence discovery**. Strong, relevant routes reinforce an arriving signal; weak, incompatible, or inhibitory routes may fail to activate downstream memories. The output is still evidence *candidates*, not verified conclusions.
 
@@ -434,7 +434,7 @@ The graph acts as a **weighted circuit for evidence discovery**. Strong, relevan
 
 The Electron is one way to **traverse** a memory graph. The research engine also experiments with how the graph's connections themselves **change with experience**.
 
-**Hebbian learning — strengthen repeated associations.** In the *separate multi-stage research retriever*, memories retrieved together can form \`CO_ACTIVATION\` edges; reactivating those edges strengthens them through long-term potentiation (LTP). By default, a co-activation gate requires at least **two activations** before opening. Temporal edges also have spike-timing-dependent plasticity (STDP), decay, and refractory dynamics. This supports a concrete hypothesis: repeated useful paths might become easier to recover without continuously asking a large model to rediscover the same associations.
+**Hebbian learning — strengthen repeated associations.** In the *separate multi-stage research retriever*, memories retrieved together can form `CO_ACTIVATION` edges; reactivating those edges strengthens them through long-term potentiation (LTP). By default, a co-activation gate requires at least **two activations** before opening. Temporal edges also have spike-timing-dependent plasticity (STDP), decay, and refractory dynamics. This supports a concrete hypothesis: repeated useful paths might become easier to recover without continuously asking a large model to rediscover the same associations.
 
 **Wave resonance — score relationships in signal space.** Memories and queries can carry nine conceptual dimensions: **entity, temporal, action, relational, state, spatial, causal, emotional, quantitative**. Rather than interpreting these as literal physical frequencies, the research code compares vectors, applies synthetic phase/coherence rules, and boosts or dampens compatible activations. A matching keyword alone need not determine the route through the graph.
 
@@ -461,7 +461,7 @@ Electron's resonance calculations operate on **small fixed-dimensional signature
 
 That makes Electron a plausible **bounded, compute-oriented alternative to repeated model-based graph traversal**. It does *not* establish that Electron is faster than the shipped hybrid retriever: branching can still be costly, the **1 ms step counter is simulation time, not wall-clock latency**, and this repository has **no published same-workload Electron-vs-hybrid latency ablation**. Similarly, there is no ablation attributing published accuracy to Hebbian plasticity or resonance. Those results remain research questions, not performance claims.
 
-**Boundary:** the installable \`neuralgraph-memory\` system does **not** execute Electron, Hebbian co-activation or wavefront propagation in its normal retrieval path. The documented [benchmarks](#benchmarks) measure the shipped pipeline and other identified research configurations; an [earlier audit](research/reports/AUDIT.md) explicitly found the biological modules unused in that campaign.
+**Boundary:** the installable `neuralgraph-memory` system does **not** execute Electron, Hebbian co-activation or wavefront propagation in its normal retrieval path. The documented [benchmarks](#benchmarks) measure the shipped pipeline and other identified research configurations; an [earlier audit](research/reports/AUDIT.md) explicitly found the biological modules unused in that campaign.
 
 ---
 
