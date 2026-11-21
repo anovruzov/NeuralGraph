@@ -25,24 +25,37 @@
 
 ## Results at a glance
 
-**Built for the accuracy–latency frontier, with a neuroscience-inspired retrieval architecture implemented in Rust.** Instead of only locating similar text, the associative engine computes multi-signal resonance and can route activation through a gated memory graph. It implements synthetic charge carriers, excitatory/inhibitory scoring, firing thresholds and Hebbian connection updates. The shipped assistant provides a separately measured, source-grounded low-latency retrieval path.
+**83.2% LoCoMo accuracy. All 1,540 questions. Fully local.**
 
-**Team-reported: 83% LoCoMo accuracy (unpublished).** This number was supplied by the project team but **is not substantiated by the benchmark artifacts currently published in this repository**; the exact question subset, answer model, judge and scoring protocol have not been supplied here. It is **not a verified full-1,540 answer score**. The published answer campaign scored **72.2% on 744 questions**, while all **1,540** were exercised in retrieval-only tests. Similarly, a claim that NeuralGraph is the **fastest** requires a same-workload, same-hardware competitive comparison that is not yet published.
+NeuralGraph reached **1,281 correct answers out of 1,540** under **Mem0's open-source LoCoMo evaluation structure** with a local 9B extractor, 35B reader, and 35B judge. At top-200 retrieval, the same evaluation recorded **31 ms p50 / 38 ms p95 / 41 ms p99** native retrieval, including CLI startup. The official Mem0 answer and judge prompts were retained; the judge/model backend was changed to a local Qwen 35B rather than GPT-4o. [Read the full-run methodology and audit](docs/LOCOMO_MEM0_PROTOCOL.md).
 
-**LoCoMo is a 1,540-question benchmark.** NeuralGraph's research campaign tested retrieval across **all ten conversations (1,540 questions)**. The corresponding **end-to-end answer evaluation covered 744 questions**, not all 1,540. The separate shipped assistant and LongMemEval experiments use their own datasets and protocols.
+| **Full LoCoMo evaluation · 2–3 Nov 2026** | **Result** |
+|---|---:|
+| **Answer accuracy — Mem0 protocol, local models** | **83.2% (1,281 / 1,540)** |
+| Single-hop · 841 questions | 82.3% |
+| Multi-hop · 282 questions | 90.4% |
+| Temporal · 321 questions | 84.4% |
+| Open-domain · 96 questions | 65.6% |
+| **Top-50 accuracy** | **83.0% (1,278 / 1,540)** |
+| **Native retrieval latency, top-200** | **31 ms p50 · 38 ms p95 · 41 ms p99** |
 
-| Result | Scope | What it actually measures |
+**Memory should be measured as a system, not a vector index.** NeuralGraph implements resonance-based activation, bounded Electron-flow traversal, and Hebbian associative plasticity in Rust; these operate in configurable `NeuralGraphService` retrieval paths. The full-run score above evaluates the **native memory backend under Mem0's fixed answer-prompt protocol**—it does not isolate the additional contributions of each associative mechanism.
+
+**Why fixed-protocol accuracy may understate adaptive behavior.** Our broader system also supports question-type-aware prompting. This comparable LoCoMo evaluation intentionally uses Mem0's standard answer prompts rather than NeuralGraph's adaptive prompts. That constrains which adaptive behaviors can affect the score; the size and direction of any accuracy difference require a controlled matched-prompt test, not an assumption.
+
+**Compared with Mem0:** Mem0's [public research page](https://mem0.ai/research) reports **92.5%** on LoCoMo using its own model stack. NeuralGraph's **83.2% is a fully local-model run**, and the different judges/readers mean these are not directly matched answer-model comparisons. A separate Sonnet re-score estimated **92.5%** by re-answering only the locally missed questions; it is **not a second complete 1,540-question Sonnet run**.
+
+### Other evaluations
+
+| Result | Scope | What it measures |
 |:---|:---|:---|
-| **1,540 LoCoMo questions evaluated** | **All 10 conversations**; research-era retrieval experiments | Full-dataset **retrieval-only** evaluation; not 1,540 generated answers. The flat Tesseract research baseline reported **34.9% recall@10 / 48.0% recall@50** under its loose gold-substring metric (including temporal questions, for which the metric is not reliable). |
-| **72.2% answer accuracy** | **744 / 1,540 LoCoMo questions**, conversations 1–5 | Research-era local-pairs system, **Gemma-4-e4b reader and lenient Gemma judge**. Conversations 6–10 were not completed in this end-to-end campaign. |
-| **75% answer accuracy — Claude Sonnet** | **20 LongMemEval Oracle questions** | Gemma **strict_v2** judge. On the *same 20 questions with identical retrieved contexts*, a Qwen3.8-9B reader scored **55%**. |
-| **69% mean answer accuracy — local Qwen3.8-9B** | **150 LongMemEval Oracle questions** (three 50-question draws; 100 held out) | Official LongMemEval judge prompts run using Gemma-4-e4b. Not directly comparable with Sonnet's different 20-question judging protocol. |
-| **87.9% evidence@15** | **66 LoCoMo questions**, shipped memory assistant | Whether at least one retrieved memory cited a gold evidence message, **not** answer accuracy. |
-| **10 ms p50 / 12 ms p95 retrieval** | **50 LongMemEval Oracle questions**, shipped memory assistant | Includes query embedding; excludes answering. A separate team-reported **17 ms recall** lacks a public same-run artifact. |
+| **75% answer accuracy — Claude Sonnet** | 20 LongMemEval Oracle questions | Gemma strict_v2 judge. Qwen3.8-9B scored 55% on the same retrieved contexts. |
+| **69% mean answer accuracy — local Qwen3.8-9B** | 150 LongMemEval Oracle questions (three 50-question draws) | Official LongMemEval judge prompts run locally via Gemma-4-e4b. |
+| **87.9% evidence@15** | 66 LoCoMo questions, current shipped-assistant pathway | Gold-source coverage in retrieved context; retrieval-only, not answer accuracy. |
+| **10 ms p50 / 12 ms p95** | 50 LongMemEval Oracle questions, shipped-assistant retrieval | Includes query embedding; different pipeline and sample than the full-run 31 ms result. |
+| **72.2% prior LoCoMo answer accuracy** | September 2026 research-era run, 744 questions | Different earlier local-pairs pipeline with Gemma lenient grading, superseded as the headline by November's full-run 83.2% result. |
 
-**Benchmark integrity:** there is **no verified 1,540-question end-to-end answer accuracy** for either Claude Sonnet or Qwen in the published repository. Do not call 72.2% a full-suite score, or turn the 75% Sonnet and 69% Qwen LongMemEval results into LoCoMo scores. The 1,540-question research suite, the 744-answer run, and the current assistant's 66-question evaluation are **different evaluation paths**.
-
-**Evidence:** [complete LoCoMo research results](research/reports/RESULTS_ALL.md) · [benchmark protocols and scores](docs/BENCHMARKS.md) · [LongMemEval reproduction guide](research/overnight/README.md).
+**Details:** [Full-run Mem0 methodology and score audit](docs/LOCOMO_MEM0_PROTOCOL.md) · [Earlier research campaign](research/reports/RESULTS_ALL.md) · [Other benchmark protocols](docs/BENCHMARKS.md) · [LongMemEval reproduction guide](research/overnight/README.md).
 
 ### What NeuralGraph actually is
 
@@ -460,7 +473,7 @@ The design is simple: **do expensive interpretation at ingestion, keep retrieval
 - **Cheap score fusion.** Reciprocal Rank Fusion combines ranks instead of calling a generative reranker on each candidate. Lightweight importance, recency, entity and subject priors plus evidence thresholds determine what reaches context.
 - **Short evidence, not a transcript dump.** The reader sees a compact cited context block rather than every historical message.
 
-**Observed:** **10 ms p50 / 12 ms p95** for retrieval including query embedding on a 50-question LongMemEval Oracle sample. A separately reported **17 ms** recall figure lacks its public raw latency artifact. These figures exclude model answer generation; a separate product-path check reported **3.45 s mean** for retrieval **plus generation**.
+**Measured on the full 1,540-question LoCoMo / Mem0-protocol run:** **31 ms p50 / 38 ms p95 / 41 ms p99** for native retrieval with CLI startup (top-200). In a **separate 50-question LongMemEval Oracle test**, the shipped assistant measured **10 ms p50 / 12 ms p95** for retrieval including query embedding. These figures exclude model answer generation; a separate product-path check reported **3.45 s mean** for retrieval **plus generation**.
 
 ### Computational efficiency: the implemented Electron mode
 
@@ -474,12 +487,14 @@ That makes Electron a plausible **bounded, compute-oriented alternative to repea
 
 ## Benchmarks
 
-**Different metrics answer different questions.** NeuralGraph's research engine, its shipped assistant pipeline, and the local answer reader have separate evaluations. The **full 1,540-question LoCoMo suite was used for retrieval-only experiments**; only **744 questions** in that research campaign have an end-to-end answer-accuracy score. Do not interpret the smaller shipped-assistant LoCoMo subset or the LongMemEval reader results as the full LoCoMo score. The following results are documented in [BENCHMARKS.md](docs/BENCHMARKS.md) and the [reproduction guide](research/overnight/README.md).
+**The primary LoCoMo result is now the audited 2–3 November full-dataset Mem0-methodology run: 83.2% answer accuracy (1,281/1,540) using a local 9B extractor and 35B reader/judge, with 31 ms p50 native retrieval.** The older 744-question local-pairs run and the 66-question shipped-assistant evidence test below are separate studies; see the [full-run protocol and source audit](docs/LOCOMO_MEM0_PROTOCOL.md).
 
 | Evaluation | Result | What was measured |
 |---|---:|---|
+| **LoCoMo — Mem0 protocol, full end-to-end run** | **83.2% (1,281/1,540)** | All 10 conversations, categories 1–4, top-200 retrieval; Mem0 official prompt/runner structure, local Qwen 9B extractor + local Qwen 35B reader and judge (not Mem0's GPT-4o judge); **31 ms p50 / 38 ms p95 / 41 ms p99** native retrieval. [Methodology](docs/LOCOMO_MEM0_PROTOCOL.md) |
+| **LoCoMo — Mem0 protocol, top-50** | **83.0% (1,278/1,540)** | Same full-run local stack and questions, with only top 50 returned memories. |
 | **LoCoMo — full research dataset, retrieval only** | **1,540 / 1,540 questions examined** | All ten conversations; retrieval variants and gold-substring recall metrics (not generated-answer accuracy). The original flat Tesseract baseline measured 34.9% recall@10 and 48.0% recall@50 by its loose metric; temporal gold dates make that metric especially limited. [Full results](research/reports/RESULTS_ALL.md) |
-| **LoCoMo — research-era end-to-end answers** | **72.2% on 744 / 1,540** | Local-pairs research system with Gemma-4-e4b reader and lenient Gemma judge; conversations 1–5, remaining conversations not run. This is not the shipped memory assistant's answer score. |
+| **LoCoMo — earlier September end-to-end answers** | **72.2% on 744 / 1,540** | Local-pairs research system with Gemma-4-e4b reader and lenient Gemma judge; conversations 1–5, remaining conversations not run. This is not the shipped memory assistant's answer score. |
 | **LoCoMo — shipped extraction/retrieval pipeline** | **87.9% evidence@15** | Retrieval-only: in 66 questions from conversation 0, sessions 1–8, at least one retrieved memory cites a gold evidence message. Qwen3.8-9B extractor, nomic embeddings; one conversation and one run per configuration |
 | **LongMemEval Oracle — retrieval** | **93.5% turn@15** | 50-question stratified sample, seed 1; whether retrieved context cites an answer-bearing source turn, not whether the assistant answers correctly |
 | **LongMemEval Oracle — end-to-end answers** | **69% mean judged accuracy** | Three 50-question draws (150 total), local Qwen3.8-9B reader and Gemma-4-e4b using official judge prompts. The 100-question held-out mean was **67%**; the other 50 questions were used in protocol selection |
