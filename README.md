@@ -15,6 +15,7 @@
   <a href="#connect-to-claude">Connect an agent</a> ·
   <a href="#what-you-get">Capabilities</a> ·
   <a href="#how-it-works">Architecture</a> ·
+  <a href="#hebbian-learning-and-wave-based-resonance-research">Research principles</a> ·
   <a href="#benchmarks">Benchmarks</a> ·
   <a href="#cli">CLI</a> ·
   <a href="#rest-api-and-dashboard">API & dashboard</a>
@@ -25,6 +26,8 @@
 NeuralGraph is a persistent memory engine for Claude Code, Claude Desktop, Codex, Cursor, and other [MCP](https://modelcontextprotocol.io)-capable clients. It converts selected conversation content and imported documents into structured memories with **source provenance**, **entities**, **typed relationships**, and **temporal history**. On recall, it combines vector similarity and keyword search, with an optional graph channel. A local model can then answer using retrieved evidence and cite its sources.
 
 The goal is not to store every token forever. It is to preserve useful information, know where it came from, distinguish old facts from current ones, and avoid supplying irrelevant memories to the next answer.
+
+**The research thesis:** lasting memory should do more than index text. NeuralGraph's separate research engine explores **Hebbian-style learning** (connections strengthen when memories are activated together) and **wave-based resonance** (questions retrieve memories whose structured signals align). These are implemented research mechanisms, **not features of the released `neuralgraph-memory` binary**. [Explore the research principles](#hebbian-learning-and-wave-based-resonance-research).
 
 | Capability | What it means in practice |
 |---|---|
@@ -345,6 +348,41 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 
 ---
 
+## Hebbian learning and wave-based resonance (research)
+
+**The premise: associations should be learned, and recall should depend on more than matching words.** In NeuralGraph's research engine, Hebbian-style plasticity changes connections between memories as they are used; wave-based resonance scores how the *structure* of a question aligns with the structure of a memory. The two mechanisms address different parts of retrieval: **what has been learned together** and **what is relevant now**.
+
+### 1. Hebbian-style plasticity — memories that activate together develop stronger links
+
+When the research retriever recalls multiple memories together, it can record a `CO_ACTIVATION` edge for each pair. Repeated co-activation increments edge activity and strengthens its learned association. A gated traversal does not use such a link until it has been activated enough times (default: two). Temporal connections also support **spike-timing-dependent plasticity (STDP)**, **long-term potentiation (LTP)** and decay.
+
+The intended effect is adaptive association: a memory can become easier to reach through a useful, repeatedly observed connection instead of being found solely because it contains similar text. **This is a learning rule, not proof that two facts are causally related.**
+
+### 2. Wave-based resonance — match the question's signal pattern
+
+Research memories and queries can carry a numerical **wave signature** across dimensions such as entity, time, action, relationship, location, and causality. The retriever compares these signatures alongside embeddings, keywords, graph connections, and memory importance. Its wave-interference module also uses a theta-*inspired* phase calculation to classify matches as **constructive, partial, or destructive**; wavefront propagation can then boost or suppress candidate memories.
+
+This is **software-based scoring over vectors and timestamps**, not a claim that the system transmits physical waves, performs quantum computation, or simulates real neuronal oscillations. "Resonance" describes aligned memory/query signals.
+
+### 3. The feedback loop
+
+```text
+Question → query signature + candidate search
+                    ↓
+        resonance / relevance scoring
+                    ↓
+            gated graph recall
+                    ↓
+     co-retrieved memories form / reinforce links
+                    ↓
+     learned associations can influence later recall
+```
+
+**Implementation:** [Hebbian co-activation, STDP and LTP](crates/neuralgraph-research/src/retrieval/temporal.rs) · [activation gates](crates/neuralgraph-research/src/retrieval/gating.rs) · [wave alignment and multi-stage retrieval](crates/neuralgraph-research/src/retrieval/retriever.rs) · [interference scoring](crates/neuralgraph-research/src/retrieval/interference.rs) · [wavefront propagation](crates/neuralgraph-research/src/retrieval/wavefront.rs) · [design document](docs/ARCHITECTURE.md).
+
+**What is shipped vs. researched:** the installable `crates/neuralgraph-memory` assistant uses the source-grounded hybrid retrieval pipeline shown [above](#how-it-works). Hebbian co-activation, STDP/LTP, and wave resonance live in `crates/neuralgraph-research` and are not wired into the released assistant's runtime. The mechanisms have code and tests, but there is **no controlled ablation here establishing that they caused the published recall scores or latency**. Their contribution to accuracy and speed remains an empirical question for future same-dataset, same-budget comparisons. The [benchmark audit](research/reports/AUDIT.md) explicitly documents earlier research benchmark paths where these modules were not used.
+
+---
 
 ## Benchmarks
 
@@ -357,7 +395,7 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 | **LongMemEval Oracle — end-to-end answers** | **69% mean judged accuracy** | Three 50-question draws (150 total), local Qwen3.8-9B reader and Gemma-4-e4b using official judge prompts. The 100-question held-out mean was **67%**; the other 50 questions were used in protocol selection |
 | **Research retrieval A/B** | **+8.9 points** | A controlled comparison on the same 282 LoCoMo questions, with the same judge; research pipeline, not the shipped assistant's end-to-end result |
 
-**Interpretation matters.** `evidence@15` and `turn@15` are *retrieval* metrics, not LoCoMo answer accuracy. The LongMemEval run uses **Oracle**, where evidence sessions are supplied; it does not represent the harder LongMemEval S setting. These local-model, local-judge, partial-sample results must not be compared directly with vendor claims from different datasets, readers, judges, retrieval budgets, or evaluation procedures. The 69% is an observed score; projected frontier-model scores are **not** benchmark results.
+**Interpretation matters.** `evidence@15` and `turn@15` are *retrieval* metrics, not LoCoMo answer accuracy. These results do **not** measure a Hebbian/resonance-enabled version of the released assistant, so they cannot be credited to those research mechanisms. The LongMemEval run uses **Oracle**, where evidence sessions are supplied; it does not represent the harder LongMemEval S setting. These local-model, local-judge, partial-sample results must not be compared directly with vendor claims from different datasets, readers, judges, retrieval budgets, or evaluation procedures. The 69% is an observed score; projected frontier-model scores are **not** benchmark results.
 
 ### Accuracy at speed
 
