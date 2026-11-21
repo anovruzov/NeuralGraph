@@ -25,17 +25,20 @@
 
 ## Results at a glance
 
-**Answer quality depends on the reader. Retrieval quality depends on the memory.** These are measurements on specifically identified subsets and judges — not one interchangeable leaderboard.
+**LoCoMo is a 1,540-question benchmark.** NeuralGraph's research campaign tested retrieval across **all ten conversations (1,540 questions)**. The corresponding **end-to-end answer evaluation covered 744 questions**, not all 1,540. The separate shipped assistant and LongMemEval experiments use their own datasets and protocols.
 
-| Result | Reader / system | Evaluation |
+| Result | Scope | What it actually measures |
 |:---|:---|:---|
-| **75% answer accuracy** | **Claude Sonnet** | LongMemEval **Oracle**, 20-question probe, local Gemma **strict_v2** judge. On the *same 20 questions and memory contexts*, Qwen3.8-9B scored **55%**. |
-| **69% mean answer accuracy** | **Qwen3.8-9B (local)** | LongMemEval **Oracle**, three 50-question draws (**150 total; 100 held out**), official LongMemEval judge prompts run by Gemma-4-e4b. |
-| **87.9% evidence@15** | **NeuralGraph shipped retrieval** | LoCoMo conversation 0, sessions 1–8, **66 questions**. This is gold-evidence retrieval coverage, **not** answer accuracy. |
-| **10 ms p50 / 12 ms p95** | **Shipped memory retrieval** | 50-question LongMemEval Oracle sample, including query embedding; not generation latency. |
-| **17 ms recall (reported)** | **Separate team measurement** | Hardware, percentile, and raw same-run artifacts not published. Do **not** pair this with 87.9% as a single benchmark run. |
+| **1,540 LoCoMo questions evaluated** | **All 10 conversations**; research-era retrieval experiments | Full-dataset **retrieval-only** evaluation; not 1,540 generated answers. The flat Tesseract research baseline reported **34.9% recall@10 / 48.0% recall@50** under its loose gold-substring metric (including temporal questions, for which the metric is not reliable). |
+| **72.2% answer accuracy** | **744 / 1,540 LoCoMo questions**, conversations 1–5 | Research-era local-pairs system, **Gemma-4-e4b reader and lenient Gemma judge**. Conversations 6–10 were not completed in this end-to-end campaign. |
+| **75% answer accuracy — Claude Sonnet** | **20 LongMemEval Oracle questions** | Gemma **strict_v2** judge. On the *same 20 questions with identical retrieved contexts*, a Qwen3.8-9B reader scored **55%**. |
+| **69% mean answer accuracy — local Qwen3.8-9B** | **150 LongMemEval Oracle questions** (three 50-question draws; 100 held out) | Official LongMemEval judge prompts run using Gemma-4-e4b. Not directly comparable with Sonnet's different 20-question judging protocol. |
+| **87.9% evidence@15** | **66 LoCoMo questions**, shipped memory assistant | Whether at least one retrieved memory cited a gold evidence message, **not** answer accuracy. |
+| **10 ms p50 / 12 ms p95 retrieval** | **50 LongMemEval Oracle questions**, shipped memory assistant | Includes query embedding; excludes answering. A separate team-reported **17 ms recall** lacks a public same-run artifact. |
 
-**The honest comparison:** 75% Sonnet vs. 55% Qwen is a paired *20-question* reader comparison. The 69% Qwen result is a *different 150-question evaluation with a different judge protocol*; it is not directly comparable with the 75%. Oracle is also easier than LongMemEval-S. See the [full protocols, artifacts, and limitations](docs/BENCHMARKS.md) and [reproduction guide](research/overnight/README.md).
+**Benchmark integrity:** there is **no verified 1,540-question end-to-end answer accuracy** for either Claude Sonnet or Qwen in the published repository. Do not call 72.2% a full-suite score, or turn the 75% Sonnet and 69% Qwen LongMemEval results into LoCoMo scores. The 1,540-question research suite, the 744-answer run, and the current assistant's 66-question evaluation are **different evaluation paths**.
+
+**Evidence:** [complete LoCoMo research results](research/reports/RESULTS_ALL.md) · [benchmark protocols and scores](docs/BENCHMARKS.md) · [LongMemEval reproduction guide](research/overnight/README.md).
 
 ### What NeuralGraph actually is
 
@@ -467,10 +470,12 @@ That makes Electron a plausible **bounded, compute-oriented alternative to repea
 
 ## Benchmarks
 
-**Different metrics answer different questions.** NeuralGraph's research engine, its shipped assistant pipeline, and the local answer reader have separate evaluations. The following results are documented in [BENCHMARKS.md](docs/BENCHMARKS.md) and the [reproduction guide](research/overnight/README.md).
+**Different metrics answer different questions.** NeuralGraph's research engine, its shipped assistant pipeline, and the local answer reader have separate evaluations. The **full 1,540-question LoCoMo suite was used for retrieval-only experiments**; only **744 questions** in that research campaign have an end-to-end answer-accuracy score. Do not interpret the smaller shipped-assistant LoCoMo subset or the LongMemEval reader results as the full LoCoMo score. The following results are documented in [BENCHMARKS.md](docs/BENCHMARKS.md) and the [reproduction guide](research/overnight/README.md).
 
 | Evaluation | Result | What was measured |
 |---|---:|---|
+| **LoCoMo — full research dataset, retrieval only** | **1,540 / 1,540 questions examined** | All ten conversations; retrieval variants and gold-substring recall metrics (not generated-answer accuracy). The original flat Tesseract baseline measured 34.9% recall@10 and 48.0% recall@50 by its loose metric; temporal gold dates make that metric especially limited. [Full results](research/reports/RESULTS_ALL.md) |
+| **LoCoMo — research-era end-to-end answers** | **72.2% on 744 / 1,540** | Local-pairs research system with Gemma-4-e4b reader and lenient Gemma judge; conversations 1–5, remaining conversations not run. This is not the shipped memory assistant's answer score. |
 | **LoCoMo — shipped extraction/retrieval pipeline** | **87.9% evidence@15** | Retrieval-only: in 66 questions from conversation 0, sessions 1–8, at least one retrieved memory cites a gold evidence message. Qwen3.8-9B extractor, nomic embeddings; one conversation and one run per configuration |
 | **LongMemEval Oracle — retrieval** | **93.5% turn@15** | 50-question stratified sample, seed 1; whether retrieved context cites an answer-bearing source turn, not whether the assistant answers correctly |
 | **LongMemEval Oracle — end-to-end answers** | **69% mean judged accuracy** | Three 50-question draws (150 total), local Qwen3.8-9B reader and Gemma-4-e4b using official judge prompts. The 100-question held-out mean was **67%**; the other 50 questions were used in protocol selection |
