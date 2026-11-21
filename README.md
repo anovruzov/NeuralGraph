@@ -1,7 +1,7 @@
 <h1 align="center">NeuralGraph</h1>
 
-<p align="center"><strong>Memory should remember the evidence. Intelligence should learn the connections.</strong></p>
-<p align="center">Local-first, source-traceable memory for AI assistants — plus a Rust research engine exploring Hebbian learning, wave resonance, and electron-flow retrieval.</p>
+<p align="center"><strong>Resonance-driven memory. Adaptive connections. Millisecond recall.</strong></p>
+<p align="center">A Rust memory engine built around <strong>computational electron-flow retrieval, wave resonance, and Hebbian plasticity</strong> — paired with a local-first, source-traceable assistant.</p>
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
@@ -13,7 +13,7 @@
 <p align="center">
   <a href="#results-at-a-glance">Results</a> ·
   <a href="#quick-start">Install</a> ·
-  <a href="#the-electron-engine-research">Electron</a> ·
+  <a href="#the-electron-engine-implemented-selectable">Electron</a> ·
   <a href="#hebbian-learning-and-wave-resonance">Learning & resonance</a> ·
   <a href="#why-retrieval-can-be-fast">Latency</a> ·
   <a href="#benchmarks">Benchmarks</a> ·
@@ -24,6 +24,10 @@
 ---
 
 ## Results at a glance
+
+**Built for the accuracy–latency frontier, with a neuroscience-inspired retrieval architecture implemented in Rust.** Instead of only locating similar text, the associative engine computes multi-signal resonance and can route activation through a gated memory graph. It implements synthetic charge carriers, excitatory/inhibitory scoring, firing thresholds and Hebbian connection updates. The shipped assistant provides a separately measured, source-grounded low-latency retrieval path.
+
+**Team-reported: 83% LoCoMo accuracy (unpublished).** This number was supplied by the project team but **is not substantiated by the benchmark artifacts currently published in this repository**; the exact question subset, answer model, judge and scoring protocol have not been supplied here. It is **not a verified full-1,540 answer score**. The published answer campaign scored **72.2% on 744 questions**, while all **1,540** were exercised in retrieval-only tests. Similarly, a claim that NeuralGraph is the **fastest** requires a same-workload, same-hardware competitive comparison that is not yet published.
 
 **LoCoMo is a 1,540-question benchmark.** NeuralGraph's research campaign tested retrieval across **all ten conversations (1,540 questions)**. The corresponding **end-to-end answer evaluation covered 744 questions**, not all 1,540. The separate shipped assistant and LongMemEval experiments use their own datasets and protocols.
 
@@ -44,14 +48,14 @@
 
 NeuralGraph has **two distinct layers** in one repository:
 
-| | Shipped assistant: `neuralgraph-memory` | Experimental engine: `neuralgraph-research` |
+| | Installable assistant: `neuralgraph-memory` | NeuralGraph associative engine: `neuralgraph-research` |
 |---|---|---|
-| **Purpose** | Remember useful facts from conversations and documents, then retrieve attributable evidence | Investigate associative recall beyond ordinary nearest-neighbor search |
+| **Purpose** | Remember useful facts from conversations and documents, then retrieve attributable evidence | Execute associative graph retrieval through signal resonance, gating, and temporal learning |
 | **Retrieval** | SQLite vector similarity + FTS5/BM25, rank fusion, optional graph expansion | Multi-stage graph retrieval; optional Electron propagation, wave alignment, and learned links |
 | **Learning** | Asynchronous extraction, provenance, temporal reconciliation and supersession | Hebbian co-activation, long-term potentiation and timing-based plasticity |
-| **Status** | Installable Rust binary, MCP tools, CLI, dashboard and API | Implemented Rust research modules and tests; **not wired into the shipped assistant** |
+| **Status** | Installable Rust binary, MCP tools, CLI, dashboard and API | **Implemented and wired into `NeuralGraphService`: Flash resonance runs by default; Electron is configurable; the multi-stage retriever records Hebbian co-activations.** It is a separate crate, not the installed assistant's default runtime. |
 
-The product is useful today: Claude Code, Claude Desktop, Codex and Cursor can retain memories across sessions, recover citations to the original source, inspect changes, and retract incorrect records. The research asks a harder question: **could a memory graph learn better routes to evidence every time it is used?**
+The product is useful today: Claude Code, Claude Desktop, Codex and Cursor can retain memories across sessions, recover citations to the original source, inspect changes, and retract incorrect records. **NeuralGraph already implements associative retrieval.** Its `NeuralGraphService` uses Flash resonance by default, selects Electron flow when enabled, and falls back to the multi-stage neural retriever when neither is selected. The multi-stage path records Hebbian co-activations; temporal STDP and LTP dynamics are also implemented at the service layer. The distinction is **which execution path runs**, not whether these algorithms exist.
 
 ```text
 SHIPPED ASSISTANT                          RESEARCH ENGINE
@@ -70,7 +74,7 @@ conversation / documents                  query + signature
  rank fusion + evidence cutoff           fired / charged memories
           │                                      │
           ▼                                      ▼
- compact cited context → reader          experimental ranked recall
+ compact cited context → reader          charge-ranked recall
 ```
 
 **One rule throughout:** the system must make it easier to get the *right evidence*, not just return a confident-looking answer.
@@ -369,9 +373,9 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 
 ---
 
-## The Electron engine (research)
+## The Electron engine — implemented, selectable
 
-**A search query becomes a signal that travels through memory.** Instead of only sorting passages by embedding distance, NeuralGraph's experimental Electron retriever launches computational *charge carriers* into a weighted memory graph. Each carrier explores relationships, loses or gains effective energy, responds to compatible wave signatures, and contributes to the activation of memories along its route.
+**A search query becomes a signal that travels through memory.** Instead of only sorting passages by embedding distance, NeuralGraph's implemented Electron retriever launches computational *charge carriers* into a weighted memory graph. Each carrier explores relationships, loses or gains effective energy, responds to compatible wave signatures, and contributes to the activation of memories along its route.
 
 This is **not** a physical electron, a quantum computer, or a claim that electrical signals are traveling through the machine. An `Electron` is a Rust struct representing a **bounded search path with state**: charge (+ excitation / − inhibition), energy, phase, frequency, wave signature, current node, hop count, and traversed path.
 
@@ -431,17 +435,17 @@ node_net_charge = sum(excitatory_resonant_energy) − sum(inhibitory_resonant_en
 
 The graph acts as a **weighted circuit for evidence discovery**. Strong, relevant routes reinforce an arriving signal; weak, incompatible, or inhibitory routes may fail to activate downstream memories. The output is still evidence *candidates*, not verified conclusions.
 
-**Read the implementation:** [Electron carrier, propagation, resonance and firing](crates/neuralgraph-research/src/retrieval/electron.rs) · [edge gates](crates/neuralgraph-research/src/retrieval/gating.rs) · [Rust/Python parity tests](crates/neuralgraph-research/tests/electron.rs).
+**Read the implementation:** [Electron carrier, propagation, resonance and firing](crates/neuralgraph-research/src/retrieval/electron.rs) · [service selection and dispatch](crates/neuralgraph-research/src/retrieval/service.rs) · [edge gates](crates/neuralgraph-research/src/retrieval/gating.rs) · [Rust/Python parity tests](crates/neuralgraph-research/tests/electron.rs).
 
 ## Hebbian learning and wave resonance
 
-The Electron is one way to **traverse** a memory graph. The research engine also experiments with how the graph's connections themselves **change with experience**.
+Electron is one **implemented and configurable** way to traverse NeuralGraph's memory circuit. Its default research-service path instead uses Flash resonance. Another implemented path, the multi-stage neural retriever, writes **Hebbian-style co-activation edges** as memories are retrieved together. The temporal manager implements STDP and LTP decay. These mechanisms are real algorithms in the Rust code, even though they are **not all enabled in the same retrieval mode**.
 
 **Hebbian learning — strengthen repeated associations.** In the *separate multi-stage research retriever*, memories retrieved together can form `CO_ACTIVATION` edges; reactivating those edges strengthens them through long-term potentiation (LTP). By default, a co-activation gate requires at least **two activations** before opening. Temporal edges also have spike-timing-dependent plasticity (STDP), decay, and refractory dynamics. This supports a concrete hypothesis: repeated useful paths might become easier to recover without continuously asking a large model to rediscover the same associations.
 
 **Wave resonance — score relationships in signal space.** Memories and queries can carry nine conceptual dimensions: **entity, temporal, action, relational, state, spatial, causal, emotional, quantitative**. Rather than interpreting these as literal physical frequencies, the research code compares vectors, applies synthetic phase/coherence rules, and boosts or dampens compatible activations. A matching keyword alone need not determine the route through the graph.
 
-**What the mechanisms do not imply:** Electron propagation **does not itself write Hebbian co-activation links**. Hebbian reinforcement is implemented in other research retrieval paths. The modules could be combined experimentally, but the README does not claim that a fully integrated Electron + Hebbian product is already running, nor that these mechanisms prove factual truth.
+**Execution details matter:** Electron propagation **does not itself record co-activation edges**. The multi-stage retriever does; the shared service can apply temporal plasticity after retrieval. By default, the research service selects **Flash resonance** (`use_flash_retriever: true`, `use_electron_retriever: false`). Electron is selected by setting `use_electron_retriever: true` in `NeuralGraphServiceConfig`; the multi-stage retriever runs when both options are disabled. These are selectable research-service code paths, not imaginary hardware, physical electrons, or a claim that every mechanism was active in a published benchmark.
 
 **Explore the code:** [co-activation, LTP, STDP](crates/neuralgraph-research/src/retrieval/temporal.rs) · [multi-stage retriever](crates/neuralgraph-research/src/retrieval/retriever.rs) · [wave-interference scoring](crates/neuralgraph-research/src/retrieval/interference.rs) · [wavefront propagation](crates/neuralgraph-research/src/retrieval/wavefront.rs) · [architecture notes](docs/ARCHITECTURE.md).
 
@@ -458,13 +462,13 @@ The design is simple: **do expensive interpretation at ingestion, keep retrieval
 
 **Observed:** **10 ms p50 / 12 ms p95** for retrieval including query embedding on a 50-question LongMemEval Oracle sample. A separately reported **17 ms** recall figure lacks its public raw latency artifact. These figures exclude model answer generation; a separate product-path check reported **3.45 s mean** for retrieval **plus generation**.
 
-### Designed efficiency: the experimental Electron
+### Computational efficiency: the implemented Electron mode
 
 Electron's resonance calculations operate on **small fixed-dimensional signatures**. It begins with a limited vector-search seed set, uses **gates to avoid weak edges**, applies an **energy floor** to stop low-value paths, and caps outgoing branching, hop count, and simulation steps. Each propagation decision is arithmetic over stored graph state; it is **not another LLM inference**.
 
 That makes Electron a plausible **bounded, compute-oriented alternative to repeated model-based graph traversal**. It does *not* establish that Electron is faster than the shipped hybrid retriever: branching can still be costly, the **1 ms step counter is simulation time, not wall-clock latency**, and this repository has **no published same-workload Electron-vs-hybrid latency ablation**. Similarly, there is no ablation attributing published accuracy to Hebbian plasticity or resonance. Those results remain research questions, not performance claims.
 
-**Boundary:** the installable `neuralgraph-memory` system does **not** execute Electron, Hebbian co-activation or wavefront propagation in its normal retrieval path. The documented [benchmarks](#benchmarks) measure the shipped pipeline and other identified research configurations; an [earlier audit](research/reports/AUDIT.md) explicitly found the biological modules unused in that campaign.
+**Runtime/benchmark boundary:** the installable `neuralgraph-memory` assistant has its own hybrid retrieval path. The associative `NeuralGraphService` already **executes** Flash resonance and timing dynamics by default, can execute Electron via a switch, and can execute Hebbian co-activation via its multi-stage path. The published **10 ms p50 / 12 ms p95** figure belongs to the installable assistant, **not** a timed Electron run. The [September audit](research/reports/AUDIT.md) found these biological mechanisms were not invoked by that specific LoCoMo campaign. Their existence is implemented; their contribution to the headline benchmarks is **not isolated by an ablation**.
 
 ---
 
