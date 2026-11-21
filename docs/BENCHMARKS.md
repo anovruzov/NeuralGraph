@@ -1,5 +1,13 @@
 # NeuralGraph Benchmarks
 
+## Latest full LoCoMo answer benchmark — 2–3 November 2026
+
+**83.2% end-to-end judged accuracy (1,281/1,540 questions)** under Mem0's open-source LoCoMo methodology, using a local Qwen3.8-9B extractor, a local Qwen3.6-35B-A3B answerer and **local 35B judge**, top-200 retrieval. Same-run native retrieval measured **31 ms p50, 38 ms p95, 41 ms p99** including CLI startup. At top-50, answer accuracy was **83.0% (1,278/1,540)**. This full-dataset November run supersedes the September partial run **as the headline**; the datasets/protocol configurations of older studies remain documented below.
+
+Read [the full-run methodology, local-model deviations, and category breakdown](LOCOMO_MEM0_PROTOCOL.md). The official Mem0 prompt/runner structure was used, but the **original GPT-4o judge was replaced by a local Qwen 35B judge**. Adaptive prompting was not isolated in that fixed-prompt protocol.
+
+---
+
 One page for every benchmark result across the project's three research
 tracks, with the source commit and evidence class for each number.
 Compiled 2026-09-06 during the repository audit.
