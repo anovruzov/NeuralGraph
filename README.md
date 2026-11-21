@@ -1,58 +1,76 @@
 <h1 align="center">NeuralGraph</h1>
 
-<p align="center"><strong>High-evidence recall. Millisecond retrieval. Your data stays local.</strong></p>
-<p align="center">A persistent, source-traceable memory engine for AI agents — designed for the accuracy–latency frontier.</p>
+<p align="center"><strong>Memory should remember the evidence. Intelligence should learn the connections.</strong></p>
+<p align="center">Local-first, source-traceable memory for AI assistants — plus a Rust research engine exploring Hebbian learning, wave resonance, and electron-flow retrieval.</p>
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-111111?style=flat-square"></a>
   <a href="https://www.rust-lang.org/"><img alt="Rust 1.89+" src="https://img.shields.io/badge/Rust-1.89%2B-B7410E?style=flat-square"></a>
-  <a href="https://modelcontextprotocol.io"><img alt="Model Context Protocol" src="https://img.shields.io/badge/MCP-stdio%20%2B%20HTTP-555555?style=flat-square"></a>
+  <a href="https://modelcontextprotocol.io"><img alt="MCP" src="https://img.shields.io/badge/MCP-stdio%20%2B%20HTTP-555555?style=flat-square"></a>
   <a href="#privacy-by-construction"><img alt="Local-first" src="https://img.shields.io/badge/storage-local%20SQLite-333333?style=flat-square"></a>
 </p>
 
 <p align="center">
+  <a href="#results-at-a-glance">Results</a> ·
   <a href="#quick-start">Install</a> ·
-  <a href="#connect-to-claude">Connect an agent</a> ·
-  <a href="#what-you-get">Capabilities</a> ·
-  <a href="#how-it-works">Architecture</a> ·
-  <a href="#hebbian-learning-and-wave-based-resonance-research">Research principles</a> ·
+  <a href="#the-electron-engine-research">Electron</a> ·
+  <a href="#hebbian-learning-and-wave-resonance">Learning & resonance</a> ·
+  <a href="#why-retrieval-can-be-fast">Latency</a> ·
   <a href="#benchmarks">Benchmarks</a> ·
-  <a href="#cli">CLI</a> ·
-  <a href="#rest-api-and-dashboard">API & dashboard</a>
+  <a href="#connect-to-claude">MCP setup</a> ·
+  <a href="#rest-api-and-dashboard">API</a>
 </p>
 
 ---
 
-NeuralGraph is a persistent memory engine for Claude Code, Claude Desktop, Codex, Cursor, and other [MCP](https://modelcontextprotocol.io)-capable clients. It converts selected conversation content and imported documents into structured memories with **source provenance**, **entities**, **typed relationships**, and **temporal history**. On recall, it combines vector similarity and keyword search, with an optional graph channel. A local model can then answer using retrieved evidence and cite its sources.
+## Results at a glance
 
-The goal is not to store every token forever. It is to preserve useful information, know where it came from, distinguish old facts from current ones, and avoid supplying irrelevant memories to the next answer.
+**Answer quality depends on the reader. Retrieval quality depends on the memory.** These are measurements on specifically identified subsets and judges — not one interchangeable leaderboard.
 
-**The research thesis:** lasting memory should do more than index text. NeuralGraph's separate research engine explores **Hebbian-style learning** (connections strengthen when memories are activated together) and **wave-based resonance** (questions retrieve memories whose structured signals align). These are implemented research mechanisms, **not features of the released `neuralgraph-memory` binary**. [Explore the research principles](#hebbian-learning-and-wave-based-resonance-research).
+| Result | Reader / system | Evaluation |
+|:---|:---|:---|
+| **75% answer accuracy** | **Claude Sonnet** | LongMemEval **Oracle**, 20-question probe, local Gemma **strict_v2** judge. On the *same 20 questions and memory contexts*, Qwen3.8-9B scored **55%**. |
+| **69% mean answer accuracy** | **Qwen3.8-9B (local)** | LongMemEval **Oracle**, three 50-question draws (**150 total; 100 held out**), official LongMemEval judge prompts run by Gemma-4-e4b. |
+| **87.9% evidence@15** | **NeuralGraph shipped retrieval** | LoCoMo conversation 0, sessions 1–8, **66 questions**. This is gold-evidence retrieval coverage, **not** answer accuracy. |
+| **10 ms p50 / 12 ms p95** | **Shipped memory retrieval** | 50-question LongMemEval Oracle sample, including query embedding; not generation latency. |
+| **17 ms recall (reported)** | **Separate team measurement** | Hardware, percentile, and raw same-run artifacts not published. Do **not** pair this with 87.9% as a single benchmark run. |
 
-| Capability | What it means in practice |
-|---|---|
-| **Persistent** | Memory survives chat sessions and model restarts in a SQLite database you control |
-| **Evidence-backed** | Memories retain references to originating messages or documents; the answer interface exposes citations and retrieval evidence |
-| **Temporal** | Earlier observations remain in history when newer facts supersede them |
-| **Hybrid retrieval** | Vector + BM25 rankings fuse via Reciprocal Rank Fusion; graph expansion is optional |
-| **Local-first** | Works with locally running LM Studio or Ollama; no hosted account is required for normal operation |
-| **Inspectable** | Use the CLI, local dashboard, API, or MCP tools to inspect, search, edit, and retract memories |
+**The honest comparison:** 75% Sonnet vs. 55% Qwen is a paired *20-question* reader comparison. The 69% Qwen result is a *different 150-question evaluation with a different judge protocol*; it is not directly comparable with the 75%. Oracle is also easier than LongMemEval-S. See the [full protocols, artifacts, and limitations](docs/BENCHMARKS.md) and [reproduction guide](research/overnight/README.md).
 
-### Retrieval quality and speed
+### What NeuralGraph actually is
 
-| **87.9%** | **17 ms** | **Local-first** |
-|:---:|:---:|:---:|
-| **LoCoMo evidence@15** | **Team-reported recall latency** | **SQLite + local models** |
-| Gold-source evidence retrieved in a 66-question LoCoMo subset | Reported recall measurement; percentile and run artifact not yet published | No hosted NeuralGraph service required |
+NeuralGraph has **two distinct layers** in one repository:
 
-**What the numbers mean:** **87.9%** is evidence retrieval coverage, **not** 87.9% end-to-end LoCoMo answer accuracy. The **17 ms** figure is a separately reported recall latency, **not** a published same-run accuracy/latency benchmark. For a documented latency measurement, the repository records **10 ms p50 / 12 ms p95** retrieval on a separate LongMemEval Oracle sample. The 150-question LongMemEval Oracle *answer* evaluation averaged **69%** under a local judge. [Evaluation protocols and evidence](#benchmarks).
+| | Shipped assistant: \`neuralgraph-memory\` | Experimental engine: \`neuralgraph-research\` |
+|---|---|---|
+| **Purpose** | Remember useful facts from conversations and documents, then retrieve attributable evidence | Investigate associative recall beyond ordinary nearest-neighbor search |
+| **Retrieval** | SQLite vector similarity + FTS5/BM25, rank fusion, optional graph expansion | Multi-stage graph retrieval; optional Electron propagation, wave alignment, and learned links |
+| **Learning** | Asynchronous extraction, provenance, temporal reconciliation and supersession | Hebbian co-activation, long-term potentiation and timing-based plasticity |
+| **Status** | Installable Rust binary, MCP tools, CLI, dashboard and API | Implemented Rust research modules and tests; **not wired into the shipped assistant** |
 
-**The design goal:** source-grounded recall with strong evidence coverage at interactive latency, without treating slow reranking or large context dumps as a substitute for retrieval quality.
+The product is useful today: Claude Code, Claude Desktop, Codex and Cursor can retain memories across sessions, recover citations to the original source, inspect changes, and retract incorrect records. The research asks a harder question: **could a memory graph learn better routes to evidence every time it is used?**
 
-<p align="center">
-  <img src="docs/images/dashboard.png" alt="NeuralGraph local dashboard showing memory activity and recent memories" width="820">
-</p>
+\`\`\`text
+SHIPPED ASSISTANT                          RESEARCH ENGINE
+conversation / documents                  query + signature
+          │                                      │
+          ▼                                      ▼
+ asynchronous extract + grounding         vector-seeded memories
+          │                                      │
+          ▼                                      ▼
+ SQLite: facts + sources + time          Electron: gated signal flow
+          │                                      │
+          ▼                                      ▼
+ vector + keyword + optional graph        resonance + activation
+          │                                      │
+          ▼                                      ▼
+ rank fusion + evidence cutoff           fired / charged memories
+          │                                      │
+          ▼                                      ▼
+ compact cited context → reader          experimental ranked recall
+\`\`\`
 
+**One rule throughout:** the system must make it easier to get the *right evidence*, not just return a confident-looking answer.
 ---
 
 ## Quick Start
@@ -348,39 +366,102 @@ graph hit, or cosine above the floor — otherwise it does not reach the model's
 
 ---
 
-## Hebbian learning and wave-based resonance (research)
+## The Electron engine (research)
 
-**The premise: associations should be learned, and recall should depend on more than matching words.** In NeuralGraph's research engine, Hebbian-style plasticity changes connections between memories as they are used; wave-based resonance scores how the *structure* of a question aligns with the structure of a memory. The two mechanisms address different parts of retrieval: **what has been learned together** and **what is relevant now**.
+**A search query becomes a signal that travels through memory.** Instead of only sorting passages by embedding distance, NeuralGraph's experimental Electron retriever launches computational *charge carriers* into a weighted memory graph. Each carrier explores relationships, loses or gains effective energy, responds to compatible wave signatures, and contributes to the activation of memories along its route.
 
-### 1. Hebbian-style plasticity — memories that activate together develop stronger links
+This is **not** a physical electron, a quantum computer, or a claim that electrical signals are traveling through the machine. An \`Electron\` is a Rust struct representing a **bounded search path with state**: charge (+ excitation / − inhibition), energy, phase, frequency, wave signature, current node, hop count, and traversed path.
 
-When the research retriever recalls multiple memories together, it can record a `CO_ACTIVATION` edge for each pair. Repeated co-activation increments edge activity and strengthens its learned association. A gated traversal does not use such a link until it has been activated enough times (default: two). Temporal connections also support **spike-timing-dependent plasticity (STDP)**, **long-term potentiation (LTP)** and decay.
+### From a question to a firing memory
 
-The intended effect is adaptive association: a memory can become easier to reach through a useful, repeatedly observed connection instead of being found solely because it contains similar text. **This is a learning rule, not proof that two facts are causally related.**
+\`\`\`text
+ Question: "Which change preceded the outage?"
+                       │
+          embed query + wave signature
+                       │
+                       ▼
+             top-20 vector seeds
+                       │
+                       ▼
+          inject one Electron per seed
+                       │
+                  ┌────┴────┐
+                  ▼         ▼
+              [alert]    [change]
+                  │         │
+           gated edges  gated edges        follow strong, permitted links
+                  │         │
+                  ▼         ▼
+            [router]    [approval]          carry query + path history
+                  └─────┬───┘
+                        ▼
+                [incident record]
+           excitation − inhibition
+                        │
+                resonance × charge
+                        │
+             crosses firing threshold?
+                  yes / no
+                   │
+                   ▼
+        ranked fired + charged memories
+\`\`\`
 
-### 2. Wave-based resonance — match the question's signal pattern
+*Illustrative graph, not an experimental output or an assertion that the algorithm proves causality.*
 
-Research memories and queries can carry a numerical **wave signature** across dimensions such as entity, time, action, relationship, location, and causality. The retriever compares these signatures alongside embeddings, keywords, graph connections, and memory importance. Its wave-interference module also uses a theta-*inspired* phase calculation to classify matches as **constructive, partial, or destructive**; wavefront propagation can then boost or suppress candidate memories.
+**The algorithm, in six moves:**
 
-This is **software-based scoring over vectors and timestamps**, not a claim that the system transmits physical waves, performs quantum computation, or simulates real neuronal oscillations. "Resonance" describes aligned memory/query signals.
+1. **Seed.** Run vector search to identify up to **20** entry memories. Inject a positive-charge Electron into each, carrying the query's numerical signal signature.
+2. **Gate.** At each hop, evaluate typed edges through their gates (temporal, semantic, entity, causal, hierarchy, co-activation). Take at most the **eight highest-gated outgoing edges** per carrier; edges with a gate value ≤ 0.05 are ignored.
+3. **Propagate.** Energy is scaled by the absolute edge weight, decay, gate value, and target fairness weighting. The edge sign can reverse charge; a conduction-delay calculation advances a synthetic phase. Each new carrier also blends its current signature with the node it leaves (**70% previous / 30% node**).
+4. **Resonate.** Compare the arriving signature with the destination memory's signal dimensions. Positive alignment can amplify arriving energy up to **3×**, opposition can dampen it toward **0.3×**, and missing/near-zero signatures are neutral. This is inexpensive vector arithmetic, not an LLM call at every hop.
+5. **Fire or suppress.** Each node collects excitatory and inhibitory energy. Its **net charge** must reach the default **0.5** threshold to fire. A phase-coherence adjustment influences firing strength, after which the node enters a **2-step simulated refractory period**.
+6. **Stop and rank.** Carriers stop if energy drops below **0.1** or they reach **five hops**; propagation also stops after at most **50 simulation steps**. Fired memories are ranked by accumulated firing charge, followed when needed by positively charged memories that did not fire.
 
-### 3. The feedback loop
+A carrier's energy progression is approximately:
 
-```text
-Question → query signature + candidate search
-                    ↓
-        resonance / relevance scoring
-                    ↓
-            gated graph recall
-                    ↓
-     co-retrieved memories form / reinforce links
-                    ↓
-     learned associations can influence later recall
-```
+\`\`\`text
+E_next = E_now × |edge_weight| × 0.95 × edge_gate × target_fairness
+signature_next = 0.70 × signature_previous + 0.30 × source_node_signature
+node_net_charge = sum(excitatory_resonant_energy) − sum(inhibitory_resonant_energy)
+\`\`\`
 
-**Implementation:** [Hebbian co-activation, STDP and LTP](crates/neuralgraph-research/src/retrieval/temporal.rs) · [activation gates](crates/neuralgraph-research/src/retrieval/gating.rs) · [wave alignment and multi-stage retrieval](crates/neuralgraph-research/src/retrieval/retriever.rs) · [interference scoring](crates/neuralgraph-research/src/retrieval/interference.rs) · [wavefront propagation](crates/neuralgraph-research/src/retrieval/wavefront.rs) · [design document](docs/ARCHITECTURE.md).
+The graph acts as a **weighted circuit for evidence discovery**. Strong, relevant routes reinforce an arriving signal; weak, incompatible, or inhibitory routes may fail to activate downstream memories. The output is still evidence *candidates*, not verified conclusions.
 
-**What is shipped vs. researched:** the installable `crates/neuralgraph-memory` assistant uses the source-grounded hybrid retrieval pipeline shown [above](#how-it-works). Hebbian co-activation, STDP/LTP, and wave resonance live in `crates/neuralgraph-research` and are not wired into the released assistant's runtime. The mechanisms have code and tests, but there is **no controlled ablation here establishing that they caused the published recall scores or latency**. Their contribution to accuracy and speed remains an empirical question for future same-dataset, same-budget comparisons. The [benchmark audit](research/reports/AUDIT.md) explicitly documents earlier research benchmark paths where these modules were not used.
+**Read the implementation:** [Electron carrier, propagation, resonance and firing](crates/neuralgraph-research/src/retrieval/electron.rs) · [edge gates](crates/neuralgraph-research/src/retrieval/gating.rs) · [Rust/Python parity tests](crates/neuralgraph-research/tests/electron.rs).
+
+## Hebbian learning and wave resonance
+
+The Electron is one way to **traverse** a memory graph. The research engine also experiments with how the graph's connections themselves **change with experience**.
+
+**Hebbian learning — strengthen repeated associations.** In the *separate multi-stage research retriever*, memories retrieved together can form \`CO_ACTIVATION\` edges; reactivating those edges strengthens them through long-term potentiation (LTP). By default, a co-activation gate requires at least **two activations** before opening. Temporal edges also have spike-timing-dependent plasticity (STDP), decay, and refractory dynamics. This supports a concrete hypothesis: repeated useful paths might become easier to recover without continuously asking a large model to rediscover the same associations.
+
+**Wave resonance — score relationships in signal space.** Memories and queries can carry nine conceptual dimensions: **entity, temporal, action, relational, state, spatial, causal, emotional, quantitative**. Rather than interpreting these as literal physical frequencies, the research code compares vectors, applies synthetic phase/coherence rules, and boosts or dampens compatible activations. A matching keyword alone need not determine the route through the graph.
+
+**What the mechanisms do not imply:** Electron propagation **does not itself write Hebbian co-activation links**. Hebbian reinforcement is implemented in other research retrieval paths. The modules could be combined experimentally, but the README does not claim that a fully integrated Electron + Hebbian product is already running, nor that these mechanisms prove factual truth.
+
+**Explore the code:** [co-activation, LTP, STDP](crates/neuralgraph-research/src/retrieval/temporal.rs) · [multi-stage retriever](crates/neuralgraph-research/src/retrieval/retriever.rs) · [wave-interference scoring](crates/neuralgraph-research/src/retrieval/interference.rs) · [wavefront propagation](crates/neuralgraph-research/src/retrieval/wavefront.rs) · [architecture notes](docs/ARCHITECTURE.md).
+
+## Why retrieval can be fast
+
+The design is simple: **do expensive interpretation at ingestion, keep retrieval mostly numerical, and only send a small amount of selected evidence to the reader.** There are two different latency stories:
+
+### Measured speed: the shipped assistant
+
+- **Work moves off the critical path.** Source-grounded extraction and reconciliation happen asynchronously in a worker. A recall request does not need to re-extract the entire conversation.
+- **Local indexed search.** SQLite FTS5/BM25 and vector similarity fetch candidates without a hosted database round trip; optional graph expansion stays inside the memory store.
+- **Cheap score fusion.** Reciprocal Rank Fusion combines ranks instead of calling a generative reranker on each candidate. Lightweight importance, recency, entity and subject priors plus evidence thresholds determine what reaches context.
+- **Short evidence, not a transcript dump.** The reader sees a compact cited context block rather than every historical message.
+
+**Observed:** **10 ms p50 / 12 ms p95** for retrieval including query embedding on a 50-question LongMemEval Oracle sample. A separately reported **17 ms** recall figure lacks its public raw latency artifact. These figures exclude model answer generation; a separate product-path check reported **3.45 s mean** for retrieval **plus generation**.
+
+### Designed efficiency: the experimental Electron
+
+Electron's resonance calculations operate on **small fixed-dimensional signatures**. It begins with a limited vector-search seed set, uses **gates to avoid weak edges**, applies an **energy floor** to stop low-value paths, and caps outgoing branching, hop count, and simulation steps. Each propagation decision is arithmetic over stored graph state; it is **not another LLM inference**.
+
+That makes Electron a plausible **bounded, compute-oriented alternative to repeated model-based graph traversal**. It does *not* establish that Electron is faster than the shipped hybrid retriever: branching can still be costly, the **1 ms step counter is simulation time, not wall-clock latency**, and this repository has **no published same-workload Electron-vs-hybrid latency ablation**. Similarly, there is no ablation attributing published accuracy to Hebbian plasticity or resonance. Those results remain research questions, not performance claims.
+
+**Boundary:** the installable \`neuralgraph-memory\` system does **not** execute Electron, Hebbian co-activation or wavefront propagation in its normal retrieval path. The documented [benchmarks](#benchmarks) measure the shipped pipeline and other identified research configurations; an [earlier audit](research/reports/AUDIT.md) explicitly found the biological modules unused in that campaign.
 
 ---
 
